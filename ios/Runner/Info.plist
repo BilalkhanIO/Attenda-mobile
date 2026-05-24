@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- App metadata -->
+    <key>CFBundleName</key>
+    <string>Attenda</string>
+    <key>CFBundleIdentifier</key>
+    <string>app.attenda.mobile</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+
+    <!-- Background fetch for IP polling -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>fetch</string>
+        <string>remote-notification</string>
+        <string>processing</string>
+    </array>
+
+    <!-- Permitted background task identifiers (WorkManager) -->
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>com.attenda.ipPoll</string>
+    </array>
+
+    <!-- Camera (QR scanning) -->
+    <key>NSCameraUsageDescription</key>
+    <string>Camera is needed to scan the office QR code for attendance check-in.</string>
+
+    <!-- Local network (WiFi IP detection) -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Attenda detects your office WiFi to automatically check you in and out.</string>
+
+    <!-- Location (required by network_info_plus on iOS for WiFi SSID/IP) -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Location access is required to read the current WiFi network name for auto check-in.</string>
+
+    <!-- Push notifications -->
+    <key>NSUserNotificationUsageDescription</key>
+    <string>Attenda sends attendance reminders and shift notifications.</string>
+
+    <!-- Photo library (profile avatar) -->
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Choose a photo for your profile picture.</string>
+
+    <!-- Supported orientations -->
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+</dict>
+</plist>
