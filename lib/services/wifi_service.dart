@@ -78,7 +78,7 @@ class WifiAttendanceService {
   Future<void> checkAndReport() async {
     try {
       final connectivityResult = await _connectivity.checkConnectivity();
-      if (connectivityResult == ConnectivityResult.none) {
+      if (connectivityResult.contains(ConnectivityResult.none)) {
         return; // No internet — skip
       }
 
@@ -112,12 +112,12 @@ class WifiAttendanceService {
   }
 
   // ─── Connectivity change handler ──────────────────
-  void _onConnectivityChanged(ConnectivityResult result) async {
-    if (result == ConnectivityResult.wifi) {
+  void _onConnectivityChanged(List<ConnectivityResult> results) async {
+    if (results.contains(ConnectivityResult.wifi)) {
       // Reconnected to WiFi
       _cancelGracePeriod();
       await checkAndReport();
-    } else if (result == ConnectivityResult.none || result == ConnectivityResult.mobile) {
+    } else if (results.contains(ConnectivityResult.none) || results.contains(ConnectivityResult.mobile)) {
       // Left WiFi
       if (_checkedInViaIp) {
         _startGracePeriod();
@@ -187,7 +187,7 @@ class WifiAttendanceService {
   Future<bool> _isVpnActive() async {
     try {
       final connectivityResult = await _connectivity.checkConnectivity();
-      return connectivityResult == ConnectivityResult.vpn;
+      return connectivityResult.contains(ConnectivityResult.vpn);
     } catch (_) {
       return false;
     }
@@ -207,7 +207,7 @@ class WifiAttendanceService {
     if (box.isEmpty) return;
 
     final connectivity = await _connectivity.checkConnectivity();
-    if (connectivity == ConnectivityResult.none) return;
+    if (connectivity.contains(ConnectivityResult.none)) return;
 
     debugPrint('[Offline] Syncing ${box.length} queued events...');
     final keys = box.keys.toList();

@@ -14,8 +14,7 @@ dependencies:
   dio: ^5.4.0
 
   # State management
-  flutter_riverpod: ^2.5.1
-  riverpod_annotation: ^2.3.4
+  provider: ^6.1.2
 
   # Local storage
   shared_preferences: ^2.2.2
@@ -60,11 +59,17 @@ dependencies:
   jwt_decoder: ^2.0.1
   equatable: ^2.0.5
 
+  # Background tasks
+  workmanager: ^0.5.2
+
+  # Offline queue
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
-  riverpod_generator: ^2.3.9
   build_runner: ^2.4.8
 
 flutter:
@@ -81,16 +86,3 @@ flutter:
           weight: 600
         - asset: assets/fonts/DMSans-Bold.ttf
           weight: 700
-
-  # Background tasks
-  workmanager: ^0.5.2
-
-  # Offline queue
-  hive: ^2.2.3
-  hive_flutter: ^1.1.0
-
-  # VPN detection
-  vpn_status: ^1.1.0
-
-  # Connectivity
-  internet_connection_checker: ^1.0.0+1
