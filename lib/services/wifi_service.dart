@@ -170,6 +170,10 @@ class WifiAttendanceService {
         _checkedInViaIp = true;
         onStatusChange?.call('checked_in');
         debugPrint('[WiFi] Auto check-in via IP $ip');
+      } else if (action == 'already_in') {
+        // App restarted while already checked in — restore state so disconnect triggers grace period
+        _checkedInViaIp = true;
+        debugPrint('[WiFi] Already checked in — state restored');
       } else if (action == 'grace_period_cancelled') {
         debugPrint('[WiFi] Server cancelled grace period');
       }
@@ -251,6 +255,10 @@ void _bgCallback() {
   Workmanager().executeTask((task, inputData) async {
     if (task == _ipPollTask) {
       try {
+        // Background isolate has separate memory — Hive must be re-initialized
+        await Hive.initFlutter();
+        if (!Hive.isBoxOpen(_queueBox)) await Hive.openBox(_queueBox);
+        if (!Hive.isBoxOpen(_stateBox)) await Hive.openBox(_stateBox);
         await WifiAttendanceService().checkAndReport();
       } catch (e) {
         debugPrint('[BG] IP poll failed: $e');
