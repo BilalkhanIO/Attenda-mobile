@@ -60,7 +60,7 @@ class WifiAttendanceService {
       _ipPollTask,
       _ipPollTask,
       frequency:     _pollInterval,
-      existingWorkPolicy: ExistingWorkPolicy.keep,
+      existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
       constraints: Constraints(networkType: NetworkType.connected),
     );
 
