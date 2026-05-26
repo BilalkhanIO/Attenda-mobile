@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_provider.dart';
+import '../../services/api_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
 
@@ -183,7 +184,15 @@ class _LoginScreenState extends State<LoginScreen> {
               AppButton(
                 label: 'Send Reset Link',
                 onPressed: () async {
+                  final email = emailCtrl.text.trim();
+                  if (email.isEmpty || !email.contains('@')) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid email address')));
+                    return;
+                  }
                   Navigator.pop(ctx);
+                  try {
+                    await api.forgotPassword(email);
+                  } catch (_) {}
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('If that email exists, a reset link has been sent.')),
                   );

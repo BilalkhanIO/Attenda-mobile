@@ -60,6 +60,15 @@ class ApiService {
     await _storage.deleteAll();
   }
 
+  Future<void> forgotPassword(String email) async {
+    await _dio.post('/auth/forgot-password', data: {'email': email});
+  }
+
+  Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
+    final res = await Dio().post('$_baseUrl/auth/refresh', data: {'refresh_token': refreshToken});
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   // ─── Users ────────────────────────────────────────
   Future<Map<String, dynamic>> getMe() async {
     final res = await _dio.get('/users/me');
@@ -82,8 +91,12 @@ class ApiService {
     return res.data['data'] as List;
   }
 
-  Future<Map<String, dynamic>> checkIn({String type = 'manual', String? qrCode}) async {
-    final res = await _dio.post('/attendance/checkin', data: {'type': type, if (qrCode != null) 'qr_code': qrCode});
+  Future<Map<String, dynamic>> checkIn({String type = 'manual', String? qrCode, String? durationType}) async {
+    final res = await _dio.post('/attendance/checkin', data: {
+      'type': type,
+      if (qrCode != null) 'qr_code': qrCode,
+      if (type == 'remote' && durationType != null) 'duration_type': durationType,
+    });
     return res.data['data'] as Map<String, dynamic>;
   }
 
@@ -150,6 +163,11 @@ class ApiService {
   Future<List<dynamic>> getMyPayslips() async {
     final res = await _dio.get('/payroll/me');
     return res.data['data'] as List;
+  }
+
+  Future<Map<String, dynamic>> downloadPayslip(String id) async {
+    final res = await _dio.get('/payroll/payslips/$id/download');
+    return res.data['data'] as Map<String, dynamic>;
   }
 
   // ─── Performance ──────────────────────────────────

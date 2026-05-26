@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../services/auth_provider.dart';
 import '../../services/api_service.dart';
 import '../../utils/theme.dart';
@@ -143,7 +144,21 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                               if (gross != null)
                                 Text('\$${gross}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.dark950)),
                               if (ready)
-                                const Icon(Icons.download_outlined, size: 18, color: AppColors.primary600),
+                                GestureDetector(
+                                  onTap: () async {
+                                    try {
+                                      final res = await api.downloadPayslip(p['id'] as String);
+                                      final url = res['url'] as String?;
+                                      if (url != null) {
+                                        final uri = Uri.parse(url);
+                                        if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                      }
+                                    } catch (e) {
+                                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Download failed: $e')));
+                                    }
+                                  },
+                                  child: const Icon(Icons.download_outlined, size: 18, color: AppColors.primary600),
+                                ),
                             ]),
                           ])),
                         );
@@ -175,12 +190,12 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: double.tryParse(score.toString())! >= 80 ? AppColors.success100 : AppColors.warning100,
+                                    color: (double.tryParse(score.toString()) ?? 0) >= 80 ? AppColors.success100 : AppColors.warning100,
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: Text('${score.toString()}/100',
                                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
-                                          color: double.tryParse(score.toString())! >= 80 ? AppColors.success700 : AppColors.warning800)),
+                                          color: (double.tryParse(score.toString()) ?? 0) >= 80 ? AppColors.success700 : AppColors.warning800)),
                                 ),
                             ]),
                             if (submitted) ...[

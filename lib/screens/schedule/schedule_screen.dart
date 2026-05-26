@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
+import '../../services/auth_provider.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
 
@@ -102,7 +104,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
                   itemBuilder: (_, i) {
                     final sw = _swaps[i];
                     final status = sw['status'] as String? ?? 'pending';
-                    final isRequester = true; // TODO: check against current user
+                    final currentUserId = context.read<AuthProvider>().user?.id;
+                    final requesterId = (sw['requester'] as Map?)?['id'] as String? ?? sw['requester_id'] as String?;
+                    final isRequester = currentUserId != null && currentUserId == requesterId;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: AppCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -22,7 +22,7 @@ class _RemoteWorkScreenState extends State<RemoteWorkScreen> {
   Future<void> _submit() async {
     setState(() => _loading = true);
     try {
-      await api.checkIn(type: 'remote');
+      await api.checkIn(type: 'remote', durationType: _duration);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('🏠 Remote work request submitted!')));
         context.pop();

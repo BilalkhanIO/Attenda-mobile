@@ -37,7 +37,29 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> _init() async {
     try {
-      final token = await _storage.read(key: 'access_token');
+      String? token = await _storage.read(key: 'access_token');
+
+      if (token != null && JwtDecoder.isExpired(token)) {
+        // Try to refresh before giving up
+        final refresh = await _storage.read(key: 'refresh_token');
+        if (refresh != null) {
+          try {
+            final data = await api.refreshToken(refresh);
+            token = data['access_token'] as String?;
+            if (token != null) {
+              await _storage.write(key: 'access_token', value: token);
+              final newRefresh = data['refresh_token'] as String?;
+              if (newRefresh != null) await _storage.write(key: 'refresh_token', value: newRefresh);
+            }
+          } catch (_) {
+            token = null;
+            await _storage.deleteAll();
+          }
+        } else {
+          token = null;
+        }
+      }
+
       if (token != null && !JwtDecoder.isExpired(token)) {
         final claims = JwtDecoder.decode(token);
         _user = AuthUser(

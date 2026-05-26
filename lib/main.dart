@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'services/auth_provider.dart';
 import 'services/wifi_service.dart';
@@ -19,13 +20,18 @@ void main() async {
   );
 }
 
-class AttendaApp extends StatelessWidget {
+class AttendaApp extends StatefulWidget {
   const AttendaApp({super.key});
+  @override
+  State<AttendaApp> createState() => _AttendaAppState();
+}
+
+class _AttendaAppState extends State<AttendaApp> {
+  GoRouter? _router;
 
   @override
   Widget build(BuildContext context) {
-    final auth   = context.watch<AuthProvider>();
-    final router = buildRouter(auth);
+    final auth = context.watch<AuthProvider>();
 
     if (auth.isLoading) {
       return MaterialApp(
@@ -51,11 +57,13 @@ class AttendaApp extends StatelessWidget {
       );
     }
 
+    _router ??= buildRouter(auth);
+
     return MaterialApp.router(
       title: 'Attenda',
       theme: AppTheme.light,
       debugShowCheckedModeBanner: false,
-      routerConfig: router,
+      routerConfig: _router!,
     );
   }
 }

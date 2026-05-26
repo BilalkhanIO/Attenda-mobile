@@ -25,10 +25,10 @@ class _RequestLeaveScreenState extends State<RequestLeaveScreen> {
   int get _workingDays {
     if (_start == null || _end == null) return 0;
     int count = 0;
-    final cur = DateTime(_start!.year, _start!.month, _start!.day);
+    var cur = DateTime(_start!.year, _start!.month, _start!.day);
     while (!cur.isAfter(_end!)) {
       if (cur.weekday != DateTime.saturday && cur.weekday != DateTime.sunday) count++;
-      cur.add(const Duration(days: 1));
+      cur = cur.add(const Duration(days: 1));
     }
     return count;
   }
