@@ -5,6 +5,7 @@ import 'services/auth_provider.dart';
 import 'services/wifi_service.dart';
 import 'router.dart';
 import 'utils/theme.dart';
+import 'widgets/attenda_logo.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,13 +44,9 @@ class _AttendaAppState extends State<AttendaApp> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.wifi_rounded, color: Colors.white, size: 32),
-                  SizedBox(width: 12),
-                  Text('Attenda', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Colors.white)),
-                ]),
-                SizedBox(height: 32),
-                CircularProgressIndicator(color: AppColors.primary600),
+                const AttendaLogo(iconSize: 52, variant: AttendaLogoVariant.dark),
+                const SizedBox(height: 32),
+                const CircularProgressIndicator(color: AppColors.primary600),
               ],
             ),
           ),

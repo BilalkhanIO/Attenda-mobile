@@ -5,6 +5,7 @@ import '../../services/auth_provider.dart';
 import '../../services/api_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
+import '../../widgets/attenda_logo.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -60,15 +61,10 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 32),
 
               // Logo
-              Row(children: [
-                Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(color: AppColors.primary600, borderRadius: BorderRadius.circular(12)),
-                  child: const Icon(Icons.wifi_rounded, color: Colors.white, size: 22),
-                ),
-                const SizedBox(width: 12),
-                const Text('Attenda', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.dark950)),
-              ]),
+              const AttendaLogo(
+                iconSize: 44,
+                variant: AttendaLogoVariant.light,
+              ),
 
               const SizedBox(height: 48),
               const Text('Welcome back', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: AppColors.dark950)),
