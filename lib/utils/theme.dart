@@ -3,12 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 
 // ─── Attenda Color Tokens ─────────────────────────────
 class AppColors {
-  static const primary600  = Color(0xFF1D4ED8);
-  static const primary100  = Color(0xFFDBEAFE);
-  static const primary900  = Color(0xFF1E3A8A);
-  static const dark950     = Color(0xFF0F172A);
-  static const dark800     = Color(0xFF1E293B);
-  static const dark700     = Color(0xFF334155);
+  static const primary600  = Color(0xFFF15153); // Imperial Red
+  static const primary100  = Color(0xFFFDE8E8);
+  static const primary900  = Color(0xFFB91C1E);
+  static const dark950     = Color(0xFF321847); // Violet
+  static const dark800     = Color(0xFF4A2466);
+  static const dark700     = Color(0xFF5E2E7A);
   static const gray500     = Color(0xFF64748B);
   static const gray200     = Color(0xFFE2E8F0);
   static const gray100     = Color(0xFFF1F5F9);

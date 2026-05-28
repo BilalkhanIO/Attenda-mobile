@@ -32,8 +32,13 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() { _loading = true; _error = null; });
     try {
-      await context.read<AuthProvider>().login(_emailCtrl.text.trim(), _passCtrl.text);
-      if (mounted) context.go('/home');
+      final tempToken = await context.read<AuthProvider>().login(_emailCtrl.text.trim(), _passCtrl.text);
+      if (!mounted) return;
+      if (tempToken != null) {
+        context.go('/2fa', extra: tempToken);
+      } else {
+        context.go('/home');
+      }
     } catch (e) {
       setState(() { _error = _parseError(e.toString()); });
     } finally {

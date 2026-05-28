@@ -47,10 +47,10 @@ class _AttendaWordmark extends StatelessWidget {
   Widget build(BuildContext context) {
     final baseColor = variant == AttendaLogoVariant.dark
         ? const Color(0xFFF1F5F9)
-        : const Color(0xFF0F172A);
+        : const Color(0xFF321847);
     final accentColor = variant == AttendaLogoVariant.dark
-        ? const Color(0xFF3B82F6)
-        : const Color(0xFF1D4ED8);
+        ? const Color(0xFFF15153)
+        : const Color(0xFFF15153);
 
     final style = TextStyle(
       fontFamily: 'DMSans',
@@ -91,7 +91,7 @@ class _AttendaIconPainter extends CustomPainter {
       const Offset(22, 22),
       20,
       Paint()
-        ..color = isDark ? const Color(0xFF1D4ED8) : const Color(0xFF1D4ED8)
+        ..color = isDark ? const Color(0xFFF15153) : const Color(0xFFF15153)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5,
     );
@@ -102,12 +102,12 @@ class _AttendaIconPainter extends CustomPainter {
       14,
       Paint()
         ..color = isDark
-            ? const Color(0xFF1D4ED8).withOpacity(0.15)
-            : const Color(0xFFDBEAFE),
+            ? const Color(0xFFF15153).withOpacity(0.15)
+            : const Color(0xFFFDE8E8),
     );
 
     // ── Clock ticks ─────────────────────────────────────────
-    final tickColor = isDark ? const Color(0xFF3B82F6) : const Color(0xFF1D4ED8);
+    final tickColor = isDark ? const Color(0xFFF15153) : const Color(0xFFF15153);
 
     // Top tick (prominent)
     _drawLine(canvas, const Offset(22, 9), const Offset(22, 12), tickColor, 2.0);
@@ -123,7 +123,7 @@ class _AttendaIconPainter extends CustomPainter {
       canvas,
       const Offset(22, 22),
       const Offset(22, 15),
-      isDark ? const Color(0xFF60A5FA) : const Color(0xFF1D4ED8),
+      isDark ? const Color(0xFFF15153) : const Color(0xFFF15153),
       2.2,
     );
 
@@ -132,7 +132,7 @@ class _AttendaIconPainter extends CustomPainter {
       canvas,
       const Offset(22, 22),
       const Offset(27.5, 22),
-      isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
+      isDark ? const Color(0xFFF1F5F9) : const Color(0xFF321847),
       2.2,
     );
 
@@ -140,14 +140,14 @@ class _AttendaIconPainter extends CustomPainter {
     canvas.drawCircle(
       const Offset(22, 22),
       2.2,
-      Paint()..color = isDark ? const Color(0xFF3B82F6) : const Color(0xFF1D4ED8),
+      Paint()..color = isDark ? const Color(0xFFF15153) : const Color(0xFFF15153),
     );
 
     // ── Badge background (dark halo) ─────────────────────────
     canvas.drawCircle(
       const Offset(33, 33),
       7,
-      Paint()..color = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      Paint()..color = isDark ? const Color(0xFF321847) : const Color(0xFFF8FAFC),
     );
 
     // ── Green badge fill ─────────────────────────────────────

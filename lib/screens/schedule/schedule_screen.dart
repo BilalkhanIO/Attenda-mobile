@@ -63,7 +63,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
                       final shift = a['shift'] as Map? ?? {};
                       final date  = DateTime.parse(a['date'] as String);
                       final isToday = DateFormat('yyyy-MM-dd').format(date) == DateFormat('yyyy-MM-dd').format(DateTime.now());
-                      final color = shift['color'] as String? ?? '#1D4ED8';
+                      final color = shift['color'] as String? ?? '#f15153';
                       final c     = Color(int.parse(color.replaceFirst('#', '0xFF')));
 
                       return Padding(

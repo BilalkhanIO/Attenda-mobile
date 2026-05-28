@@ -150,7 +150,7 @@ class ApiService {
   }
 
   Future<List<dynamic>> getSwapRequests() async {
-    final res = await _dio.get('/shifts/swaps');
+    final res = await _dio.get('/shifts/swaps/me');
     return res.data['data'] as List;
   }
 

@@ -75,8 +75,14 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> login(String email, String password) async {
+  // Returns null on success, or the temp_token string if 2FA is required.
+  Future<String?> login(String email, String password) async {
     final data = await api.login(email, password);
+
+    if (data['requires_2fa'] == true) {
+      return data['temp_token'] as String?;
+    }
+
     await _storage.write(key: 'access_token',  value: data['access_token'] as String);
     await _storage.write(key: 'refresh_token', value: data['refresh_token'] as String);
 
@@ -90,6 +96,7 @@ class AuthProvider extends ChangeNotifier {
       email: claims['email'] as String,
     );
     notifyListeners();
+    return null;
   }
 
   Future<void> logout() async {
