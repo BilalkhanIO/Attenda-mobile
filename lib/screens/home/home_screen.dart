@@ -24,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _gracePeriod   = false;
   Timer? _timer;
   Duration _elapsed   = Duration.zero;
+  int _unreadNotifs   = 0;
 
   @override
   void initState() {
@@ -110,6 +111,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
+
+    // Update unread notification count (non-blocking)
+    try {
+      final count = await api.getNotificationCount();
+      if (mounted) setState(() => _unreadNotifs = count);
+    } catch (_) {}
   }
 
   void _startTimer() {
@@ -166,7 +173,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     Text('$greeting,', style: const TextStyle(fontSize: 14, color: AppColors.gray500)),
                     Text(user.name.split(' ').first, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.dark950)),
                   ]),
-                  UserAvatar(name: user.name),
+                  Row(children: [
+                    // Notification bell
+                    GestureDetector(
+                      onTap: () async {
+                        await context.push('/home/notifications');
+                        _load(); // refresh count on return
+                      },
+                      child: Container(
+                        width: 40, height: 40,
+                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                        child: Stack(alignment: Alignment.center, children: [
+                          const Icon(Icons.notifications_outlined, size: 20, color: AppColors.dark950),
+                          if (_unreadNotifs > 0) Positioned(
+                            top: 8, right: 8,
+                            child: Container(
+                              width: 8, height: 8,
+                              decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    UserAvatar(name: user.name),
+                  ]),
                 ]),
 
                 const SizedBox(height: 20),

@@ -194,6 +194,29 @@ class ApiService {
     final res = await _dio.get('/performance/goals');
     return res.data['data'] as List;
   }
+
+  // ─── Notifications ────────────────────────────────
+  Future<Map<String, dynamic>> getNotifications({int page = 1, int limit = 20}) async {
+    final res = await _dio.get('/notifications', queryParameters: {'page': page, 'limit': limit});
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<int> getNotificationCount() async {
+    final res = await _dio.get('/notifications/count');
+    return (res.data['data']['count'] as int?) ?? 0;
+  }
+
+  Future<void> markNotificationRead(String id) async {
+    await _dio.put('/notifications/$id/read');
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    await _dio.put('/notifications/read-all');
+  }
+
+  Future<void> deleteNotification(String id) async {
+    await _dio.delete('/notifications/$id');
+  }
 }
 
 final api = ApiService();
