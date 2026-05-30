@@ -13,16 +13,12 @@ class RemoteWorkScreen extends StatefulWidget {
 
 class _RemoteWorkScreenState extends State<RemoteWorkScreen> {
   String _duration = 'full_day';
-  final _noteCtrl  = TextEditingController();
   bool _loading    = false;
-
-  @override
-  void dispose() { _noteCtrl.dispose(); super.dispose(); }
 
   Future<void> _submit() async {
     setState(() => _loading = true);
     try {
-      await api.checkIn(type: 'remote');
+      await api.checkIn(type: 'remote', durationType: _duration);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('🏠 Remote work request submitted!')));
         context.pop();
@@ -88,13 +84,6 @@ class _RemoteWorkScreenState extends State<RemoteWorkScreen> {
             ),
           ),
 
-        const SizedBox(height: 8),
-        const Text('Note (optional)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: _noteCtrl,
-          decoration: const InputDecoration(hintText: 'e.g. Home — broadband issue at office'),
-        ),
         const SizedBox(height: 28),
         AppButton(label: 'Request Remote Work', icon: Icons.home_rounded, onPressed: _submit, loading: _loading),
       ]),

@@ -37,7 +37,29 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> _init() async {
     try {
-      final token = await _storage.read(key: 'access_token');
+      String? token = await _storage.read(key: 'access_token');
+
+      if (token != null && JwtDecoder.isExpired(token)) {
+        // Try to refresh before giving up
+        final refresh = await _storage.read(key: 'refresh_token');
+        if (refresh != null) {
+          try {
+            final data = await api.refreshToken(refresh);
+            token = data['access_token'] as String?;
+            if (token != null) {
+              await _storage.write(key: 'access_token', value: token);
+              final newRefresh = data['refresh_token'] as String?;
+              if (newRefresh != null) await _storage.write(key: 'refresh_token', value: newRefresh);
+            }
+          } catch (_) {
+            token = null;
+            await _storage.deleteAll();
+          }
+        } else {
+          token = null;
+        }
+      }
+
       if (token != null && !JwtDecoder.isExpired(token)) {
         final claims = JwtDecoder.decode(token);
         _user = AuthUser(
@@ -53,8 +75,14 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> login(String email, String password) async {
+  // Returns null on success, or the temp_token string if 2FA is required.
+  Future<String?> login(String email, String password) async {
     final data = await api.login(email, password);
+
+    if (data['requires_2fa'] == true) {
+      return data['temp_token'] as String?;
+    }
+
     await _storage.write(key: 'access_token',  value: data['access_token'] as String);
     await _storage.write(key: 'refresh_token', value: data['refresh_token'] as String);
 
@@ -68,6 +96,7 @@ class AuthProvider extends ChangeNotifier {
       email: claims['email'] as String,
     );
     notifyListeners();
+    return null;
   }
 
   Future<void> logout() async {

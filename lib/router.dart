@@ -11,6 +11,8 @@ import '../screens/leave/request_leave_screen.dart';
 import '../screens/schedule/schedule_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/home/remote_work_screen.dart';
+import '../screens/home/remote_detail_screen.dart';
+import '../screens/notifications/notifications_screen.dart';
 import 'shell.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
@@ -39,6 +41,13 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
           builder: (_, __) => const HomeScreen(),
           routes: [
             GoRoute(path: 'remote', builder: (_, __) => const RemoteWorkScreen()),
+            GoRoute(
+              path: 'remote/detail',
+              builder: (_, state) => RemoteDetailScreen(
+                sessionId: state.uri.queryParameters['id'] ?? '',
+              ),
+            ),
+            GoRoute(path: 'notifications', builder: (_, __) => const NotificationsScreen()),
           ],
         ),
         GoRoute(

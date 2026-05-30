@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_provider.dart';
+import '../../services/api_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
+import '../../widgets/attenda_logo.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -30,8 +32,13 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() { _loading = true; _error = null; });
     try {
-      await context.read<AuthProvider>().login(_emailCtrl.text.trim(), _passCtrl.text);
-      if (mounted) context.go('/home');
+      final tempToken = await context.read<AuthProvider>().login(_emailCtrl.text.trim(), _passCtrl.text);
+      if (!mounted) return;
+      if (tempToken != null) {
+        context.go('/2fa', extra: tempToken);
+      } else {
+        context.go('/home');
+      }
     } catch (e) {
       setState(() { _error = _parseError(e.toString()); });
     } finally {
@@ -59,15 +66,10 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 32),
 
               // Logo
-              Row(children: [
-                Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(color: AppColors.primary600, borderRadius: BorderRadius.circular(12)),
-                  child: const Icon(Icons.wifi_rounded, color: Colors.white, size: 22),
-                ),
-                const SizedBox(width: 12),
-                const Text('Attenda', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.dark950)),
-              ]),
+              const AttendaLogo(
+                iconSize: 44,
+                variant: AttendaLogoVariant.light,
+              ),
 
               const SizedBox(height: 48),
               const Text('Welcome back', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: AppColors.dark950)),
@@ -183,7 +185,15 @@ class _LoginScreenState extends State<LoginScreen> {
               AppButton(
                 label: 'Send Reset Link',
                 onPressed: () async {
+                  final email = emailCtrl.text.trim();
+                  if (email.isEmpty || !email.contains('@')) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid email address')));
+                    return;
+                  }
                   Navigator.pop(ctx);
+                  try {
+                    await api.forgotPassword(email);
+                  } catch (_) {}
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('If that email exists, a reset link has been sent.')),
                   );

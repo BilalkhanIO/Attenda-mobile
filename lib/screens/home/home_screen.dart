@@ -18,11 +18,13 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? _todayRecord;
   Map<String, dynamic>? _nextShift;
+  Map<String, dynamic>? _remoteSession;
   bool _loading       = true;
   bool _vpnDetected   = false;
   bool _gracePeriod   = false;
   Timer? _timer;
   Duration _elapsed   = Duration.zero;
+  int _unreadNotifs   = 0;
 
   @override
   void initState() {
@@ -85,17 +87,36 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       final records = await api.getMyAttendance(days: 1);
       final shifts  = await api.getMyShifts();
+
+      final todayRecord = records.isNotEmpty ? records.first as Map<String, dynamic> : null;
+      final status = todayRecord?['status'] as String? ?? 'none';
+
+      Map<String, dynamic>? remoteSession;
+      if (status == 'remote') {
+        try {
+          final sessions = await api.getMyRemoteSessions();
+          remoteSession = sessions.isNotEmpty ? sessions.first as Map<String, dynamic> : null;
+        } catch (_) {}
+      }
+
       if (mounted) {
         setState(() {
-          _todayRecord = records.isNotEmpty ? records.first as Map<String, dynamic> : null;
-          _nextShift   = shifts.isNotEmpty  ? shifts.first  as Map<String, dynamic> : null;
-          _loading     = false;
+          _todayRecord   = todayRecord;
+          _nextShift     = shifts.isNotEmpty ? shifts.first as Map<String, dynamic> : null;
+          _remoteSession = remoteSession;
+          _loading       = false;
         });
         _updateElapsed();
       }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
+
+    // Update unread notification count (non-blocking)
+    try {
+      final count = await api.getNotificationCount();
+      if (mounted) setState(() => _unreadNotifs = count);
+    } catch (_) {}
   }
 
   void _startTimer() {
@@ -152,7 +173,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     Text('$greeting,', style: const TextStyle(fontSize: 14, color: AppColors.gray500)),
                     Text(user.name.split(' ').first, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.dark950)),
                   ]),
-                  UserAvatar(name: user.name),
+                  Row(children: [
+                    // Notification bell
+                    GestureDetector(
+                      onTap: () async {
+                        await context.push('/home/notifications');
+                        _load(); // refresh count on return
+                      },
+                      child: Container(
+                        width: 40, height: 40,
+                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                        child: Stack(alignment: Alignment.center, children: [
+                          const Icon(Icons.notifications_outlined, size: 20, color: AppColors.dark950),
+                          if (_unreadNotifs > 0) Positioned(
+                            top: 8, right: 8,
+                            child: Container(
+                              width: 8, height: 8,
+                              decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    UserAvatar(name: user.name),
+                  ]),
                 ]),
 
                 const SizedBox(height: 20),
@@ -253,7 +298,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       cardColor   = AppColors.purple100;
       cardIcon    = Icons.home_rounded;
       statusTitle = 'Working Remotely 🏠';
-      statusSub   = 'AI will check in with you via WhatsApp';
+      final sessionStatus = _remoteSession?['status'] as String? ?? 'pending';
+      statusSub   = sessionStatus == 'approved'
+          ? 'Approved — AI will check in with you via WhatsApp'
+          : sessionStatus == 'rejected'
+              ? 'Rejected by manager — please contact HR'
+              : 'Pending manager approval';
     } else if (_checkedOut) {
       cardColor   = AppColors.gray100;
       cardIcon    = Icons.logout;
@@ -312,6 +362,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             onPressed: () => context.push('/attendance/qr'),
           ),
         ],
+
+        // View remote activity — show when approved remote session exists
+        if (_isRemote && _remoteSession != null && _remoteSession!['status'] == 'approved') ...[
+          const SizedBox(height: 12),
+          AppButton(
+            label: 'View My Activity',
+            icon: Icons.chat_bubble_outline,
+            outline: true,
+            onPressed: () => context.push('/home/remote/detail?id=${_remoteSession!['id']}'),
+          ),
+        ],
       ]),
     );
   }
@@ -339,7 +400,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildQuickActions(BuildContext context) {
     final actions = [
       _QuickAction(icon: Icons.beach_access_outlined, label: 'Request\nLeave', color: AppColors.primary600, bg: AppColors.primary100, onTap: () => context.push('/leave/request')),
-      _QuickAction(icon: Icons.home_outlined, label: 'Work\nRemote', color: AppColors.purple700, bg: AppColors.purple100, onTap: () => context.push('/home/remote')),
+      if (!_checkedIn && !_checkedOut && !_isRemote)
+        _QuickAction(icon: Icons.home_outlined, label: 'Work\nRemote', color: AppColors.purple700, bg: AppColors.purple100, onTap: () => context.push('/home/remote')),
       _QuickAction(icon: Icons.calendar_today_outlined, label: 'My\nSchedule', color: AppColors.teal700, bg: AppColors.teal100, onTap: () => context.go('/schedule')),
       _QuickAction(icon: Icons.receipt_long_outlined, label: 'My\nPayslips', color: AppColors.warning800, bg: AppColors.warning100, onTap: () => context.go('/profile')),
     ];

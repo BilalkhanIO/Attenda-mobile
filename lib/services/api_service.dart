@@ -60,6 +60,15 @@ class ApiService {
     await _storage.deleteAll();
   }
 
+  Future<void> forgotPassword(String email) async {
+    await _dio.post('/auth/forgot-password', data: {'email': email});
+  }
+
+  Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
+    final res = await Dio().post('$_baseUrl/auth/refresh', data: {'refresh_token': refreshToken});
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   // ─── Users ────────────────────────────────────────
   Future<Map<String, dynamic>> getMe() async {
     final res = await _dio.get('/users/me');
@@ -82,8 +91,12 @@ class ApiService {
     return res.data['data'] as List;
   }
 
-  Future<Map<String, dynamic>> checkIn({String type = 'manual', String? qrCode}) async {
-    final res = await _dio.post('/attendance/checkin', data: {'type': type, if (qrCode != null) 'qr_code': qrCode});
+  Future<Map<String, dynamic>> checkIn({String type = 'manual', String? qrCode, String? durationType}) async {
+    final res = await _dio.post('/attendance/checkin', data: {
+      'type': type,
+      if (qrCode != null) 'qr_code': qrCode,
+      if (type == 'remote' && durationType != null) 'duration_type': durationType,
+    });
     return res.data['data'] as Map<String, dynamic>;
   }
 
@@ -92,8 +105,22 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> reportIpEvent(String ip, bool connected) async {
-    final res = await _dio.post('/attendance/ip-event', data: {'ip': ip, 'event': connected ? 'match' : 'unmatch'});
+  Future<List<dynamic>> getMyRemoteSessions() async {
+    final res = await _dio.get('/attendance/remote/sessions/me');
+    return res.data['data'] as List;
+  }
+
+  Future<Map<String, dynamic>> getRemoteSessionLogs(String sessionId) async {
+    final res = await _dio.get('/attendance/remote/sessions/$sessionId/logs');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> reportIpEvent(String ip, bool connected, {String? ssid}) async {
+    final res = await _dio.post('/attendance/ip-event', data: {
+      'ip':    ip,
+      'event': connected ? 'match' : 'unmatch',
+      if (ssid != null && ssid.isNotEmpty) 'ssid': ssid,
+    });
     return res.data['data'] as Map<String, dynamic>;
   }
 
@@ -137,7 +164,7 @@ class ApiService {
   }
 
   Future<List<dynamic>> getSwapRequests() async {
-    final res = await _dio.get('/shifts/swaps');
+    final res = await _dio.get('/shifts/swaps/me');
     return res.data['data'] as List;
   }
 
@@ -152,15 +179,43 @@ class ApiService {
     return res.data['data'] as List;
   }
 
+  Future<Map<String, dynamic>> downloadPayslip(String id) async {
+    final res = await _dio.get('/payroll/payslips/$id/download');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   // ─── Performance ──────────────────────────────────
   Future<List<dynamic>> getMyReviews() async {
-    final res = await _dio.get('/performance/reviews');
+    final res = await _dio.get('/performance/reviews/me');
     return res.data['data'] as List;
   }
 
   Future<List<dynamic>> getMyGoals() async {
     final res = await _dio.get('/performance/goals');
     return res.data['data'] as List;
+  }
+
+  // ─── Notifications ────────────────────────────────
+  Future<Map<String, dynamic>> getNotifications({int page = 1, int limit = 20}) async {
+    final res = await _dio.get('/notifications', queryParameters: {'page': page, 'limit': limit});
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<int> getNotificationCount() async {
+    final res = await _dio.get('/notifications/count');
+    return (res.data['data']['count'] as int?) ?? 0;
+  }
+
+  Future<void> markNotificationRead(String id) async {
+    await _dio.put('/notifications/$id/read');
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    await _dio.put('/notifications/read-all');
+  }
+
+  Future<void> deleteNotification(String id) async {
+    await _dio.delete('/notifications/$id');
   }
 }
 
