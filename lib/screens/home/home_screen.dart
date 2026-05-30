@@ -18,6 +18,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? _todayRecord;
   Map<String, dynamic>? _nextShift;
+  Map<String, dynamic>? _remoteSession;
   bool _loading       = true;
   bool _vpnDetected   = false;
   bool _gracePeriod   = false;
@@ -85,11 +86,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       final records = await api.getMyAttendance(days: 1);
       final shifts  = await api.getMyShifts();
+
+      final todayRecord = records.isNotEmpty ? records.first as Map<String, dynamic> : null;
+      final status = todayRecord?['status'] as String? ?? 'none';
+
+      Map<String, dynamic>? remoteSession;
+      if (status == 'remote') {
+        try {
+          final sessions = await api.getMyRemoteSessions();
+          remoteSession = sessions.isNotEmpty ? sessions.first as Map<String, dynamic> : null;
+        } catch (_) {}
+      }
+
       if (mounted) {
         setState(() {
-          _todayRecord = records.isNotEmpty ? records.first as Map<String, dynamic> : null;
-          _nextShift   = shifts.isNotEmpty  ? shifts.first  as Map<String, dynamic> : null;
-          _loading     = false;
+          _todayRecord   = todayRecord;
+          _nextShift     = shifts.isNotEmpty ? shifts.first as Map<String, dynamic> : null;
+          _remoteSession = remoteSession;
+          _loading       = false;
         });
         _updateElapsed();
       }
@@ -253,7 +267,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       cardColor   = AppColors.purple100;
       cardIcon    = Icons.home_rounded;
       statusTitle = 'Working Remotely 🏠';
-      statusSub   = 'AI will check in with you via WhatsApp';
+      final sessionStatus = _remoteSession?['status'] as String? ?? 'pending';
+      statusSub   = sessionStatus == 'approved'
+          ? 'Approved — AI will check in with you via WhatsApp'
+          : sessionStatus == 'rejected'
+              ? 'Rejected by manager — please contact HR'
+              : 'Pending manager approval';
     } else if (_checkedOut) {
       cardColor   = AppColors.gray100;
       cardIcon    = Icons.logout;
@@ -339,7 +358,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildQuickActions(BuildContext context) {
     final actions = [
       _QuickAction(icon: Icons.beach_access_outlined, label: 'Request\nLeave', color: AppColors.primary600, bg: AppColors.primary100, onTap: () => context.push('/leave/request')),
-      _QuickAction(icon: Icons.home_outlined, label: 'Work\nRemote', color: AppColors.purple700, bg: AppColors.purple100, onTap: () => context.push('/home/remote')),
+      if (!_checkedIn && !_checkedOut && !_isRemote)
+        _QuickAction(icon: Icons.home_outlined, label: 'Work\nRemote', color: AppColors.purple700, bg: AppColors.purple100, onTap: () => context.push('/home/remote')),
       _QuickAction(icon: Icons.calendar_today_outlined, label: 'My\nSchedule', color: AppColors.teal700, bg: AppColors.teal100, onTap: () => context.go('/schedule')),
       _QuickAction(icon: Icons.receipt_long_outlined, label: 'My\nPayslips', color: AppColors.warning800, bg: AppColors.warning100, onTap: () => context.go('/profile')),
     ];
