@@ -331,6 +331,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             onPressed: () => context.push('/attendance/qr'),
           ),
         ],
+
+        // View remote activity — show when approved remote session exists
+        if (_isRemote && _remoteSession != null && _remoteSession!['status'] == 'approved') ...[
+          const SizedBox(height: 12),
+          AppButton(
+            label: 'View My Activity',
+            icon: Icons.chat_bubble_outline,
+            outline: true,
+            onPressed: () => context.push('/home/remote/detail?id=${_remoteSession!['id']}'),
+          ),
+        ],
       ]),
     );
   }

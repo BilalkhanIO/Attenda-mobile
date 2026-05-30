@@ -110,6 +110,11 @@ class ApiService {
     return res.data['data'] as List;
   }
 
+  Future<Map<String, dynamic>> getRemoteSessionLogs(String sessionId) async {
+    final res = await _dio.get('/attendance/remote/sessions/$sessionId/logs');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> reportIpEvent(String ip, bool connected, {String? ssid}) async {
     final res = await _dio.post('/attendance/ip-event', data: {
       'ip':    ip,
