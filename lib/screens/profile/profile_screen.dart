@@ -19,7 +19,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   Map<String, dynamic>? _profile;
   List<Map<String, dynamic>> _payslips  = [];
   List<Map<String, dynamic>> _reviews   = [];
+  List<Map<String, dynamic>> _goals     = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -27,16 +29,21 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   void dispose() { _tabCtrl.dispose(); super.dispose(); }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() { _loading = true; _error = null; });
     try {
-      final [p, ps, rv] = await Future.wait([api.getMe(), api.getMyPayslips(), api.getMyReviews()]);
+      final [p, ps, rv, gl] = await Future.wait([
+        api.getMe(), api.getMyPayslips(), api.getMyReviews(), api.getMyGoals(),
+      ]);
       setState(() {
         _profile  = p  as Map<String, dynamic>;
         _payslips = (ps as List).cast<Map<String, dynamic>>();
         _reviews  = (rv as List).cast<Map<String, dynamic>>();
+        _goals    = (gl as List).cast<Map<String, dynamic>>();
         _loading  = false;
       });
-    } catch (_) { setState(() => _loading = false); }
+    } catch (e) {
+      setState(() { _loading = false; _error = e.toString(); });
+    }
   }
 
   @override
@@ -168,48 +175,117 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           // Performance
           _loading
               ? const Center(child: CircularProgressIndicator())
-              : _reviews.isEmpty
-                  ? const EmptyStateWidget(icon: Icons.trending_up, title: 'No reviews yet', description: 'Your performance reviews will appear here once submitted by your manager.')
-                  : ListView.builder(
+              : _error != null
+                  ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      const Icon(Icons.error_outline, size: 40, color: AppColors.danger500),
+                      const SizedBox(height: 12),
+                      const Text('Failed to load performance data', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      AppButton(label: 'Retry', onPressed: _load),
+                    ]))
+                  : ListView(
                       padding: const EdgeInsets.all(20),
-                      itemCount: _reviews.length,
-                      itemBuilder: (_, i) {
-                        final r      = _reviews[i];
-                        final month  = r['period_month'] as int? ?? 1;
-                        final year   = r['period_year']  as int? ?? 2026;
-                        final score  = r['overall_score'];
-                        final stars  = r['manager_rating'] as int? ?? 0;
-                        final submitted = r['submitted_at'] != null;
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: AppCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                              Text(DateFormat('MMMM yyyy').format(DateTime(year, month)),
-                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                              if (submitted && score != null)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: (double.tryParse(score.toString()) ?? 0) >= 80 ? AppColors.success100 : AppColors.warning100,
-                                    borderRadius: BorderRadius.circular(20),
+                      children: [
+                        // ── Reviews ──────────────────────────────
+                        const Text('My Reviews', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.dark950)),
+                        const SizedBox(height: 12),
+                        if (_reviews.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 16),
+                            child: EmptyStateWidget(icon: Icons.trending_up, title: 'No reviews yet', description: 'Your performance reviews will appear here once submitted by your manager.'),
+                          )
+                        else
+                          ..._reviews.map((r) {
+                            final month     = r['period_month'] as int? ?? 1;
+                            final year      = r['period_year']  as int? ?? 2026;
+                            final score     = r['overall_score'];
+                            final stars     = r['manager_rating'] as int? ?? 0;
+                            final submitted = r['submitted_at'] != null;
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: AppCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                                  Text(DateFormat('MMMM yyyy').format(DateTime(year, month)),
+                                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                                  if (submitted && score != null)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: (double.tryParse(score.toString()) ?? 0) >= 80 ? AppColors.success100 : AppColors.warning100,
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text('${score}/100',
+                                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
+                                              color: (double.tryParse(score.toString()) ?? 0) >= 80 ? AppColors.success700 : AppColors.warning800)),
+                                    ),
+                                ]),
+                                if (submitted) ...[
+                                  const SizedBox(height: 8),
+                                  Row(children: List.generate(5, (j) => Icon(j < stars ? Icons.star_rounded : Icons.star_border_rounded, size: 18, color: AppColors.warning500))),
+                                  if (r['notes'] != null) ...[
+                                    const SizedBox(height: 6),
+                                    Text(r['notes'] as String, style: const TextStyle(fontSize: 13, color: AppColors.gray500), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                  ],
+                                ] else
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 4),
+                                    child: Text('Review pending', style: TextStyle(fontSize: 13, color: AppColors.gray500)),
                                   ),
-                                  child: Text('${score.toString()}/100',
-                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
-                                          color: (double.tryParse(score.toString()) ?? 0) >= 80 ? AppColors.success700 : AppColors.warning800)),
-                                ),
-                            ]),
-                            if (submitted) ...[
-                              const SizedBox(height: 8),
-                              Row(children: List.generate(5, (j) => Icon(j < stars ? Icons.star_rounded : Icons.star_border_rounded, size: 18, color: AppColors.warning500))),
-                              if (r['notes'] != null) ...[
-                                const SizedBox(height: 6),
-                                Text(r['notes'] as String, style: const TextStyle(fontSize: 13, color: AppColors.gray500), maxLines: 2, overflow: TextOverflow.ellipsis),
-                              ],
-                            ] else
-                              const Text('Review pending', style: TextStyle(fontSize: 13, color: AppColors.gray500)),
-                          ])),
-                        );
-                      },
+                              ])),
+                            );
+                          }),
+
+                        // ── Goals ────────────────────────────────
+                        const SizedBox(height: 8),
+                        const Text('My Goals', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.dark950)),
+                        const SizedBox(height: 12),
+                        if (_goals.isEmpty)
+                          const EmptyStateWidget(icon: Icons.flag_outlined, title: 'No goals set', description: 'Goals assigned by your manager will appear here.')
+                        else
+                          ..._goals.map((g) {
+                            final completion = (g['completion'] as num?)?.toInt() ?? 0;
+                            final targetDate = g['target_date'] as String?;
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: AppCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                                  Expanded(
+                                    child: Text(g['title'] as String? ?? '—',
+                                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.dark950)),
+                                  ),
+                                  Text('${g['weight']}%', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.gray500)),
+                                ]),
+                                if (g['description'] != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text(g['description'] as String, style: const TextStyle(fontSize: 12, color: AppColors.gray500), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                ],
+                                const SizedBox(height: 10),
+                                Row(children: [
+                                  Expanded(
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(4),
+                                      child: LinearProgressIndicator(
+                                        value: completion / 100,
+                                        minHeight: 6,
+                                        backgroundColor: AppColors.gray100,
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          completion >= 100 ? AppColors.success700 : completion >= 50 ? AppColors.primary600 : AppColors.warning800,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text('$completion%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.dark950)),
+                                ]),
+                                if (targetDate != null) ...[
+                                  const SizedBox(height: 6),
+                                  Text('Due ${DateFormat('MMM d, yyyy').format(DateTime.parse(targetDate))}',
+                                      style: const TextStyle(fontSize: 11, color: AppColors.gray500)),
+                                ],
+                              ])),
+                            );
+                          }),
+                      ],
                     ),
         ]),
       ),

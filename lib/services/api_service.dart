@@ -176,7 +176,7 @@ class ApiService {
 
   // ─── Performance ──────────────────────────────────
   Future<List<dynamic>> getMyReviews() async {
-    final res = await _dio.get('/performance/reviews');
+    final res = await _dio.get('/performance/reviews/me');
     return res.data['data'] as List;
   }
 
