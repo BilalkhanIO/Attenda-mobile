@@ -27,13 +27,15 @@ enum OfflineEventType { checkIn, checkOut, ipMatch, ipUnmatch }
 class OfflineEvent {
   final OfflineEventType type;
   final DateTime timestamp;
-  final String? payload;
-  OfflineEvent({required this.type, required this.timestamp, this.payload});
-  Map<String, dynamic> toJson() => {'type': type.name, 'timestamp': timestamp.toIso8601String(), 'payload': payload};
+  final String? payload; // IP address
+  final String? ssid;    // WiFi network name
+  OfflineEvent({required this.type, required this.timestamp, this.payload, this.ssid});
+  Map<String, dynamic> toJson() => {'type': type.name, 'timestamp': timestamp.toIso8601String(), 'payload': payload, 'ssid': ssid};
   factory OfflineEvent.fromJson(Map<String, dynamic> j) => OfflineEvent(
     type:      OfflineEventType.values.firstWhere((e) => e.name == j['type']),
     timestamp: DateTime.parse(j['timestamp'] as String),
     payload:   j['payload'] as String?,
+    ssid:      j['ssid'] as String?,
   );
 }
 
@@ -187,6 +189,7 @@ class WifiAttendanceService {
         type:      OfflineEventType.checkOut,
         timestamp: DateTime.now(),
         payload:   _lastKnownIp,
+        ssid:      _lastKnownSsid,
       ));
     }
   }
@@ -208,9 +211,7 @@ class WifiAttendanceService {
         onStatusChange?.call('checked_in');
         debugPrint('[WiFi] Auto check-in — IP: $ip, SSID: $ssid');
       } else if (action == 'already_in') {
-        _checkedInViaIp = true;
-        await _saveState();
-        debugPrint('[WiFi] Already checked in — state restored');
+        debugPrint('[WiFi] Already checked in — no state change');
       } else if (action == 'grace_period_cancelled') {
         debugPrint('[WiFi] Server cancelled grace period');
       }
@@ -220,6 +221,7 @@ class WifiAttendanceService {
         type:      connected ? OfflineEventType.ipMatch : OfflineEventType.ipUnmatch,
         timestamp: DateTime.now(),
         payload:   ip,
+        ssid:      ssid,
       ));
     }
   }
@@ -266,10 +268,14 @@ class WifiAttendanceService {
             await api.checkOut();
             break;
           case OfflineEventType.ipMatch:
-            if (event.payload != null) await api.reportIpEvent(event.payload!, true);
+            if (event.payload != null || event.ssid != null) {
+              await api.reportIpEvent(event.payload ?? '', true, ssid: event.ssid);
+            }
             break;
           case OfflineEventType.ipUnmatch:
-            if (event.payload != null) await api.reportIpEvent(event.payload!, false);
+            if (event.payload != null || event.ssid != null) {
+              await api.reportIpEvent(event.payload ?? '', false, ssid: event.ssid);
+            }
             break;
         }
         await box.delete(key);
