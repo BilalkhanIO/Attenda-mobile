@@ -115,10 +115,10 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> reportIpEvent(String ip, bool connected, {String? ssid}) async {
+  Future<Map<String, dynamic>> reportIpEvent(String ip, {String? ssid}) async {
     final res = await _dio.post('/attendance/ip-event', data: {
       'ip':    ip,
-      'event': connected ? 'match' : 'unmatch',
+      'event': 'match',
       if (ssid != null && ssid.isNotEmpty) 'ssid': ssid,
     });
     return res.data['data'] as Map<String, dynamic>;

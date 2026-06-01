@@ -151,7 +151,7 @@ class WifiAttendanceService {
   Future<void> _reportNetworkEvent({String? ip, String? ssid}) async {
     if ((ip == null || ip.isEmpty) && (ssid == null || ssid.isEmpty)) return;
     try {
-      final result = await api.reportIpEvent(ip ?? '', true, ssid: ssid);
+      final result = await api.reportIpEvent(ip ?? '', ssid: ssid);
       final action = result['action'] as String?;
       if (action == 'checked_in') {
         _checkedInViaWifi = true;
@@ -204,7 +204,7 @@ class WifiAttendanceService {
         if (event.type == OfflineEventType.checkIn) {
           await api.checkIn(type: 'manual');
         } else if (event.type == OfflineEventType.ipMatch && (event.payload != null || event.ssid != null)) {
-          await api.reportIpEvent(event.payload ?? '', true, ssid: event.ssid);
+          await api.reportIpEvent(event.payload ?? '', ssid: event.ssid);
         }
         await box.delete(key);
       } catch (e) {
