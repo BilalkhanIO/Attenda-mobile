@@ -19,9 +19,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? _todayRecord;
   Map<String, dynamic>? _nextShift;
   Map<String, dynamic>? _remoteSession;
-  bool _loading       = true;
-  bool _vpnDetected   = false;
-  bool _gracePeriod   = false;
+  bool _loading           = true;
+  bool _vpnDetected       = false;
+  bool _gracePeriod       = false;
+  bool _noNetworksConfig  = false;
   Timer? _timer;
   Duration _elapsed   = Duration.zero;
   int _unreadNotifs   = 0;
@@ -55,6 +56,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           break;
         case 'vpn_detected':
           setState(() => _vpnDetected = true);
+          break;
+        case 'no_networks':
+          setState(() => _noNetworksConfig = true);
           break;
       }
     };
@@ -208,6 +212,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 // Grace period warning
                 if (_gracePeriod) _graceBanner(),
 
+                // No networks configured warning
+                if (_noNetworksConfig && !_vpnDetected) _noNetworksBanner(),
+
                 // Today's Status Card
                 _loading ? const SkeletonBox(width: double.infinity, height: 160, radius: 16) : _buildStatusCard(),
 
@@ -237,9 +244,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     const SizedBox(width: 8),
                     Expanded(child: Text(DateFormat('EEEE, d MMMM yyyy').format(DateTime.now()),
                         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.dark950))),
-                    const Icon(Icons.wifi, size: 16, color: AppColors.success500),
+                    Icon(Icons.wifi, size: 16, color: _noNetworksConfig ? AppColors.gray400 : AppColors.success500),
                     const SizedBox(width: 4),
-                    const Text('Auto check-in active', style: TextStyle(fontSize: 11, color: AppColors.gray500)),
+                    Text(_noNetworksConfig ? 'WiFi detection not configured' : 'Auto check-in active',
+                        style: const TextStyle(fontSize: 11, color: AppColors.gray500)),
                   ]),
                 ),
               ],
@@ -262,6 +270,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           style: TextStyle(fontSize: 13, color: AppColors.warning800, fontWeight: FontWeight.w500))),
       TextButton(onPressed: () => context.push('/attendance/qr'),
           child: const Text('QR Scan', style: TextStyle(color: AppColors.warning800, fontWeight: FontWeight.w700))),
+    ]),
+  );
+
+  Widget _noNetworksBanner() => Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(color: AppColors.gray100, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.gray200)),
+    child: const Row(children: [
+      Icon(Icons.wifi_off, color: AppColors.gray500, size: 18),
+      SizedBox(width: 8),
+      Expanded(child: Text('Auto check-in is off — your admin hasn\'t added any office networks yet. Ask them to set it up in Settings.',
+          style: TextStyle(fontSize: 13, color: AppColors.gray500, fontWeight: FontWeight.w500))),
     ]),
   );
 
@@ -323,7 +344,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       cardColor   = AppColors.white;
       cardIcon    = Icons.radio_button_unchecked;
       statusTitle = 'Not Checked In';
-      statusSub   = 'Auto check-in active — connect to office WiFi';
+      statusSub   = _noNetworksConfig
+          ? 'Scan QR code or check in manually — WiFi auto-detection not set up'
+          : 'Connect to office WiFi for auto check-in, or scan QR code';
     }
 
     return AppCard(

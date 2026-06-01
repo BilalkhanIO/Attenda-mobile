@@ -137,7 +137,7 @@ class WifiAttendanceService {
         _lastKnownIp   = ip;
         _lastKnownSsid = cleanSsid;
         await _saveState();
-        _cancelGracePeriod();
+        await _cancelGracePeriod();
         await _reportIpEvent(ip: ip, ssid: cleanSsid, connected: true);
       }
     } catch (e) {
@@ -149,7 +149,7 @@ class WifiAttendanceService {
   // ─── Connectivity change handler ──────────────────
   void _onConnectivityChanged(List<ConnectivityResult> results) async {
     if (results.contains(ConnectivityResult.wifi)) {
-      _cancelGracePeriod();
+      await _cancelGracePeriod();
       await checkAndReport();
     } else if (results.contains(ConnectivityResult.none) || results.contains(ConnectivityResult.mobile)) {
       if (_checkedInViaIp) _startGracePeriod();
@@ -164,14 +164,20 @@ class WifiAttendanceService {
     _graceTimer = Timer(_gracePeriod, () => _triggerAutoCheckout());
   }
 
-  void _cancelGracePeriod() {
+  Future<void> _cancelGracePeriod() async {
     if (_graceTimer?.isActive ?? false) {
       _graceTimer!.cancel();
       _graceTimer = null;
       debugPrint('[WiFi] Grace period cancelled — reconnected');
       onStatusChange?.call('grace_cancelled');
-      // Tell server to cancel pending checkout
-      _reportIpEvent(ip: _lastKnownIp, ssid: _lastKnownSsid, connected: true).catchError((e) {});
+      // Await the server call so ip_checkout_pending_at is cleared before any
+      // subsequent match event could see stale state.
+      try {
+        await _reportIpEvent(ip: _lastKnownIp, ssid: _lastKnownSsid, connected: true);
+      } catch (e) {
+        debugPrint('[WiFi] Grace cancel server call failed: $e — queuing');
+        _queueEvent(OfflineEvent(type: OfflineEventType.ipMatch, timestamp: DateTime.now(), payload: _lastKnownIp, ssid: _lastKnownSsid));
+      }
     }
   }
 
@@ -214,6 +220,9 @@ class WifiAttendanceService {
         debugPrint('[WiFi] Already checked in — no state change');
       } else if (action == 'grace_period_cancelled') {
         debugPrint('[WiFi] Server cancelled grace period');
+      } else if (action == 'no_networks_configured') {
+        debugPrint('[WiFi] Admin has not configured any office networks yet');
+        onStatusChange?.call('no_networks');
       }
     } catch (e) {
       debugPrint('[WiFi] Failed to report network event: $e — queuing offline');
@@ -281,8 +290,16 @@ class WifiAttendanceService {
         await box.delete(key);
         debugPrint('[Offline] Synced event: ${event.type.name}');
       } catch (e) {
-        debugPrint('[Offline] Failed to sync event: $e');
-        break;
+        debugPrint('[Offline] Failed to sync event: $e — skipping');
+        // Don't break on individual failures; idempotent IP events can be
+        // retried on the next sync cycle. Delete the event to prevent a
+        // permanently-stuck queue on unrecoverable server errors (e.g. 422).
+        final statusCode = (e as dynamic)?.response?.statusCode as int?;
+        if (statusCode != null && statusCode >= 400 && statusCode < 500) {
+          await box.delete(key);
+        }
+        // Network errors: leave in queue, skip to next
+        continue;
       }
     }
   }
