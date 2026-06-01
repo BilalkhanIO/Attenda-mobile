@@ -19,6 +19,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? _todayRecord;
   Map<String, dynamic>? _nextShift;
   Map<String, dynamic>? _remoteSession;
+  Map<String, dynamic>? _todayLeave;     // approved leave for today (if any)
+  Map<String, dynamic>? _lateNotice;    // active late notice for today (if any)
   bool _loading           = true;
   bool _vpnDetected       = false;
   bool _gracePeriod       = false;
@@ -89,8 +91,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final records = await api.getMyAttendance(days: 1);
-      final shifts  = await api.getMyShifts();
+      final results = await Future.wait([
+        api.getMyAttendance(days: 1),
+        api.getMyShifts(),
+        api.getLeaveAndNoticeCheck().catchError((_) => <String, dynamic>{}),
+      ]);
+
+      final records   = results[0] as List;
+      final shifts    = results[1] as List;
+      final leaveInfo = results[2] as Map<String, dynamic>;
 
       final todayRecord = records.isNotEmpty ? records.first as Map<String, dynamic> : null;
       final status = todayRecord?['status'] as String? ?? 'none';
@@ -108,6 +117,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           _todayRecord   = todayRecord;
           _nextShift     = shifts.isNotEmpty ? shifts.first as Map<String, dynamic> : null;
           _remoteSession = remoteSession;
+          _todayLeave    = leaveInfo['leave']       as Map<String, dynamic>?;
+          _lateNotice    = leaveInfo['late_notice'] as Map<String, dynamic>?;
           _loading       = false;
         });
         _updateElapsed();
@@ -215,6 +226,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 // No networks configured warning
                 if (_noNetworksConfig && !_vpnDetected) _noNetworksBanner(),
 
+                // On approved leave today — show before check-in card
+                if (!_loading && _todayLeave != null && _status != 'in' && _status != 'late' && _status != 'out')
+                  _leaveTodayBanner(),
+
+                // Active late arrival notice
+                if (!_loading && _lateNotice != null && _status != 'in' && _status != 'late' && _status != 'out')
+                  _lateNoticeBanner(),
+
                 // Today's Status Card
                 _loading ? const SkeletonBox(width: double.infinity, height: 160, radius: 16) : _buildStatusCard(),
 
@@ -299,6 +318,172 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ]),
   );
 
+  Widget _leaveTodayBanner() {
+    final leaveType = (_todayLeave?['leave_type'] as String? ?? 'leave').replaceAll('_', ' ');
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: AppColors.primary100, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.primary600)),
+      child: Row(children: [
+        const Icon(Icons.beach_access, color: AppColors.primary600, size: 18),
+        const SizedBox(width: 8),
+        Expanded(child: Text(
+          'You have approved $leaveType today. No check-in required.',
+          style: const TextStyle(fontSize: 13, color: AppColors.primary900, fontWeight: FontWeight.w500),
+        )),
+      ]),
+    );
+  }
+
+  Widget _lateNoticeBanner() {
+    final expectedTime = _lateNotice?['expected_time'] as String? ?? '';
+    final noticeStatus = _lateNotice?['status'] as String? ?? 'pending';
+    final isAcked      = noticeStatus == 'acknowledged';
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.warning100,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: isAcked ? AppColors.success500 : AppColors.warning500),
+      ),
+      child: Row(children: [
+        Icon(isAcked ? Icons.check_circle_outline : Icons.schedule,
+            color: isAcked ? AppColors.success700 : AppColors.warning800, size: 18),
+        const SizedBox(width: 8),
+        Expanded(child: Text(
+          isAcked
+              ? 'Late notice acknowledged by manager — expected by $expectedTime'
+              : 'Late arrival notice submitted — expected by $expectedTime',
+          style: TextStyle(fontSize: 13, color: isAcked ? AppColors.success700 : AppColors.warning800, fontWeight: FontWeight.w500),
+        )),
+        GestureDetector(
+          onTap: () async {
+            final id = _lateNotice?['id'] as String?;
+            if (id == null) return;
+            try {
+              await api.cancelLateNotice(id);
+              setState(() => _lateNotice = null);
+              _showSnack('Late notice cancelled');
+            } catch (_) {
+              _showSnack('Could not cancel notice');
+            }
+          },
+          child: const Icon(Icons.close, size: 16, color: AppColors.gray500),
+        ),
+      ]),
+    );
+  }
+
+  Future<void> _showLateNoticeDialog() async {
+    final reasonCtrl = TextEditingController();
+    TimeOfDay selectedTime = TimeOfDay.now().replacing(
+      hour: (TimeOfDay.now().hour + 1).clamp(0, 23),
+      minute: 0,
+    );
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(children: [
+            Icon(Icons.schedule, color: AppColors.warning800, size: 22),
+            SizedBox(width: 8),
+            Text('Report Late Arrival', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+          ]),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Let your manager know you\'ll be arriving late.', style: TextStyle(fontSize: 13, color: AppColors.gray500)),
+            const SizedBox(height: 16),
+            // Expected arrival time picker
+            const Text('Expected Arrival Time', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.dark950)),
+            const SizedBox(height: 6),
+            GestureDetector(
+              onTap: () async {
+                final picked = await showTimePicker(context: ctx, initialTime: selectedTime);
+                if (picked != null) setDlgState(() => selectedTime = picked);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.gray50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.gray200),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.access_time, size: 18, color: AppColors.primary600),
+                  const SizedBox(width: 8),
+                  Text(selectedTime.format(ctx), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.dark950)),
+                  const Spacer(),
+                  const Text('Tap to change', style: TextStyle(fontSize: 11, color: AppColors.gray400)),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Reason text field
+            const Text('Reason', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.dark950)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: reasonCtrl,
+              maxLines: 3,
+              maxLength: 200,
+              decoration: InputDecoration(
+                hintText: 'e.g. Medical appointment, traffic delay…',
+                hintStyle: const TextStyle(color: AppColors.gray400),
+                filled: true,
+                fillColor: AppColors.gray50,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.gray200)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.gray200)),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+          ]),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.gray500)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.warning800,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () async {
+                final reason = reasonCtrl.text.trim();
+                if (reason.length < 5) {
+                  _showSnack('Please enter a reason (at least 5 characters)');
+                  return;
+                }
+                try {
+                  final today = DateTime.now();
+                  final dateStr = '${today.year}-${today.month.toString().padLeft(2,'0')}-${today.day.toString().padLeft(2,'0')}';
+                  final hh = selectedTime.hour.toString().padLeft(2, '0');
+                  final mm = selectedTime.minute.toString().padLeft(2, '0');
+                  final notice = await api.submitLateNotice(
+                    date: dateStr,
+                    expectedTime: '$hh:$mm',
+                    reason: reason,
+                  );
+                  if (!ctx.mounted) return;
+                  Navigator.pop(ctx);
+                  setState(() => _lateNotice = notice);
+                  _showSnack('Late arrival notice submitted ✅');
+                } catch (e) {
+                  _showSnack('Failed to submit notice. Try again.');
+                }
+              },
+              child: const Text('Submit Notice'),
+            ),
+          ],
+        ),
+      ),
+    );
+    reasonCtrl.dispose();
+  }
+
   Widget _buildStatusCard() {
     Color cardColor;
     IconData cardIcon;
@@ -331,13 +516,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       statusTitle = 'Checked Out';
       statusSub   = 'Work day complete · ${_todayRecord?['hours_worked'] != null ? '${_todayRecord!['hours_worked']}h worked' : ''}';
     } else if (_checkedIn) {
-      final lateMins = (_todayRecord?['late_minutes'] as num?)?.toInt() ?? 0;
-      final isLate   = _status == 'late' || lateMins > 0;
+      final lateMins    = (_todayRecord?['late_minutes'] as num?)?.toInt() ?? 0;
+      final isLate      = _status == 'late' || lateMins > 0;
+      final hasNotice   = _todayRecord?['late_notice_id'] != null;
       cardColor   = isLate ? AppColors.warning100 : AppColors.success100;
       cardIcon    = isLate ? Icons.running_with_errors : Icons.check_circle_rounded;
       statusTitle = isLate ? 'Checked In (Late)' : 'Checked In ✅';
       statusSub   = lateMins > 0
-          ? '$lateMins min late · working for $_elapsedDisplay'
+          ? '$lateMins min late${hasNotice ? ' · pre-announced' : ''} · working for $_elapsedDisplay'
           : 'Working for $_elapsedDisplay';
     } else if (_status == 'leave') {
       cardColor   = AppColors.primary100;
@@ -380,7 +566,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ]),
         ],
 
-        // QR Scan button — show if not checked in AND not on leave/remote AND no VPN block
+        // QR Scan + Report Late buttons — show if not checked in
         if (!_checkedIn && !_checkedOut && !_isRemote && _status != 'leave') ...[
           const SizedBox(height: 16),
           AppButton(
@@ -388,6 +574,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             icon: Icons.qr_code_scanner,
             onPressed: () => context.push('/attendance/qr'),
           ),
+          const SizedBox(height: 8),
+          // Report Late button — only show if no active notice and not already dismissed
+          if (_lateNotice == null || _lateNotice!['status'] == 'cancelled')
+            OutlinedButton.icon(
+              onPressed: _showLateNoticeDialog,
+              icon: const Icon(Icons.schedule, size: 16),
+              label: const Text('Report Late Arrival'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.warning800,
+                side: const BorderSide(color: AppColors.warning500),
+                minimumSize: const Size(double.infinity, 40),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
         ],
 
         // View remote activity — show when approved remote session exists

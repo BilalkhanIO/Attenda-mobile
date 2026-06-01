@@ -124,6 +124,34 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
+  // ─── Late Arrival Notices ─────────────────────────
+  Future<Map<String, dynamic>> getLeaveAndNoticeCheck() async {
+    final res = await _dio.get('/attendance/leave-check');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> submitLateNotice({
+    required String date,
+    required String expectedTime,
+    required String reason,
+  }) async {
+    final res = await _dio.post('/attendance/late-notice', data: {
+      'date':          date,
+      'expected_time': expectedTime,
+      'reason':        reason,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> getMyLateNotices({int days = 7}) async {
+    final res = await _dio.get('/attendance/late-notice/me', queryParameters: {'days': days});
+    return res.data['data'] as List;
+  }
+
+  Future<void> cancelLateNotice(String id) async {
+    await _dio.delete('/attendance/late-notice/$id');
+  }
+
   // ─── Leave ────────────────────────────────────────
   Future<List<dynamic>> getMyLeaveRequests() async {
     final res = await _dio.get('/leave/requests/me');
