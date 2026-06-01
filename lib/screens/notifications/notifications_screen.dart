@@ -151,7 +151,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 )
               : RefreshIndicator(
                   color: AppColors.primary600,
-                  backgroundColor: const Color(0xFF2D1952),
+                  backgroundColor: AppColors.bgDark3,
                   onRefresh: () => _load(reset: true),
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),

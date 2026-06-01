@@ -87,7 +87,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       isScrollControlled: true,
       builder: (ctx) => Container(
         decoration: const BoxDecoration(
-          color: Color(0xFF1A0E38),
+          color: AppColors.bgDark2,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
@@ -110,7 +110,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
             width: double.infinity,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF15153),
+                backgroundColor: AppColors.primary600,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -178,7 +178,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           // Success overlay
           if (_done)
             Container(
-              color: (_isCheckout ? const Color(0xFFF15153) : AppColors.success700).withOpacity(0.9),
+              color: (_isCheckout ? AppColors.primary600 : AppColors.success700).withOpacity(0.9),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

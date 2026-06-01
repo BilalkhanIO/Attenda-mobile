@@ -53,7 +53,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
       // Shifts
       RefreshIndicator(
         color: AppColors.primary600,
-        backgroundColor: const Color(0xFF2D1952),
+        backgroundColor: AppColors.bgDark3,
         onRefresh: _load,
         child: _loading
             ? const Center(child: CircularProgressIndicator(color: AppColors.primary600))

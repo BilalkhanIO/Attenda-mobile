@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/theme.dart';
 
 enum AttendaLogoVariant { dark, light }
 
@@ -48,9 +49,7 @@ class _AttendaWordmark extends StatelessWidget {
     final baseColor = variant == AttendaLogoVariant.dark
         ? const Color(0xFFF1F5F9)
         : const Color(0xFF321847);
-    final accentColor = variant == AttendaLogoVariant.dark
-        ? const Color(0xFFF15153)
-        : const Color(0xFFF15153);
+    final accentColor = AppColors.primary;
 
     final style = TextStyle(
       fontFamily: 'DMSans',
@@ -91,7 +90,7 @@ class _AttendaIconPainter extends CustomPainter {
       const Offset(22, 22),
       20,
       Paint()
-        ..color = isDark ? const Color(0xFFF15153) : const Color(0xFFF15153)
+        ..color = AppColors.primary
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5,
     );
@@ -102,12 +101,12 @@ class _AttendaIconPainter extends CustomPainter {
       14,
       Paint()
         ..color = isDark
-            ? const Color(0xFFF15153).withOpacity(0.15)
-            : const Color(0xFFFDE8E8),
+            ? AppColors.primary.withOpacity(0.15)
+            : AppColors.primary.withOpacity(0.1),
     );
 
     // ── Clock ticks ─────────────────────────────────────────
-    final tickColor = isDark ? const Color(0xFFF15153) : const Color(0xFFF15153);
+    const tickColor = AppColors.primary;
 
     // Top tick (prominent)
     _drawLine(canvas, const Offset(22, 9), const Offset(22, 12), tickColor, 2.0);
@@ -123,7 +122,7 @@ class _AttendaIconPainter extends CustomPainter {
       canvas,
       const Offset(22, 22),
       const Offset(22, 15),
-      isDark ? const Color(0xFFF15153) : const Color(0xFFF15153),
+      AppColors.primary,
       2.2,
     );
 
@@ -140,14 +139,14 @@ class _AttendaIconPainter extends CustomPainter {
     canvas.drawCircle(
       const Offset(22, 22),
       2.2,
-      Paint()..color = isDark ? const Color(0xFFF15153) : const Color(0xFFF15153),
+      Paint()..color = AppColors.primary,
     );
 
     // ── Badge background (dark halo) ─────────────────────────
     canvas.drawCircle(
       const Offset(33, 33),
       7,
-      Paint()..color = isDark ? const Color(0xFF321847) : const Color(0xFFF8FAFC),
+      Paint()..color = isDark ? AppColors.bgDark2 : const Color(0xFFF8FAFC),
     );
 
     // ── Green badge fill ─────────────────────────────────────

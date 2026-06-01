@@ -29,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   DateTime? _disconnectDeadline; // 10 min from when heartbeat was lost
   bool _noNetworksConfig  = false;
   Timer? _timer;
+  Timer? _refreshTimer;
   Duration _elapsed   = Duration.zero;
   int _unreadNotifs   = 0;
 
@@ -38,6 +39,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _load();
     _startTimer();
+    _startAutoRefresh();
 
     WifiAttendanceService().onStatusChange = (status, [data]) {
       if (!mounted) return;
@@ -71,6 +73,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     _timer?.cancel();
+    _refreshTimer?.cancel();
     WifiAttendanceService().onStatusChange = null;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -85,9 +88,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  void _showSnack(String msg) {
+  void _showSnack(String msg, {bool isError = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w600)),
+      backgroundColor: isError ? AppColors.danger500 : AppColors.bgDark3,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 90),
+      duration: const Duration(seconds: 3),
+    ));
   }
 
   Future<void> _load() async {
@@ -141,6 +151,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
   }
 
+  void _startAutoRefresh() {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted && !_loading) _load();
+    });
+  }
+
   void _updateElapsed() {
     final checkIn  = _todayRecord?['check_in_at']  as String?;
     final checkOut = _todayRecord?['check_out_at'] as String?;
@@ -184,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         bottom: false,
         child: RefreshIndicator(
           color: AppColors.primary600,
-          backgroundColor: const Color(0xFF2D1952),
+          backgroundColor: AppColors.bgDark3,
           onRefresh: () async {
             await _load();
             await WifiAttendanceService().checkAndReport();
@@ -243,20 +259,44 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 const SizedBox(height: 20),
 
                 // ─── Banners ──────────────────────────────
-                if (_vpnDetected)        _vpnBanner(),
-                if (_heartbeatLost)      _heartbeatLostBanner(),
-                if (_noNetworksConfig && !_vpnDetected) _noNetworksBanner(),
-                if (!_loading && _todayLeave != null &&
-                    _status != 'in' && _status != 'late' && _status != 'out')
-                  _leaveTodayBanner(),
-                if (!_loading && _lateNotice != null &&
-                    _status != 'in' && _status != 'late' && _status != 'out')
-                  _lateNoticeBanner(),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutCubic,
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    if (_vpnDetected)    _vpnBanner(),
+                    if (_heartbeatLost)  _heartbeatLostBanner(),
+                    if (_noNetworksConfig && !_vpnDetected) _noNetworksBanner(),
+                    if (!_loading && _todayLeave != null &&
+                        _status != 'in' && _status != 'late' && _status != 'out')
+                      _leaveTodayBanner(),
+                    if (!_loading && _lateNotice != null &&
+                        _status != 'in' && _status != 'late' && _status != 'out')
+                      _lateNoticeBanner(),
+                  ]),
+                ),
 
                 // ─── Status Card ──────────────────────────
                 _loading
-                    ? SkeletonBox(width: double.infinity, height: 160, radius: 20)
-                    : _buildStatusCard(),
+                    ? SkeletonBox(width: double.infinity, height: 160, radius: 28)
+                    : AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        switchInCurve:  Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        transitionBuilder: (child, animation) => FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, 0.05),
+                              end: Offset.zero,
+                            ).animate(animation),
+                            child: child,
+                          ),
+                        ),
+                        child: KeyedSubtree(
+                          key: ValueKey(_status + (_heartbeatLost ? '_hl' : '')),
+                          child: _buildStatusCard(),
+                        ),
+                      ),
 
                 const SizedBox(height: 20),
 
