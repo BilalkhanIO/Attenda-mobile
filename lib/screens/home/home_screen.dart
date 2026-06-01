@@ -331,10 +331,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       statusTitle = 'Checked Out';
       statusSub   = 'Work day complete · ${_todayRecord?['hours_worked'] != null ? '${_todayRecord!['hours_worked']}h worked' : ''}';
     } else if (_checkedIn) {
-      cardColor   = AppColors.success100;
-      cardIcon    = Icons.check_circle_rounded;
-      statusTitle = 'Checked In ✅';
-      statusSub   = 'Working for $_elapsedDisplay';
+      final lateMins = (_todayRecord?['late_minutes'] as num?)?.toInt() ?? 0;
+      final isLate   = _status == 'late' || lateMins > 0;
+      cardColor   = isLate ? AppColors.warning100 : AppColors.success100;
+      cardIcon    = isLate ? Icons.running_with_errors : Icons.check_circle_rounded;
+      statusTitle = isLate ? 'Checked In (Late)' : 'Checked In ✅';
+      statusSub   = lateMins > 0
+          ? '$lateMins min late · working for $_elapsedDisplay'
+          : 'Working for $_elapsedDisplay';
     } else if (_status == 'leave') {
       cardColor   = AppColors.primary100;
       cardIcon    = Icons.beach_access;
