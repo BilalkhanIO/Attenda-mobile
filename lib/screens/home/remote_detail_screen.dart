@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
@@ -32,15 +33,15 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.gray50,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(title: const Text('My Remote Day')),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary600))
           : _error != null
               ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   const Icon(Icons.error_outline, size: 40, color: AppColors.danger500),
                   const SizedBox(height: 12),
-                  const Text('Failed to load activity', style: TextStyle(color: AppColors.gray500)),
+                  Text('Failed to load activity', style: TextStyle(color: Colors.white.withOpacity(0.6))),
                   const SizedBox(height: 12),
                   AppButton(label: 'Retry', onPressed: _load),
                 ]))
@@ -56,42 +57,44 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
     final status    = _session?['status'] as String? ?? 'pending';
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Session summary card
-        AppCard(child: Row(children: [
-          const Icon(Icons.home_rounded, color: AppColors.purple700, size: 22),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(date != null ? DateFormat('EEEE, d MMMM yyyy').format(DateTime.parse(date)) : 'Today',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-            Text(duration, style: const TextStyle(fontSize: 13, color: AppColors.gray500)),
-          ])),
-          _statusChip(status),
-        ])),
-        const SizedBox(height: 20),
+        // Session summary
+        GlassCard(
+          child: Row(children: [
+            const Icon(Icons.home_rounded, color: AppColors.purple500, size: 22),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                date != null ? DateFormat('EEEE, d MMMM yyyy').format(DateTime.parse(date)) : 'Today',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
+              ),
+              Text(duration, style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.55))),
+            ])),
+            _statusChip(status),
+          ]),
+        ),
+        const SizedBox(height: 16),
 
         // AI Day Summary
         if (aiSummary != null) ...[
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: AppColors.purple100, borderRadius: BorderRadius.circular(14)),
+          GlassCard(
+            tint: AppColors.purple500,
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Row(children: [
-                Icon(Icons.auto_awesome, size: 14, color: AppColors.purple700),
+                Icon(Icons.auto_awesome, size: 14, color: AppColors.purple100),
                 SizedBox(width: 6),
-                Text('AI Day Summary', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.purple700)),
+                Text('AI Day Summary',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.purple100)),
               ]),
               const SizedBox(height: 6),
-              Text(aiSummary, style: const TextStyle(fontSize: 13, color: AppColors.purple700)),
+              Text(aiSummary, style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.85))),
             ]),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
         ],
 
-        // Check-in activity
-        const Text('Check-in Activity', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.dark950)),
+        const SectionHeader(title: 'Check-in Activity'),
         const SizedBox(height: 12),
 
         if (logs.isEmpty)
@@ -122,74 +125,90 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: AppCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Title row
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-          if (sentAt != null)
-            Text(DateFormat('HH:mm').format(DateTime.parse(sentAt)),
-                style: const TextStyle(fontSize: 12, color: AppColors.gray500)),
-        ]),
-        const SizedBox(height: 8),
-
-        // Reply or status
-        if (replyText != null) ...[
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: AppColors.gray100, borderRadius: BorderRadius.circular(10)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                const Text('Your reply', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.gray500)),
-                if (repliedAt != null)
-                  Text(DateFormat('HH:mm').format(DateTime.parse(repliedAt)),
-                      style: const TextStyle(fontSize: 11, color: AppColors.gray500)),
-              ]),
-              const SizedBox(height: 4),
-              Text(replyText, style: const TextStyle(fontSize: 13, color: AppColors.dark950)),
-            ]),
-          ),
-
-          // AI interpretation
-          if (taskSummary != null || sentiment != null || blockers != null) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: AppColors.purple100, borderRadius: BorderRadius.circular(10)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Row(children: [
-                  Icon(Icons.auto_awesome, size: 12, color: AppColors.purple700),
-                  SizedBox(width: 4),
-                  Text('AI Interpretation', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.purple700)),
-                ]),
-                const SizedBox(height: 6),
-                if (taskSummary != null)
-                  Text('Working on: $taskSummary', style: const TextStyle(fontSize: 12, color: AppColors.purple700)),
-                if (blockers != null) ...[
-                  const SizedBox(height: 3),
-                  Text('Blockers: $blockers', style: const TextStyle(fontSize: 12, color: AppColors.purple700)),
-                ],
-                if (sentiment != null) ...[
-                  const SizedBox(height: 3),
-                  Row(children: [
-                    const Text('Mood: ', style: TextStyle(fontSize: 12, color: AppColors.purple700, fontWeight: FontWeight.w600)),
-                    Text('${_sentimentEmoji(sentiment)} $sentiment',
-                        style: const TextStyle(fontSize: 12, color: AppColors.purple700)),
-                  ]),
-                ],
-              ]),
-            ),
-          ],
-        ] else if (noReply) ...[
-          const Row(children: [
-            Icon(Icons.warning_amber_rounded, size: 15, color: AppColors.danger500),
-            SizedBox(width: 6),
-            Text('No reply — manager was notified', style: TextStyle(fontSize: 12, color: AppColors.danger500)),
+      child: GlassCard(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+            if (sentAt != null)
+              Text(DateFormat('HH:mm').format(DateTime.parse(sentAt)),
+                  style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.45))),
           ]),
-        ] else ...[
-          const Text('Waiting for your WhatsApp reply…',
-              style: TextStyle(fontSize: 12, color: AppColors.gray500, fontStyle: FontStyle.italic)),
-        ],
-      ])),
+          const SizedBox(height: 8),
+
+          if (replyText != null) ...[
+            // Reply bubble
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.07),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white.withOpacity(0.12)),
+                  ),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      Text('Your reply',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.5))),
+                      if (repliedAt != null)
+                        Text(DateFormat('HH:mm').format(DateTime.parse(repliedAt)),
+                            style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.4))),
+                    ]),
+                    const SizedBox(height: 4),
+                    Text(replyText, style: const TextStyle(fontSize: 13, color: Colors.white)),
+                  ]),
+                ),
+              ),
+            ),
+
+            // AI interpretation
+            if (taskSummary != null || sentiment != null || blockers != null) ...[
+              const SizedBox(height: 8),
+              GlassCard(
+                tint: AppColors.purple500,
+                padding: const EdgeInsets.all(10),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Row(children: [
+                    Icon(Icons.auto_awesome, size: 12, color: AppColors.purple100),
+                    SizedBox(width: 4),
+                    Text('AI Interpretation',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.purple100)),
+                  ]),
+                  const SizedBox(height: 6),
+                  if (taskSummary != null)
+                    Text('Working on: $taskSummary',
+                        style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8))),
+                  if (blockers != null) ...[
+                    const SizedBox(height: 3),
+                    Text('Blockers: $blockers',
+                        style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8))),
+                  ],
+                  if (sentiment != null) ...[
+                    const SizedBox(height: 3),
+                    Row(children: [
+                      Text('Mood: ', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8), fontWeight: FontWeight.w600)),
+                      Text('${_sentimentEmoji(sentiment)} $sentiment',
+                          style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8))),
+                    ]),
+                  ],
+                ]),
+              ),
+            ],
+          ] else if (noReply) ...[
+            Row(children: [
+              const Icon(Icons.warning_amber_rounded, size: 15, color: AppColors.danger500),
+              const SizedBox(width: 6),
+              const Text('No reply — manager was notified',
+                  style: TextStyle(fontSize: 12, color: AppColors.danger500)),
+            ]),
+          ] else ...[
+            Text('Waiting for your WhatsApp reply…',
+                style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.4), fontStyle: FontStyle.italic)),
+          ],
+        ]),
+      ),
     );
   }
 
@@ -197,16 +216,16 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
     Color color;
     String label;
     switch (status) {
-      case 'approved': color = AppColors.success700; label = 'Approved'; break;
+      case 'approved': color = AppColors.success500; label = 'Approved'; break;
       case 'rejected': color = AppColors.danger500;  label = 'Rejected'; break;
-      default:         color = AppColors.warning800; label = 'Pending';
+      default:         color = AppColors.warning500; label = 'Pending';
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withAlpha(25),
+        color: color.withOpacity(0.18),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withAlpha(75)),
+        border: Border.all(color: color.withOpacity(0.4)),
       ),
       child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
     );

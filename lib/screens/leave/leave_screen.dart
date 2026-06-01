@@ -1,4 +1,4 @@
-// Leave Screen
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -14,8 +14,8 @@ class LeaveScreen extends StatefulWidget {
 
 class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStateMixin {
   late final _tabCtrl = TabController(length: 2, vsync: this);
-  List<Map<String, dynamic>> _requests  = [];
-  List<Map<String, dynamic>> _balances  = [];
+  List<Map<String, dynamic>> _requests = [];
+  List<Map<String, dynamic>> _balances = [];
   bool _loading = true;
 
   @override
@@ -37,33 +37,44 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: AppColors.gray50,
+    backgroundColor: Colors.transparent,
     appBar: AppBar(
       title: const Text('Leave'),
       actions: [
-        IconButton(icon: const Icon(Icons.add), onPressed: () async {
-          await context.push('/leave/request');
-          _load();
-        }),
+        IconButton(
+          icon: const Icon(Icons.add_circle_outline),
+          onPressed: () async {
+            await context.push('/leave/request');
+            _load();
+          },
+        ),
       ],
       bottom: TabBar(
         controller: _tabCtrl,
-        labelColor: AppColors.primary600,
-        unselectedLabelColor: AppColors.gray500,
-        indicatorColor: AppColors.primary600,
         tabs: const [Tab(text: 'Requests'), Tab(text: 'Balance')],
       ),
     ),
     body: TabBarView(controller: _tabCtrl, children: [
-      // Requests
+      // Requests tab
       RefreshIndicator(
+        color: AppColors.primary600,
+        backgroundColor: const Color(0xFF2D1952),
         onRefresh: _load,
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: CircularProgressIndicator(color: AppColors.primary600))
             : _requests.isEmpty
-                ? EmptyStateWidget(icon: Icons.beach_access, title: 'No leave requests', description: 'Submit your first leave request.', action: AppButton(label: 'Request Leave', onPressed: () => context.push('/leave/request'), fullWidth: false))
+                ? EmptyStateWidget(
+                    icon: Icons.beach_access,
+                    title: 'No leave requests',
+                    description: 'Submit your first leave request.',
+                    action: AppButton(
+                      label: 'Request Leave',
+                      onPressed: () => context.push('/leave/request'),
+                      fullWidth: false,
+                    ),
+                  )
                 : ListView.builder(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
                     itemCount: _requests.length,
                     itemBuilder: (_, i) => Padding(
                       padding: const EdgeInsets.only(bottom: 8),
@@ -71,16 +82,22 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
                     ),
                   ),
       ),
-      // Balance
+      // Balance tab
       _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(20),
-              children: _balances.map((b) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _BalanceTile(balance: b),
-              )).toList(),
-            ),
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary600))
+          : _balances.isEmpty
+              ? const EmptyStateWidget(
+                  icon: Icons.account_balance_wallet_outlined,
+                  title: 'No leave balances',
+                  description: 'Your leave allocations will appear here.',
+                )
+              : ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
+                  children: _balances.map((b) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _BalanceTile(balance: b),
+                  )).toList(),
+                ),
     ]),
   );
 }
@@ -93,54 +110,81 @@ class _LeaveRequestTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = request['status'] as String? ?? 'pending';
-    final type   = request['leave_type'] as String? ?? 'leave';
+    final leaveType = (request['leave_type'] as Map?)?['name'] as String?
+        ?? request['leave_type'] as String?
+        ?? 'Leave';
     final start  = DateTime.parse(request['start_date'] as String);
     final end    = DateTime.parse(request['end_date']   as String);
-    final days   = request['working_days'] as int? ?? 0;
+    final days   = (request['working_days'] as num?)?.toDouble() ?? 0.0;
     final reason = request['rejection_reason'] as String?;
+    final isHalf = request['is_half_day'] as bool? ?? false;
 
-    final statusColors = <String, (Color, Color)>{
-      'pending':   (AppColors.warning800, AppColors.warning100),
-      'approved':  (AppColors.success700, AppColors.success100),
-      'rejected':  (AppColors.danger800,  AppColors.danger100),
-      'cancelled': (AppColors.gray500,    AppColors.gray100),
+    final statusCfg = <String, (Color, Color)>{
+      'pending':   (AppColors.warning500,  AppColors.warning100),
+      'approved':  (AppColors.success500,  AppColors.success100),
+      'rejected':  (AppColors.danger500,   AppColors.danger100),
+      'cancelled': (AppColors.gray400,     AppColors.gray100),
     };
-    final (fgColor, bgColor) = statusColors[status] ?? (AppColors.gray500, AppColors.gray100);
+    final (fgColor, bgColor) = statusCfg[status] ?? (AppColors.gray400, AppColors.gray100);
 
-    return AppCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Expanded(child: Text(type.toUpperCase(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.5))),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(20)),
-          child: Text(status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: fgColor)),
-        ),
+    return GlassCard(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+            child: Row(children: [
+              Text(leaveType.toUpperCase(),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.5, color: Colors.white)),
+              if (isHalf) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.teal100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text('HALF-DAY', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: AppColors.teal700)),
+                ),
+              ],
+            ]),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(20)),
+            child: Text(status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: fgColor)),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        Text('${DateFormat('MMM d').format(start)} – ${DateFormat('MMM d, yyyy').format(end)}',
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white)),
+        Text('${days == 0.5 ? '½' : days.toInt()} working day${days != 1 ? 's' : ''}',
+            style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.55))),
+        if (reason != null) ...[
+          const SizedBox(height: 6),
+          Text('Reason: $reason', style: const TextStyle(fontSize: 12, color: AppColors.danger500)),
+        ],
+        if (status == 'pending') ...[
+          const SizedBox(height: 12),
+          AppButton(
+            label: 'Cancel Request',
+            outline: true,
+            color: AppColors.danger500,
+            onPressed: () async {
+              final ok = await showConfirmDialog(
+                context,
+                title: 'Cancel Leave',
+                message: 'Are you sure you want to cancel this leave request?',
+                isDanger: true,
+                confirmLabel: 'Cancel Request',
+              );
+              if (ok == true) {
+                await api.cancelLeave(request['id'] as String);
+                onCancel?.call();
+              }
+            },
+          ),
+        ],
       ]),
-      const SizedBox(height: 8),
-      Text('${DateFormat('MMM d').format(start)} – ${DateFormat('MMM d, yyyy').format(end)}',
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.dark950)),
-      Text('$days working day${days != 1 ? 's' : ''}',
-          style: const TextStyle(fontSize: 13, color: AppColors.gray500)),
-      if (reason != null) ...[
-        const SizedBox(height: 6),
-        Text('Reason: $reason', style: const TextStyle(fontSize: 12, color: AppColors.danger800)),
-      ],
-      if (status == 'pending') ...[
-        const SizedBox(height: 12),
-        AppButton(
-          label: 'Cancel Request',
-          outline: true,
-          color: AppColors.danger500,
-          onPressed: () async {
-            final ok = await showConfirmDialog(context, title: 'Cancel Leave', message: 'Are you sure you want to cancel this leave request?', isDanger: true, confirmLabel: 'Cancel Request');
-            if (ok == true) {
-              await api.cancelLeave(request['id'] as String);
-              onCancel?.call();
-            }
-          },
-        ),
-      ],
-    ]));
+    );
   }
 }
 
@@ -150,29 +194,37 @@ class _BalanceTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final type      = balance['leave_type'] as String? ?? 'leave';
-    final total     = balance['total_days'] as int? ?? 0;
-    final used      = balance['used_days']  as int? ?? 0;
-    final remaining = total - used;
-    final pct       = total > 0 ? used / total : 0.0;
+    final leaveType = (balance['leave_type'] as Map?)?['name'] as String?
+        ?? balance['leave_type'] as String?
+        ?? 'Leave';
+    final entitled  = (balance['entitled_days'] as num?)?.toDouble()  ?? 0.0;
+    final used      = (balance['used_days']      as num?)?.toDouble()  ?? 0.0;
+    final remaining = (balance['remaining_days'] as num?)?.toDouble()
+        ?? (entitled - used);
+    final pct       = entitled > 0 ? (used / entitled).clamp(0.0, 1.0) : 0.0;
 
-    return AppCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text(type.replaceAll('_', ' ').toUpperCase(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
-        Text('$remaining days left', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primary600)),
-      ]),
-      const SizedBox(height: 8),
-      ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: LinearProgressIndicator(
-          value: pct.clamp(0.0, 1.0),
-          backgroundColor: AppColors.gray100,
-          valueColor: AlwaysStoppedAnimation(pct > 0.8 ? AppColors.danger500 : AppColors.primary600),
-          minHeight: 6,
+    return GlassCard(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text(leaveType.toUpperCase(),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.5, color: Colors.white)),
+          Text('${remaining % 1 == 0 ? remaining.toInt() : remaining} days left',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primary600)),
+        ]),
+        const SizedBox(height: 10),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: pct,
+            backgroundColor: Colors.white.withOpacity(0.12),
+            valueColor: AlwaysStoppedAnimation(pct > 0.8 ? AppColors.danger500 : AppColors.primary600),
+            minHeight: 6,
+          ),
         ),
-      ),
-      const SizedBox(height: 6),
-      Text('$used used of $total days', style: const TextStyle(fontSize: 12, color: AppColors.gray500)),
-    ]));
+        const SizedBox(height: 6),
+        Text('${used % 1 == 0 ? used.toInt() : used} used of ${entitled % 1 == 0 ? entitled.toInt() : entitled} days',
+            style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.55))),
+      ]),
+    );
   }
 }

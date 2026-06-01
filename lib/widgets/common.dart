@@ -1,6 +1,119 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import '../utils/theme.dart';
+
+// ─── Glass Card ───────────────────────────────────────
+class GlassCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsets? padding;
+  final VoidCallback? onTap;
+  final double blurSigma;
+  final double borderRadius;
+  final Color? tint;
+
+  const GlassCard({
+    super.key,
+    required this.child,
+    this.padding,
+    this.onTap,
+    this.blurSigma = 22,
+    this.borderRadius = 20,
+    this.tint,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final inner = Padding(
+      padding: padding ?? const EdgeInsets.all(16),
+      child: child,
+    );
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: tint != null
+                ? LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [tint!.withOpacity(0.25), tint!.withOpacity(0.12)],
+                  )
+                : AppGradients.glassCard,
+            borderRadius: BorderRadius.circular(borderRadius),
+            border: Border.all(color: Colors.white.withOpacity(0.22), width: 1.0),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.18),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: onTap != null
+              ? InkWell(
+                  onTap: onTap,
+                  borderRadius: BorderRadius.circular(borderRadius),
+                  splashColor: Colors.white.withOpacity(0.08),
+                  child: inner,
+                )
+              : inner,
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Glass Badge ─────────────────────────────────────
+// Semi-transparent notification or info chip on glass background
+class GlassBadge extends StatelessWidget {
+  final String text;
+  final Color color;
+  final IconData? icon;
+  const GlassBadge({super.key, required this.text, required this.color, this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.18),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withOpacity(0.4)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (icon != null) ...[Icon(icon, size: 11, color: color), const SizedBox(width: 4)],
+            Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── App Card (light mode fallback) ──────────────────
+class AppCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsets? padding;
+  final VoidCallback? onTap;
+  final Color? color;
+  const AppCard({super.key, required this.child, this.padding, this.onTap, this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      padding: padding,
+      onTap: onTap,
+      tint: color,
+      child: child,
+    );
+  }
+}
 
 // ─── Status Badge ─────────────────────────────────────
 class StatusBadge extends StatelessWidget {
@@ -51,6 +164,7 @@ class UserAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.primary600,
         borderRadius: BorderRadius.circular(size / 2),
+        border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
         image: imageUrl != null
             ? DecorationImage(image: NetworkImage(imageUrl!), fit: BoxFit.cover)
             : null,
@@ -58,30 +172,6 @@ class UserAvatar extends StatelessWidget {
       child: imageUrl == null
           ? Center(child: Text(_initials, style: TextStyle(color: Colors.white, fontSize: size * 0.35, fontWeight: FontWeight.w700)))
           : null,
-    );
-  }
-}
-
-// ─── App Card ─────────────────────────────────────────
-class AppCard extends StatelessWidget {
-  final Widget child;
-  final EdgeInsets? padding;
-  final VoidCallback? onTap;
-  final Color? color;
-  const AppCard({super.key, required this.child, this.padding, this.onTap, this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: color ?? AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.gray200),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
-      ),
-      child: onTap != null
-          ? InkWell(onTap: onTap, borderRadius: BorderRadius.circular(16), child: Padding(padding: padding ?? const EdgeInsets.all(16), child: child))
-          : Padding(padding: padding ?? const EdgeInsets.all(16), child: child),
     );
   }
 }
@@ -103,7 +193,7 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg   = color ?? AppColors.primary600;
+    final bg  = color ?? AppColors.primary600;
     final child = loading
         ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(Colors.white)))
         : Row(
@@ -120,19 +210,28 @@ class AppButton extends StatelessWidget {
       child: outline
           ? OutlinedButton(
               onPressed: loading ? null : onPressed,
-              style: OutlinedButton.styleFrom(foregroundColor: bg, side: BorderSide(color: bg), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: bg,
+                side: BorderSide(color: bg.withOpacity(0.7)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
               child: child,
             )
           : ElevatedButton(
               onPressed: loading ? null : onPressed,
-              style: ElevatedButton.styleFrom(backgroundColor: bg, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: bg,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
               child: child,
             ),
     );
   }
 }
 
-// ─── Shimmer Skeleton ─────────────────────────────────
+// ─── Shimmer Skeleton (dark) ──────────────────────────
 class SkeletonBox extends StatelessWidget {
   final double width;
   final double height;
@@ -142,11 +241,14 @@ class SkeletonBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: AppColors.gray100,
-      highlightColor: AppColors.gray50,
+      baseColor: Colors.white.withOpacity(0.07),
+      highlightColor: Colors.white.withOpacity(0.18),
       child: Container(
         width: width, height: height,
-        decoration: BoxDecoration(color: AppColors.gray100, borderRadius: BorderRadius.circular(radius)),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.07),
+          borderRadius: BorderRadius.circular(radius),
+        ),
       ),
     );
   }
@@ -163,7 +265,7 @@ class SectionHeader extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.dark950)),
+        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
         if (trailing != null) trailing!,
       ],
     );
@@ -180,16 +282,26 @@ class KpiChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: color)),
-          const SizedBox(height: 2),
-          Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: color.withOpacity(0.8))),
-        ],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withOpacity(0.3)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: color)),
+              const SizedBox(height: 2),
+              Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: color.withOpacity(0.8))),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -211,21 +323,46 @@ class EmptyStateWidget extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 56, height: 56,
-              decoration: BoxDecoration(color: AppColors.gray100, borderRadius: BorderRadius.circular(14)),
-              child: Icon(icon, color: AppColors.gray500, size: 26),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  width: 60, height: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withOpacity(0.2)),
+                  ),
+                  child: Icon(icon, color: Colors.white.withOpacity(0.6), size: 28),
+                ),
+              ),
             ),
             const SizedBox(height: 16),
-            Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.dark950)),
+            Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
             const SizedBox(height: 6),
-            Text(description, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: AppColors.gray500)),
+            Text(description, textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.55))),
             if (action != null) ...[const SizedBox(height: 20), action!],
           ],
         ),
       ),
     );
   }
+}
+
+// ─── Glass Info Row ───────────────────────────────────
+Widget glassDetailRow(String label, String value, {bool highlight = false}) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 7),
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(label, style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.55))),
+      Text(value, style: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: highlight ? AppColors.warning500 : Colors.white,
+      )),
+    ]),
+  );
 }
 
 // ─── Confirm Dialog ───────────────────────────────────
@@ -238,11 +375,13 @@ Future<bool?> showConfirmDialog(BuildContext context, {
   return showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-      content: Text(message, style: const TextStyle(color: AppColors.gray500)),
+      title: Text(title),
+      content: Text(message),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: Text('Cancel', style: TextStyle(color: Colors.white.withOpacity(0.6))),
+        ),
         ElevatedButton(
           onPressed: () => Navigator.pop(ctx, true),
           style: ElevatedButton.styleFrom(

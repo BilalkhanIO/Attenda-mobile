@@ -36,18 +36,20 @@ class _AttendaAppState extends State<AttendaApp> {
 
     if (auth.isLoading) {
       return MaterialApp(
-        theme: AppTheme.light,
+        theme: AppTheme.glass,
         debugShowCheckedModeBanner: false,
-        home: const Scaffold(
-          backgroundColor: AppColors.dark950,
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const AttendaLogo(iconSize: 52, variant: AttendaLogoVariant.dark),
-                const SizedBox(height: 32),
-                const CircularProgressIndicator(color: AppColors.primary600),
-              ],
+        home: Scaffold(
+          body: Container(
+            decoration: const BoxDecoration(gradient: AppGradients.mesh),
+            child: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  AttendaLogo(iconSize: 52, variant: AttendaLogoVariant.dark),
+                  SizedBox(height: 32),
+                  CircularProgressIndicator(color: AppColors.primary600),
+                ],
+              ),
             ),
           ),
         ),
@@ -58,7 +60,7 @@ class _AttendaAppState extends State<AttendaApp> {
 
     return MaterialApp.router(
       title: 'Attenda',
-      theme: AppTheme.light,
+      theme: AppTheme.glass,
       debugShowCheckedModeBanner: false,
       routerConfig: _router!,
     );
