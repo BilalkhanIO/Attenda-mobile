@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
@@ -45,7 +46,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Map<String, int> get _summary {
     final mr = _monthRecords;
     return {
-      'present': mr.where((r) => ['in','out','late'].contains(r['status'])).length,
+      'present': mr.where((r) => ['in', 'out', 'late'].contains(r['status'])).length,
       'late':    mr.where((r) => r['status'] == 'late').length,
       'absent':  mr.where((r) => r['status'] == 'absent').length,
       'remote':  mr.where((r) => r['status'] == 'remote').length,
@@ -55,15 +56,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.gray50,
-      appBar: AppBar(title: const Text('My Attendance'), actions: [
-        IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
-      ]),
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
+        title: const Text('My Attendance'),
+        actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)],
+      ),
       body: RefreshIndicator(
+        color: AppColors.primary600,
+        backgroundColor: const Color(0xFF2D1952),
         onRefresh: _load,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -80,16 +84,31 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       padding: const EdgeInsets.only(right: 8),
                       child: GestureDetector(
                         onTap: () => setState(() => _selectedMonth = m),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: selected ? AppColors.primary600 : AppColors.white,
-                            borderRadius: BorderRadius.circular(22),
-                            border: Border.all(color: selected ? AppColors.primary600 : AppColors.gray200),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(22),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? AppColors.primary600
+                                    : Colors.white.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(22),
+                                border: Border.all(
+                                  color: selected ? AppColors.primary600 : Colors.white.withOpacity(0.2),
+                                ),
+                              ),
+                              child: Text(
+                                DateFormat('MMM yyyy').format(m),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: selected ? Colors.white : Colors.white.withOpacity(0.7),
+                                ),
+                              ),
+                            ),
                           ),
-                          child: Text(DateFormat('MMM yyyy').format(m),
-                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                                  color: selected ? Colors.white : AppColors.dark950)),
                         ),
                       ),
                     );
@@ -101,31 +120,30 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               // Summary chips
               if (!_loading) ...[
                 Row(children: [
-                  Expanded(child: KpiChip(label: 'Present', value: '${_summary['present']}', color: AppColors.success700, bg: AppColors.success100)),
+                  Expanded(child: KpiChip(label: 'Present', value: '${_summary['present']}', color: AppColors.success500, bg: AppColors.success100)),
                   const SizedBox(width: 8),
-                  Expanded(child: KpiChip(label: 'Late',    value: '${_summary['late']}',    color: AppColors.warning800, bg: AppColors.warning100)),
+                  Expanded(child: KpiChip(label: 'Late',    value: '${_summary['late']}',    color: AppColors.warning500, bg: AppColors.warning100)),
                   const SizedBox(width: 8),
-                  Expanded(child: KpiChip(label: 'Absent',  value: '${_summary['absent']}',  color: AppColors.danger800,  bg: AppColors.danger100)),
+                  Expanded(child: KpiChip(label: 'Absent',  value: '${_summary['absent']}',  color: AppColors.danger500,  bg: AppColors.danger100)),
                   const SizedBox(width: 8),
-                  Expanded(child: KpiChip(label: 'Remote',  value: '${_summary['remote']}',  color: AppColors.purple700,  bg: AppColors.purple100)),
+                  Expanded(child: KpiChip(label: 'Remote',  value: '${_summary['remote']}',  color: AppColors.purple500,  bg: AppColors.purple100)),
                 ]),
                 const SizedBox(height: 20),
               ],
 
-              // Records list
-              const SectionHeader(title: 'Attendance Records'),
+              const SectionHeader(title: 'Records'),
               const SizedBox(height: 12),
 
               if (_loading)
                 ...List.generate(5, (_) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: SkeletonBox(width: double.infinity, height: 68, radius: 12),
+                  child: SkeletonBox(width: double.infinity, height: 68, radius: 16),
                 ))
               else if (_monthRecords.isEmpty)
                 EmptyStateWidget(
                   icon: Icons.access_time,
                   title: 'No records',
-                  description: 'No attendance records found for ${DateFormat('MMMM yyyy').format(_selectedMonth)}.',
+                  description: 'No records found for ${DateFormat('MMMM yyyy').format(_selectedMonth)}.',
                 )
               else
                 ..._monthRecords.map((r) => Padding(
@@ -152,27 +170,38 @@ class _RecordTile extends StatelessWidget {
     final checkOut = record['check_out_at'] as String?;
     final hours    = record['hours_worked'];
 
-    return AppCard(
+    return GlassCard(
       onTap: () => _showDetail(context, record),
       child: Row(children: [
-        // Date column
         Container(
           width: 44, height: 44,
-          decoration: BoxDecoration(color: StatusColors.bg(status), borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(
+            color: StatusColors.bg(status),
+            borderRadius: BorderRadius.circular(10),
+          ),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text(DateFormat('d').format(date), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: StatusColors.fg(status))),
-            Text(DateFormat('EEE').format(date), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: StatusColors.fg(status))),
+            Text(DateFormat('d').format(date),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: StatusColors.fg(status))),
+            Text(DateFormat('EEE').format(date),
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: StatusColors.fg(status))),
           ]),
         ),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(DateFormat('EEEE, d MMMM').format(date), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.dark950)),
+          Text(DateFormat('EEEE, d MMMM').format(date),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
           const SizedBox(height: 3),
           Row(children: [
-            if (checkIn != null) Text('In: ${DateFormat('HH:mm').format(DateTime.parse(checkIn))}', style: const TextStyle(fontSize: 12, color: AppColors.gray500)),
-            if (checkIn != null && checkOut != null) const Text('  ·  ', style: TextStyle(color: AppColors.gray200)),
-            if (checkOut != null) Text('Out: ${DateFormat('HH:mm').format(DateTime.parse(checkOut))}', style: const TextStyle(fontSize: 12, color: AppColors.gray500)),
-            if (hours != null) Text('  ·  ${hours}h', style: const TextStyle(fontSize: 12, color: AppColors.gray500)),
+            if (checkIn != null)
+              Text('In: ${DateFormat('HH:mm').format(DateTime.parse(checkIn))}',
+                  style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.55))),
+            if (checkIn != null && checkOut != null)
+              Text('  ·  ', style: TextStyle(color: Colors.white.withOpacity(0.25))),
+            if (checkOut != null)
+              Text('Out: ${DateFormat('HH:mm').format(DateTime.parse(checkOut))}',
+                  style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.55))),
+            if (hours != null)
+              Text('  ·  ${hours}h', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.55))),
           ]),
         ])),
         StatusBadge(status: status, small: true),
@@ -184,47 +213,33 @@ class _RecordTile extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.all(24),
+      builder: (_) => GlassCard(
+        borderRadius: 24,
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Text(DateFormat('EEEE, d MMMM yyyy').format(DateTime.parse(r['date'] as String)),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
               StatusBadge(status: r['status'] as String? ?? 'out'),
             ]),
             const SizedBox(height: 16),
-            const Divider(),
-            const SizedBox(height: 12),
-            _detailRow('Check In',   r['check_in_at']  != null ? DateFormat('hh:mm a').format(DateTime.parse(r['check_in_at']  as String)) : '—'),
-            _detailRow('Check Out',  r['check_out_at'] != null ? DateFormat('hh:mm a').format(DateTime.parse(r['check_out_at'] as String)) : '—'),
-            _detailRow('Hours',      r['hours_worked'] != null ? '${r['hours_worked']}h' : '—'),
-            _detailRow('Type',       (r['check_in_type'] as String? ?? 'manual').replaceAll('_', ' ').toUpperCase()),
-            if (r['ip_detected'] != null)
-              _detailRow('IP', r['ip_detected'] as String),
-            if (r['is_overridden'] == true)
-              _detailRow('Override', r['override_reason'] as String? ?? 'Overridden by manager', highlight: true),
+            Divider(color: Colors.white.withOpacity(0.12)),
             const SizedBox(height: 8),
+            glassDetailRow('Check In',  r['check_in_at']  != null ? DateFormat('hh:mm a').format(DateTime.parse(r['check_in_at']  as String)) : '—'),
+            glassDetailRow('Check Out', r['check_out_at'] != null ? DateFormat('hh:mm a').format(DateTime.parse(r['check_out_at'] as String)) : '—'),
+            glassDetailRow('Hours',     r['hours_worked'] != null ? '${r['hours_worked']}h' : '—'),
+            glassDetailRow('Type',      (r['check_in_type'] as String? ?? 'manual').replaceAll('_', ' ').toUpperCase()),
+            if (r['ip_detected'] != null)
+              glassDetailRow('IP', r['ip_detected'] as String),
+            if (r['is_overridden'] == true)
+              glassDetailRow('Override', r['override_reason'] as String? ?? 'Overridden by manager', highlight: true),
+            const SizedBox(height: 4),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _detailRow(String label, String value, {bool highlight = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text(label, style: const TextStyle(fontSize: 14, color: AppColors.gray500)),
-        Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
-            color: highlight ? AppColors.warning800 : AppColors.dark950)),
-      ]),
     );
   }
 }
