@@ -124,6 +124,14 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> sendHeartbeat(String ip, {String? ssid}) async {
+    final res = await _dio.post('/attendance/heartbeat', data: {
+      'ip': ip,
+      if (ssid != null && ssid.isNotEmpty) 'ssid': ssid,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   // ─── Late Arrival Notices ─────────────────────────
   Future<Map<String, dynamic>> getLeaveAndNoticeCheck() async {
     final res = await _dio.get('/attendance/leave-check');

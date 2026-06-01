@@ -24,7 +24,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? _lateNotice;
   bool _loading           = true;
   bool _vpnDetected       = false;
-  bool _gracePeriod       = false;
+  bool _heartbeatLost     = false;
+  String?   _disconnectSsid;
+  DateTime? _disconnectDeadline; // 10 min from when heartbeat was lost
   bool _noNetworksConfig  = false;
   Timer? _timer;
   Duration _elapsed   = Duration.zero;
@@ -37,24 +39,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _load();
     _startTimer();
 
-    WifiAttendanceService().onStatusChange = (status) {
+    WifiAttendanceService().onStatusChange = (status, [data]) {
       if (!mounted) return;
       switch (status) {
         case 'checked_in':
+          setState(() { _heartbeatLost = false; _disconnectDeadline = null; });
           _load();
           _showSnack('✅ Auto checked in via office WiFi');
           break;
-        case 'checked_out':
-          _load();
-          _showSnack('🔴 Auto checked out — WiFi disconnected');
+        case 'heartbeat_lost':
+          setState(() {
+            _heartbeatLost      = true;
+            _disconnectSsid     = data;
+            _disconnectDeadline = DateTime.now().add(const Duration(minutes: 10));
+          });
           break;
-        case 'grace_period':
-          setState(() => _gracePeriod = true);
-          _showSnack('WiFi signal lost — checking out in 5 min if not reconnected');
-          break;
-        case 'grace_cancelled':
-          setState(() => _gracePeriod = false);
-          _showSnack('Welcome back! Check-out cancelled.');
+        case 'heartbeat_restored':
+          setState(() { _heartbeatLost = false; _disconnectDeadline = null; });
+          _showSnack('✅ Back on office WiFi');
           break;
         case 'vpn_detected':
           setState(() => _vpnDetected = true);
@@ -156,6 +158,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return '${s}s';
   }
 
+  String get _disconnectCountdown {
+    if (_disconnectDeadline == null) return '';
+    final remaining = _disconnectDeadline!.difference(DateTime.now());
+    if (remaining.isNegative) return '00:00';
+    final m = remaining.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = remaining.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
   String get _status   => _todayRecord?['status'] as String? ?? 'none';
   bool get _checkedIn  => _status == 'in' || _status == 'late';
   bool get _checkedOut => _status == 'out';
@@ -233,7 +244,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
                 // ─── Banners ──────────────────────────────
                 if (_vpnDetected)        _vpnBanner(),
-                if (_gracePeriod)        _graceBanner(),
+                if (_heartbeatLost)      _heartbeatLostBanner(),
                 if (_noNetworksConfig && !_vpnDetected) _noNetworksBanner(),
                 if (!_loading && _todayLeave != null &&
                     _status != 'in' && _status != 'late' && _status != 'out')
@@ -311,11 +322,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     tint: Colors.white,
   );
 
-  Widget _graceBanner() => _glassBanner(
-    icon: Icons.wifi_off,
-    text: "WiFi signal lost — you'll be checked out in 5 minutes if not reconnected.",
-    tint: AppColors.primary600,
-  );
+  Widget _heartbeatLostBanner() {
+    final ssid = _disconnectSsid;
+    return _glassBanner(
+      icon: Icons.wifi_off,
+      text: ssid != null && ssid.isNotEmpty
+          ? 'Not on "$ssid" — reconnect within $_disconnectCountdown or you\'ll be checked out'
+          : 'Left office WiFi — reconnect within $_disconnectCountdown to stay checked in',
+      tint: AppColors.warning500,
+    );
+  }
 
   Widget _leaveTodayBanner() {
     final leaveType = (_todayLeave?['leave_type'] as String? ?? 'leave').replaceAll('_', ' ');
@@ -500,6 +516,77 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     reasonCtrl.dispose();
   }
 
+  // ─── Break Info ────────────────────────────────────────
+
+  Map<String, dynamic>? _computeBreakInfo() {
+    final checkInStr = _todayRecord?['check_in_at'] as String?;
+    if (checkInStr == null) return null;
+    final checkIn = DateTime.parse(checkInStr);
+
+    // Check for active break in break_records
+    final breakRecords = (_todayRecord?['break_records'] as List?)
+        ?.cast<Map<String, dynamic>>() ?? [];
+    final activeBreak = breakRecords.where((b) => b['break_end'] == null).firstOrNull;
+    if (activeBreak != null) {
+      final startedAt = DateTime.parse(activeBreak['break_start'] as String);
+      final durationMins = activeBreak['duration_mins'] as int? ?? 30;
+      final endsAt = startedAt.add(Duration(minutes: durationMins));
+      final remaining = endsAt.difference(DateTime.now());
+      if (remaining.isNegative) {
+        return {
+          'icon': Icons.free_breakfast,
+          'color': AppColors.warning500,
+          'text': 'Break running ${(-remaining.inMinutes)}m over',
+        };
+      }
+      final m = remaining.inMinutes;
+      final s = remaining.inSeconds % 60;
+      return {
+        'icon': Icons.free_breakfast,
+        'color': AppColors.teal100,
+        'text': 'On break — ${m}m ${s}s remaining',
+      };
+    }
+
+    // Check for upcoming breaks from shift schedule
+    final shiftBreaks = (_nextShift?['shift']?['shift_breaks'] as List?)
+        ?.cast<Map<String, dynamic>>() ?? [];
+    for (final sb in shiftBreaks) {
+      final afterMins   = (sb['after_minutes'] as num?)?.toInt() ?? 0;
+      final breakMins   = (sb['break_minutes'] as num?)?.toInt() ?? 15;
+      final name        = sb['name'] as String? ?? 'Break';
+      final breakStart  = checkIn.add(Duration(minutes: afterMins));
+      final breakEnd    = breakStart.add(Duration(minutes: breakMins));
+
+      // Already past this break? Skip.
+      if (DateTime.now().isAfter(breakEnd)) continue;
+
+      final untilStart = breakStart.difference(DateTime.now());
+      if (untilStart.isNegative) {
+        // Should be on break but no active record yet
+        return {
+          'icon': Icons.free_breakfast,
+          'color': AppColors.warning500,
+          'text': '$name started — take your break',
+        };
+      }
+      if (untilStart.inMinutes <= 10) {
+        return {
+          'icon': Icons.schedule,
+          'color': AppColors.primary600,
+          'text': '$name in ${untilStart.inMinutes}m ${untilStart.inSeconds % 60}s',
+        };
+      }
+      // More than 10 min away — show next break time
+      return {
+        'icon': Icons.schedule,
+        'color': Colors.white.withOpacity(0.45),
+        'text': '$name at ${DateFormat('hh:mm a').format(breakStart)}',
+      };
+    }
+    return null;
+  }
+
   // ─── Status Card ───────────────────────────────────────
 
   Widget _buildStatusCard() {
@@ -509,12 +596,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     String statusSub;
     Color iconColor;
 
-    if (_gracePeriod) {
+    if (_heartbeatLost) {
       cardTint    = AppColors.warning500;
       cardIcon    = Icons.wifi_off;
       iconColor   = AppColors.warning500;
-      statusTitle = 'WiFi Lost — Grace Period';
-      statusSub   = 'Will auto check-out in 5 min';
+      statusTitle = 'Not on Office WiFi';
+      statusSub   = _disconnectCountdown.isNotEmpty
+          ? 'Auto check-out in $_disconnectCountdown — reconnect to stay'
+          : 'Reconnect to office WiFi';
     } else if (_vpnDetected) {
       cardTint    = AppColors.warning500;
       cardIcon    = Icons.vpn_lock;
@@ -601,6 +690,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               _infoChip(Icons.wifi, 'Via', _formatCheckInType(_todayRecord!['check_in_type'] as String)),
             ],
           ]),
+          // Break status row (shows upcoming break warning or active break)
+          Builder(builder: (context) {
+            final breakInfo = _computeBreakInfo();
+            if (breakInfo == null) return const SizedBox.shrink();
+            return Column(children: [
+              const SizedBox(height: 8),
+              Divider(color: Colors.white.withOpacity(0.12), height: 1),
+              const SizedBox(height: 8),
+              Row(children: [
+                Icon(breakInfo['icon'] as IconData, size: 14, color: breakInfo['color'] as Color),
+                const SizedBox(width: 6),
+                Expanded(child: Text(
+                  breakInfo['text'] as String,
+                  style: TextStyle(fontSize: 12, color: breakInfo['color'] as Color, fontWeight: FontWeight.w600),
+                )),
+              ]),
+            ]);
+          }),
         ],
 
         // Check-in actions
