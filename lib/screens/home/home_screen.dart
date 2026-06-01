@@ -530,6 +530,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       cardIcon    = Icons.beach_access;
       statusTitle = 'On Leave 📅';
       statusSub   = 'Approved leave';
+    } else if (_status == 'half_leave') {
+      // Half-day leave: employee may check in for the other half
+      final period = (_todayLeave?['half_day_period'] as String?) ?? '';
+      final expected = period == 'morning' ? 'Afternoon' : 'Morning';
+      cardColor   = AppColors.teal100;
+      cardIcon    = Icons.calendar_today;
+      statusTitle = 'Half-Day Leave';
+      statusSub   = period.isNotEmpty ? '$expected half — you may still check in' : 'Approved half-day leave';
     } else {
       cardColor   = AppColors.white;
       cardIcon    = Icons.radio_button_unchecked;

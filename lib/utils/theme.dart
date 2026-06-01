@@ -38,7 +38,8 @@ class StatusColors {
       case 'late':   return AppColors.warning100;
       case 'absent': return AppColors.danger100;
       case 'remote': return AppColors.purple100;
-      case 'leave':  return AppColors.primary100;
+      case 'leave':       return AppColors.primary100;
+      case 'half_leave':  return AppColors.teal100;
       default:       return AppColors.gray100;
     }
   }
@@ -48,7 +49,8 @@ class StatusColors {
       case 'late':   return AppColors.warning800;
       case 'absent': return AppColors.danger800;
       case 'remote': return AppColors.purple700;
-      case 'leave':  return AppColors.primary600;
+      case 'leave':       return AppColors.primary600;
+      case 'half_leave':  return AppColors.teal700;
       default:       return AppColors.gray500;
     }
   }
@@ -59,7 +61,8 @@ class StatusColors {
       case 'late':   return 'Late';
       case 'absent': return 'Absent';
       case 'remote': return 'Remote';
-      case 'leave':  return 'On Leave';
+      case 'leave':       return 'On Leave';
+      case 'half_leave':  return 'Half-Day Leave';
       default:       return status;
     }
   }
@@ -70,7 +73,8 @@ class StatusColors {
       case 'late':   return Icons.warning_rounded;
       case 'absent': return Icons.cancel;
       case 'remote': return Icons.home_rounded;
-      case 'leave':  return Icons.calendar_today;
+      case 'leave':       return Icons.calendar_today;
+      case 'half_leave':  return Icons.calendar_today;
       default:       return Icons.help_outline;
     }
   }
