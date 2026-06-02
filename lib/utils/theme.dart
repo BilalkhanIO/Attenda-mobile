@@ -4,15 +4,15 @@ import 'package:google_fonts/google_fonts.dart';
 // ─── Aurora Liquid Glass 2026 Color Tokens ────────────
 class AppColors {
   // ── Primary palette ──────────────────────────────────
-  static const primary   = Color(0xFF6C63FF);
-  static const secondary = Color(0xFF00D4FF);
+  static const primary   = Color(0xFF00C896);   // emerald
+  static const secondary = Color(0xFF00E5FF);   // cyan
   static const accent    = Color(0xFFFF6FD8);
 
   // ── Legacy aliases (used across all screens) ──────────
   static const primary600 = primary;
-  static const primary500 = Color(0xFF7B73FF);
-  static const primary100 = Color(0xFFEEEDFF);
-  static const primary900 = Color(0xFF3730A3);
+  static const primary500 = Color(0xFF00B488);   // emerald mid-shade
+  static const primary100 = Color(0xFFCCF5EC);   // light emerald
+  static const primary900 = Color(0xFF006B50);   // deep emerald
 
   // ── Semantic colors ───────────────────────────────────
   static const success500 = Color(0xFF22C55E);
@@ -41,9 +41,9 @@ class AppColors {
   static const teal700   = Color(0xFF0EA5E9);
 
   // ── Dark backgrounds ──────────────────────────────────
-  static const bgDark  = Color(0xFF0B1020);
-  static const bgDark2 = Color(0xFF121A35);
-  static const bgDark3 = Color(0xFF1B2550);
+  static const bgDark  = Color(0xFF04141A);   // very dark teal-black
+  static const bgDark2 = Color(0xFF081D24);   // deep teal-dark
+  static const bgDark3 = Color(0xFF0E2A34);   // mid teal-dark
 
   // ── Legacy mesh aliases ───────────────────────────────
   static const meshBot = bgDark;
@@ -135,7 +135,7 @@ class StatusColors {
       case 'in':         return AppColors.success700;
       case 'late':       return AppColors.warning800;
       case 'absent':     return AppColors.danger800;
-      case 'remote':     return AppColors.purple700;
+      case 'remote':     return AppColors.primary900;
       case 'leave':      return AppColors.primary900;
       case 'half_leave': return const Color(0xFF0369A1);
       default:           return AppColors.gray500;

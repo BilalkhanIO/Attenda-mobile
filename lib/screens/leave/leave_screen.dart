@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -91,13 +92,43 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
                   title: 'No leave balances',
                   description: 'Your leave allocations will appear here.',
                 )
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
-                  children: _balances.map((b) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _BalanceTile(balance: b),
-                  )).toList(),
-                ),
+              : Builder(builder: (context) {
+                  final totalRemaining = _balances.fold(0.0, (s, b) => s + ((b['remaining_days'] as num?) ?? 0.0));
+                  final totalEntitled  = _balances.fold(0.0, (s, b) => s + ((b['entitled_days']  as num?) ?? 0.0));
+                  final pct = totalEntitled > 0 ? (totalRemaining / totalEntitled).clamp(0.0, 1.0) : 0.0;
+                  final remainingInt = totalRemaining % 1 == 0 ? totalRemaining.toInt().toString() : totalRemaining.toStringAsFixed(1);
+
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
+                    children: [
+                      // ── Balance summary glass card ──
+                      GlassCard(
+                        tint: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                        child: Row(children: [
+                          _LeaveRing(pct: pct, value: remainingInt, label: 'days'),
+                          const SizedBox(width: 20),
+                          Expanded(
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text('TOTAL REMAINING',
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: Colors.white.withOpacity(0.55))),
+                              const SizedBox(height: 6),
+                              Text(
+                                'You have $remainingInt days of leave left across all types this year.',
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white, height: 1.4),
+                              ),
+                            ]),
+                          ),
+                        ]),
+                      ),
+                      const SizedBox(height: 12),
+                      ..._balances.map((b) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _BalanceTile(balance: b),
+                      )),
+                    ],
+                  );
+                }),
     ]),
   );
 }
@@ -186,6 +217,74 @@ class _LeaveRequestTile extends StatelessWidget {
       ]),
     );
   }
+}
+
+// ─── Leave donut ring ────────────────────────────────────
+class _LeaveRing extends StatelessWidget {
+  final double pct;
+  final String value;
+  final String label;
+  const _LeaveRing({required this.pct, required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 90, height: 90,
+      child: Stack(alignment: Alignment.center, children: [
+        CustomPaint(size: const Size(90, 90), painter: _RingPainter(pct: pct)),
+        Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
+          Text(label, style: TextStyle(fontSize: 9, color: Colors.white.withOpacity(0.5))),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _RingPainter extends CustomPainter {
+  final double pct;
+  const _RingPainter({required this.pct});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2 - 8;
+
+    // Track
+    canvas.drawCircle(
+      c, r,
+      Paint()
+        ..color = Colors.white.withOpacity(0.12)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 8
+        ..strokeCap = StrokeCap.round,
+    );
+
+    // Arc
+    if (pct > 0) {
+      final sweep = 2 * math.pi * pct.clamp(0.0, 1.0);
+      final arcRect = Rect.fromCircle(center: c, radius: r);
+      final grad = SweepGradient(
+        startAngle: -math.pi / 2,
+        endAngle: -math.pi / 2 + sweep,
+        colors: const [Color(0xFF00C896), Color(0xFF00E5FF)],
+      );
+      canvas.drawArc(
+        arcRect,
+        -math.pi / 2,
+        sweep,
+        false,
+        Paint()
+          ..shader = grad.createShader(arcRect)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 8
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter o) => o.pct != pct;
 }
 
 class _BalanceTile extends StatelessWidget {

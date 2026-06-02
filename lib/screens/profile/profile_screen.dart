@@ -68,7 +68,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Colors.black.withOpacity(0.4),
+                          AppColors.primary.withOpacity(0.28),  // emerald tint at top
                           Colors.transparent,
                         ],
                       ),
