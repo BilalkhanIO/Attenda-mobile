@@ -668,16 +668,161 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       statusTitle = 'Checked Out';
       statusSub   = 'Work day complete · ${_todayRecord?['hours_worked'] != null ? '${_todayRecord!['hours_worked']}h worked' : ''}';
     } else if (_checkedIn) {
+      // ── CheckedIn hero: ring layout ───────────────────────
       final lateMins  = (_todayRecord?['late_minutes'] as num?)?.toInt() ?? 0;
       final isLate    = _status == 'late' || lateMins > 0;
       final hasNotice = _todayRecord?['late_notice_id'] != null;
-      cardTint    = isLate ? AppColors.warning500 : AppColors.success500;
-      cardIcon    = isLate ? Icons.running_with_errors : Icons.check_circle_rounded;
-      iconColor   = isLate ? AppColors.warning500 : AppColors.success500;
-      statusTitle = isLate ? 'Checked In (Late)' : 'Checked In ✅';
-      statusSub   = lateMins > 0
-          ? '$lateMins min late${hasNotice ? ' · pre-announced' : ''} · working for $_elapsedDisplay'
-          : 'Working for $_elapsedDisplay';
+      final ringTint  = isLate ? AppColors.warning500 : const Color(0xFF34E0A1);
+
+      final shiftStart = _getShiftStartMins();
+      final shiftEnd   = _getShiftEndMins();
+      final nowMins    = DateTime.now().hour * 60 + DateTime.now().minute;
+      final shiftPct   = ((nowMins - shiftStart) / (shiftEnd - shiftStart)).clamp(0.0, 1.0);
+
+      final checkInStr = _todayRecord?['check_in_at'] as String?;
+      final checkInTime = checkInStr != null
+          ? DateFormat('hh:mm a').format(DateTime.parse(checkInStr))
+          : '--:--';
+      final checkInType = _todayRecord?['check_in_type'] as String?;
+
+      return GlassCard(
+        tint: ringTint,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // ── Top row: ring on left, info on right ──────────
+          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            _ShiftRing(
+              pct: shiftPct,
+              center: Icon(
+                isLate ? Icons.running_with_errors : Icons.check_circle_rounded,
+                color: ringTint,
+                size: 30,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // Status badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: ringTint.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: ringTint.withOpacity(0.4)),
+                ),
+                child: Text(
+                  isLate ? 'Checked In · Late' : 'Checked In',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: ringTint),
+                ),
+              ),
+              const SizedBox(height: 6),
+              // Big elapsed timer
+              Text(
+                _elapsedDisplay,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  fontFamily: 'monospace',
+                ),
+              ),
+              const SizedBox(height: 2),
+              // "Working since HH:MM" subtitle
+              Text(
+                'Working since $checkInTime',
+                style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.55)),
+              ),
+            ])),
+          ]),
+
+          // ── Divider + info chips ───────────────────────────
+          if (checkInStr != null) ...[
+            const SizedBox(height: 12),
+            Divider(color: Colors.white.withOpacity(0.15), height: 1),
+            const SizedBox(height: 12),
+            Row(children: [
+              _infoChip(Icons.login, 'In', checkInTime),
+              const SizedBox(width: 20),
+              _infoChip(Icons.timer_outlined, 'Elapsed', _elapsedDisplay),
+              if (checkInType != null) ...[
+                const SizedBox(width: 20),
+                _infoChip(Icons.wifi, 'Via', _formatCheckInType(checkInType)),
+              ],
+            ]),
+          ],
+
+          // ── Break status row ───────────────────────────────
+          Builder(builder: (context) {
+            final breakInfo = _computeBreakInfo();
+            if (breakInfo == null) return const SizedBox.shrink();
+            return Column(children: [
+              const SizedBox(height: 8),
+              Divider(color: Colors.white.withOpacity(0.12), height: 1),
+              const SizedBox(height: 8),
+              Row(children: [
+                Icon(breakInfo['icon'] as IconData, size: 14, color: breakInfo['color'] as Color),
+                const SizedBox(width: 6),
+                Expanded(child: Text(
+                  breakInfo['text'] as String,
+                  style: TextStyle(fontSize: 12, color: breakInfo['color'] as Color, fontWeight: FontWeight.w600),
+                )),
+              ]),
+            ]);
+          }),
+
+          // ── Late info ──────────────────────────────────────
+          if (lateMins > 0) ...[
+            const SizedBox(height: 8),
+            Text(
+              '$lateMins min late${hasNotice ? ' · pre-announced' : ''}',
+              style: TextStyle(fontSize: 12, color: AppColors.warning500.withOpacity(0.9), fontWeight: FontWeight.w600),
+            ),
+          ],
+
+          // ── QR + Check Out buttons ─────────────────────────
+          const SizedBox(height: 16),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => context.push('/attendance/qr'),
+                icon: const Icon(Icons.qr_code_scanner, size: 16),
+                label: const Text('QR'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: BorderSide(color: Colors.white.withOpacity(0.3)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  minimumSize: const Size(0, 42),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: AppButton(
+                label: 'Check Out',
+                icon: Icons.logout,
+                color: AppColors.danger500,
+                onPressed: () async {
+                  final confirmed = await showConfirmDialog(
+                    context,
+                    title: 'Check Out?',
+                    message: 'Are you sure you want to check out?',
+                    confirmLabel: 'Check Out',
+                    isDanger: true,
+                  );
+                  if (confirmed == true) {
+                    try {
+                      await api.checkOut();
+                      _load();
+                      _showSnack('Checked out ✅');
+                    } catch (e) {
+                      _showSnack('Failed to check out', isError: true);
+                    }
+                  }
+                },
+              ),
+            ),
+          ]),
+        ]),
+      );
     } else if (_status == 'leave') {
       cardTint    = AppColors.primary600;
       cardIcon    = Icons.beach_access;
@@ -715,40 +860,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.6))),
           ])),
         ]),
-
-        if (_checkedIn && _todayRecord?['check_in_at'] != null) ...[
-          const SizedBox(height: 12),
-          Divider(color: Colors.white.withOpacity(0.15), height: 1),
-          const SizedBox(height: 12),
-          Row(children: [
-            _infoChip(Icons.login, 'In',
-                DateFormat('hh:mm a').format(DateTime.parse(_todayRecord!['check_in_at'] as String))),
-            const SizedBox(width: 20),
-            _infoChip(Icons.timer_outlined, 'Elapsed', _elapsedDisplay),
-            if (_todayRecord?['check_in_type'] != null) ...[
-              const SizedBox(width: 20),
-              _infoChip(Icons.wifi, 'Via', _formatCheckInType(_todayRecord!['check_in_type'] as String)),
-            ],
-          ]),
-          // Break status row (shows upcoming break warning or active break)
-          Builder(builder: (context) {
-            final breakInfo = _computeBreakInfo();
-            if (breakInfo == null) return const SizedBox.shrink();
-            return Column(children: [
-              const SizedBox(height: 8),
-              Divider(color: Colors.white.withOpacity(0.12), height: 1),
-              const SizedBox(height: 8),
-              Row(children: [
-                Icon(breakInfo['icon'] as IconData, size: 14, color: breakInfo['color'] as Color),
-                const SizedBox(width: 6),
-                Expanded(child: Text(
-                  breakInfo['text'] as String,
-                  style: TextStyle(fontSize: 12, color: breakInfo['color'] as Color, fontWeight: FontWeight.w600),
-                )),
-              ]),
-            ]);
-          }),
-        ],
 
         // Check-in actions
         if (!_checkedIn && !_checkedOut && !_isRemote && _status != 'leave') ...[
@@ -794,6 +905,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       case 'remote':  return 'Remote';
       default:        return 'Manual';
     }
+  }
+
+  // ─── Shift time helpers ────────────────────────────────
+
+  int _getShiftStartMins() {
+    final startTime = (_nextShift?['shift'] as Map?)?['start_time'] as String?;
+    if (startTime != null && startTime.contains(':')) {
+      final parts = startTime.split(':');
+      if (parts.length >= 2) {
+        final h = int.tryParse(parts[0]) ?? 9;
+        final m = int.tryParse(parts[1]) ?? 0;
+        return h * 60 + m;
+      }
+    }
+    return 9 * 60; // default 09:00
+  }
+
+  int _getShiftEndMins() {
+    final endTime = (_nextShift?['shift'] as Map?)?['end_time'] as String?;
+    if (endTime != null && endTime.contains(':')) {
+      final parts = endTime.split(':');
+      if (parts.length >= 2) {
+        final h = int.tryParse(parts[0]) ?? 17;
+        final m = int.tryParse(parts[1]) ?? 30;
+        return h * 60 + m;
+      }
+    }
+    return 17 * 60 + 30; // default 17:30
   }
 
   Widget _infoChip(IconData icon, String label, String value) {
@@ -911,4 +1050,62 @@ class _QuickAction {
   final Color color;
   final VoidCallback onTap;
   const _QuickAction({required this.icon, required this.label, required this.color, required this.onTap});
+}
+
+// ─── Shift Progress Ring ────────────────────────────────
+
+class _ShiftRing extends StatelessWidget {
+  final double pct;
+  final Widget center;
+  const _ShiftRing({required this.pct, required this.center});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 100, height: 100,
+      child: Stack(alignment: Alignment.center, children: [
+        CustomPaint(
+          size: const Size(100, 100),
+          painter: _RingPainter(pct: pct),
+        ),
+        center,
+      ]),
+    );
+  }
+}
+
+class _RingPainter extends CustomPainter {
+  final double pct;
+  const _RingPainter({required this.pct});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 9;
+    final trackPaint = Paint()
+      ..color = Colors.white.withOpacity(0.12)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 9
+      ..strokeCap = StrokeCap.round;
+    canvas.drawCircle(center, radius, trackPaint);
+
+    if (pct > 0) {
+      final sweepAngle = 2 * 3.14159265 * pct;
+      final rect = Rect.fromCircle(center: center, radius: radius);
+      final gradient = SweepGradient(
+        startAngle: -3.14159265 / 2,
+        endAngle: -3.14159265 / 2 + sweepAngle,
+        colors: const [Color(0xFF00C896), Color(0xFF00E5FF)],
+      );
+      final arcPaint = Paint()
+        ..shader = gradient.createShader(rect)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 9
+        ..strokeCap = StrokeCap.round;
+      canvas.drawArc(rect, -3.14159265 / 2, sweepAngle, false, arcPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter old) => old.pct != pct;
 }

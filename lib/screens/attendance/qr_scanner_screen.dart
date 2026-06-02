@@ -11,7 +11,7 @@ class QrScannerScreen extends StatefulWidget {
   State<QrScannerScreen> createState() => _QrScannerScreenState();
 }
 
-class _QrScannerScreenState extends State<QrScannerScreen> {
+class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderStateMixin {
   final MobileScannerController _ctrl = MobileScannerController();
   bool _processing = false;
   bool _done       = false;
@@ -19,8 +19,27 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   bool _isCheckout = false;
   String _message  = '';
 
+  late final AnimationController _scanLineCtrl;
+  late final Animation<double>   _scanLine;
+  late final AnimationController _pulseCtrl;
+  late final Animation<double>   _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _scanLineCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 2))
+      ..repeat(reverse: true);
+    _scanLine = CurvedAnimation(parent: _scanLineCtrl, curve: Curves.easeInOut);
+
+    _pulseCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
+      ..repeat(reverse: true);
+    _pulse = CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeOut);
+  }
+
   @override
   void dispose() {
+    _scanLineCtrl.dispose();
+    _pulseCtrl.dispose();
     _ctrl.dispose();
     super.dispose();
   }
@@ -143,6 +162,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           // Dimmed overlay with scan window
           CustomPaint(painter: _ScanOverlayPainter()),
 
+          // Animated scan line (only while not done/error)
+          if (!_done && !_error)
+            _AnimatedScanLine(animation: _scanLine),
+
           // Top bar
           SafeArea(
             child: Padding(
@@ -178,13 +201,65 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           // Success overlay
           if (_done)
             Container(
-              color: (_isCheckout ? AppColors.primary600 : AppColors.success700).withOpacity(0.9),
+              color: Colors.black.withOpacity(0.85),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(_isCheckout ? Icons.logout_rounded : Icons.check_circle_rounded, color: Colors.white, size: 80),
-                  const SizedBox(height: 16),
+                  AnimatedBuilder(
+                    animation: _pulse,
+                    builder: (_, child) => Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Outer pulsing ring
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 900),
+                          width: 120 + _pulse.value * 40,
+                          height: 120 + _pulse.value * 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: const Color(0xFF00C896).withOpacity(0.4 * (1 - _pulse.value)),
+                              width: 3,
+                            ),
+                          ),
+                        ),
+                        // Middle ring
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 900),
+                          width: 108 + _pulse.value * 20,
+                          height: 108 + _pulse.value * 20,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: const Color(0xFF00C896).withOpacity(0.25 * (1 - _pulse.value)),
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                        // Core gradient circle with icon
+                        child!,
+                      ],
+                    ),
+                    child: Container(
+                      width: 100, height: 100,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF00C896), Color(0xFF00E5FF)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: Icon(
+                        _isCheckout ? Icons.logout_rounded : Icons.check_rounded,
+                        color: Colors.white,
+                        size: 52,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
                   Text(_message, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 6),
                   Text(TimeOfDay.now().format(context), style: const TextStyle(color: Colors.white70, fontSize: 18)),
                 ],
               ),
@@ -216,6 +291,62 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   }
 }
 
+// ─── Animated scan line ──────────────────────────────────
+class _AnimatedScanLine extends StatelessWidget {
+  final Animation<double> animation;
+  const _AnimatedScanLine({required this.animation});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, _) {
+        return SizedBox.expand(
+          child: CustomPaint(
+            painter: _ScanLinePainter(t: animation.value),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ScanLinePainter extends CustomPainter {
+  final double t;
+  const _ScanLinePainter({required this.t});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const sz = 260.0;
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final top    = cy - sz / 2 + 4;
+    final bottom = cy + sz / 2 - 4;
+    final left   = cx - sz / 2 + 4;
+    final right  = cx + sz / 2 - 4;
+
+    final y = top + (bottom - top) * t;
+
+    final grad = LinearGradient(
+      colors: [
+        Colors.transparent,
+        const Color(0xFF00C896).withOpacity(0.8),
+        const Color(0xFF00E5FF).withOpacity(0.8),
+        Colors.transparent,
+      ],
+      stops: const [0.0, 0.3, 0.7, 1.0],
+    );
+    final rect = Rect.fromLTRB(left, y - 1, right, y + 1);
+    final paint = Paint()
+      ..shader = grad.createShader(rect)
+      ..style = PaintingStyle.fill;
+    canvas.drawRect(rect, paint);
+  }
+
+  @override
+  bool shouldRepaint(_ScanLinePainter o) => o.t != t;
+}
+
 class _ScanOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -236,8 +367,8 @@ class _ScanOverlayPainter extends CustomPainter {
       paint,
     );
 
-    // Corner brackets
-    final linePaint = Paint()..color = Colors.white..strokeWidth = 3..style = PaintingStyle.stroke..strokeCap = StrokeCap.round;
+    // Corner brackets (emerald accent)
+    final linePaint = Paint()..color = const Color(0xFF00C896)..strokeWidth = 3.5..style = PaintingStyle.stroke..strokeCap = StrokeCap.round;
     final corners = [
       [rect.topLeft,     Offset(rect.left + corner, rect.top),    Offset(rect.left, rect.top + corner)],
       [rect.topRight,    Offset(rect.right - corner, rect.top),   Offset(rect.right, rect.top + corner)],

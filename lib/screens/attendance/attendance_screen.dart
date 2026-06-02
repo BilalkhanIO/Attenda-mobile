@@ -91,12 +91,19 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                               decoration: BoxDecoration(
-                                color: selected
-                                    ? AppColors.primary600
-                                    : Colors.white.withOpacity(0.1),
+                                gradient: selected
+                                    ? const LinearGradient(
+                                        colors: [Color(0xFF00C896), Color(0xFF00E5FF)],
+                                        begin: Alignment.centerLeft,
+                                        end: Alignment.centerRight,
+                                      )
+                                    : null,
+                                color: selected ? null : Colors.white.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(22),
                                 border: Border.all(
-                                  color: selected ? AppColors.primary600 : Colors.white.withOpacity(0.2),
+                                  color: selected
+                                      ? Colors.transparent
+                                      : Colors.white.withOpacity(0.2),
                                 ),
                               ),
                               child: Text(
@@ -120,13 +127,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               // Summary chips
               if (!_loading) ...[
                 Row(children: [
-                  Expanded(child: KpiChip(label: 'Present', value: '${_summary['present']}', color: AppColors.success500, bg: AppColors.success100)),
+                  Expanded(child: _StatChip(label: 'Present', value: '${_summary['present']}', color: const Color(0xFF34E0A1))),
                   const SizedBox(width: 8),
-                  Expanded(child: KpiChip(label: 'Late',    value: '${_summary['late']}',    color: AppColors.warning500, bg: AppColors.warning100)),
+                  Expanded(child: _StatChip(label: 'Late',    value: '${_summary['late']}',    color: const Color(0xFFFFBF4D))),
                   const SizedBox(width: 8),
-                  Expanded(child: KpiChip(label: 'Absent',  value: '${_summary['absent']}',  color: AppColors.danger500,  bg: AppColors.danger100)),
+                  Expanded(child: _StatChip(label: 'Absent',  value: '${_summary['absent']}',  color: const Color(0xFFFF6B7D))),
                   const SizedBox(width: 8),
-                  Expanded(child: KpiChip(label: 'Remote',  value: '${_summary['remote']}',  color: AppColors.purple500,  bg: AppColors.purple100)),
+                  Expanded(child: _StatChip(label: 'Remote',  value: '${_summary['remote']}',  color: const Color(0xFF5BD6FF))),
                 ]),
                 const SizedBox(height: 20),
               ],
@@ -150,6 +157,42 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: _RecordTile(record: r),
                 )),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── KPI stat chip with glass tint ──────────────────────
+class _StatChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  const _StatChip({required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.14),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withOpacity(0.28), width: 1.0),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(value,
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
+              const SizedBox(height: 2),
+              Text(label,
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color.withOpacity(0.75))),
             ],
           ),
         ),
