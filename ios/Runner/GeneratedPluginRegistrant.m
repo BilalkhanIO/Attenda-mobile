@@ -48,10 +48,10 @@
 @import network_info_plus;
 #endif
 
-#if __has_include(<open_file_ios/OpenFilePlugin.h>)
-#import <open_file_ios/OpenFilePlugin.h>
+#if __has_include(<open_filex/OpenFilePlugin.h>)
+#import <open_filex/OpenFilePlugin.h>
 #else
-@import open_file_ios;
+@import open_filex;
 #endif
 
 #if __has_include(<permission_handler_apple/PermissionHandlerPlugin.h>)
@@ -78,10 +78,10 @@
 @import url_launcher_ios;
 #endif
 
-#if __has_include(<workmanager/WorkmanagerPlugin.h>)
-#import <workmanager/WorkmanagerPlugin.h>
+#if __has_include(<workmanager_apple/WorkmanagerPlugin.h>)
+#import <workmanager_apple/WorkmanagerPlugin.h>
 #else
-@import workmanager;
+@import workmanager_apple;
 #endif
 
 @implementation GeneratedPluginRegistrant

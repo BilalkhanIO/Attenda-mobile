@@ -56,7 +56,7 @@ class WifiAttendanceService {
     if (!Hive.isBoxOpen(_stateBox)) await Hive.openBox(_stateBox);
     _restoreState();
 
-    await Workmanager().initialize(_bgCallback, isInDebugMode: kDebugMode);
+    await Workmanager().initialize(_bgCallback);
     await Workmanager().registerPeriodicTask(
       _heartbeatTask, _heartbeatTask,
       frequency: _heartbeatInterval,

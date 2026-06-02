@@ -222,7 +222,7 @@ class AppTheme {
       ),
       iconTheme: const IconThemeData(color: Colors.white),
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: AppColors.glass12,
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -274,7 +274,7 @@ class AppTheme {
         color: Colors.white.withOpacity(0.7), fontWeight: FontWeight.w600, fontSize: 14,
       ),
     ),
-    tabBarTheme: TabBarTheme(
+    tabBarTheme: TabBarThemeData(
       labelColor:            Colors.white,
       unselectedLabelColor:  Colors.white.withOpacity(0.45),
       indicatorColor:        AppColors.primary,
@@ -289,7 +289,7 @@ class AppTheme {
       behavior: SnackBarBehavior.floating,
     ),
     dividerTheme: DividerThemeData(color: Colors.white.withOpacity(0.1), thickness: 1),
-    dialogTheme: DialogTheme(
+    dialogTheme: DialogThemeData(
       backgroundColor: AppColors.bgDark3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
       titleTextStyle: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),

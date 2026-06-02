@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../utils/theme.dart';
 
 enum AttendaLogoVariant { dark, light }
@@ -51,8 +52,7 @@ class _AttendaWordmark extends StatelessWidget {
         : const Color(0xFF321847);
     final accentColor = AppColors.primary;
 
-    final style = TextStyle(
-      fontFamily: 'DMSans',
+    final style = GoogleFonts.dmSans(
       fontWeight: FontWeight.w800,
       fontSize: size,
       letterSpacing: -0.02 * size,

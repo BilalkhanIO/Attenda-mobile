@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-const _baseUrl = String.fromEnvironment('API_URL', defaultValue: 'http://localhost:5000/api/v1');
+const _baseUrl = String.fromEnvironment('API_URL', defaultValue: 'https://attenda-api-production.up.railway.app/api/v1');
 const _storage = FlutterSecureStorage();
 
 class ApiService {

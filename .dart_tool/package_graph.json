@@ -25,7 +25,7 @@
         "jwt_decoder",
         "mobile_scanner",
         "network_info_plus",
-        "open_file",
+        "open_filex",
         "path_provider",
         "permission_handler",
         "provider",
@@ -123,9 +123,12 @@
     },
     {
       "name": "workmanager",
-      "version": "0.5.2",
+      "version": "0.9.0+3",
       "dependencies": [
-        "flutter"
+        "flutter",
+        "workmanager_android",
+        "workmanager_apple",
+        "workmanager_platform_interface"
       ]
     },
     {
@@ -162,17 +165,11 @@
       ]
     },
     {
-      "name": "open_file",
-      "version": "3.5.4",
+      "name": "open_filex",
+      "version": "4.7.0",
       "dependencies": [
-        "flutter",
-        "open_file_android",
-        "open_file_ios",
-        "open_file_linux",
-        "open_file_mac",
-        "open_file_platform_interface",
-        "open_file_web",
-        "open_file_windows"
+        "ffi",
+        "flutter"
       ]
     },
     {
@@ -267,15 +264,6 @@
       "dependencies": [
         "flutter",
         "qr"
-      ]
-    },
-    {
-      "name": "mobile_scanner",
-      "version": "4.0.1",
-      "dependencies": [
-        "flutter",
-        "flutter_web_plugins",
-        "js"
       ]
     },
     {
@@ -729,6 +717,31 @@
       ]
     },
     {
+      "name": "workmanager_platform_interface",
+      "version": "0.9.1+1",
+      "dependencies": [
+        "flutter",
+        "meta",
+        "plugin_platform_interface"
+      ]
+    },
+    {
+      "name": "workmanager_apple",
+      "version": "0.9.1+2",
+      "dependencies": [
+        "flutter",
+        "workmanager_platform_interface"
+      ]
+    },
+    {
+      "name": "workmanager_android",
+      "version": "0.9.0+2",
+      "dependencies": [
+        "flutter",
+        "workmanager_platform_interface"
+      ]
+    },
+    {
       "name": "fixnum",
       "version": "1.1.1",
       "dependencies": []
@@ -784,63 +797,9 @@
       ]
     },
     {
-      "name": "open_file_platform_interface",
-      "version": "1.0.3",
-      "dependencies": [
-        "flutter",
-        "plugin_platform_interface"
-      ]
-    },
-    {
-      "name": "open_file_linux",
-      "version": "0.0.5",
-      "dependencies": [
-        "ffi",
-        "flutter",
-        "open_file_platform_interface"
-      ]
-    },
-    {
-      "name": "open_file_windows",
-      "version": "0.0.3",
-      "dependencies": [
-        "ffi",
-        "flutter",
-        "open_file_platform_interface"
-      ]
-    },
-    {
-      "name": "open_file_mac",
-      "version": "1.0.4",
-      "dependencies": [
-        "flutter",
-        "open_file_platform_interface"
-      ]
-    },
-    {
-      "name": "open_file_ios",
-      "version": "1.0.4",
-      "dependencies": [
-        "flutter",
-        "open_file_platform_interface"
-      ]
-    },
-    {
-      "name": "open_file_web",
-      "version": "0.0.2",
-      "dependencies": [
-        "flutter",
-        "flutter_web_plugins",
-        "open_file_platform_interface"
-      ]
-    },
-    {
-      "name": "open_file_android",
-      "version": "1.0.6",
-      "dependencies": [
-        "flutter",
-        "open_file_platform_interface"
-      ]
+      "name": "ffi",
+      "version": "2.2.0",
+      "dependencies": []
     },
     {
       "name": "url_launcher_windows",
@@ -1046,11 +1005,6 @@
       ]
     },
     {
-      "name": "ffi",
-      "version": "2.2.0",
-      "dependencies": []
-    },
-    {
       "name": "win32",
       "version": "5.15.0",
       "dependencies": [
@@ -1069,13 +1023,6 @@
     {
       "name": "qr",
       "version": "3.0.2",
-      "dependencies": [
-        "meta"
-      ]
-    },
-    {
-      "name": "js",
-      "version": "0.6.7",
       "dependencies": [
         "meta"
       ]
@@ -1514,6 +1461,13 @@
       "dependencies": []
     },
     {
+      "name": "js",
+      "version": "0.6.7",
+      "dependencies": [
+        "meta"
+      ]
+    },
+    {
       "name": "vm_service",
       "version": "15.2.0",
       "dependencies": []
@@ -1601,6 +1555,16 @@
       "name": "synchronized",
       "version": "3.4.0",
       "dependencies": []
+    },
+    {
+      "name": "mobile_scanner",
+      "version": "6.0.11",
+      "dependencies": [
+        "flutter",
+        "flutter_web_plugins",
+        "plugin_platform_interface",
+        "web"
+      ]
     }
   ],
   "configVersion": 1
