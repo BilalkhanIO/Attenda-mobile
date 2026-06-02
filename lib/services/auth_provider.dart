@@ -9,6 +9,8 @@ class AuthUser {
   final String role;
   final String name;
   final String email;
+  final String? phone;
+  final bool totpEnabled;
 
   const AuthUser({
     required this.id,
@@ -16,6 +18,8 @@ class AuthUser {
     required this.role,
     required this.name,
     required this.email,
+    this.phone,
+    this.totpEnabled = false,
   });
 
   bool get isManager    => role == 'manager' || role == 'hr_admin' || role == 'super_admin';
@@ -69,10 +73,40 @@ class AuthProvider extends ChangeNotifier {
           name: claims['name'] as String,
           email: claims['email'] as String,
         );
+        // Fetch profile data to populate phone + totpEnabled
+        try {
+          final me = await api.getMe();
+          _user = AuthUser(
+            id: _user!.id,
+            orgId: _user!.orgId,
+            role: _user!.role,
+            name: me['name'] as String? ?? _user!.name,
+            email: _user!.email,
+            phone: me['phone'] as String?,
+            totpEnabled: me['totp_enabled'] as bool? ?? false,
+          );
+        } catch (_) {}
       }
     } catch (_) {}
     _loading = false;
     notifyListeners();
+  }
+
+  Future<void> refreshUser() async {
+    try {
+      final me = await api.getMe();
+      if (_user == null) return;
+      _user = AuthUser(
+        id: _user!.id,
+        orgId: _user!.orgId,
+        role: _user!.role,
+        name: me['name'] as String? ?? _user!.name,
+        email: _user!.email,
+        phone: me['phone'] as String?,
+        totpEnabled: me['totp_enabled'] as bool? ?? false,
+      );
+      notifyListeners();
+    } catch (_) {}
   }
 
   // Returns null on success, or the temp_token string if 2FA is required.
@@ -96,6 +130,20 @@ class AuthProvider extends ChangeNotifier {
       email: claims['email'] as String,
     );
     notifyListeners();
+    // Fetch profile data to populate phone + totpEnabled
+    try {
+      final me = await api.getMe();
+      _user = AuthUser(
+        id: _user!.id,
+        orgId: _user!.orgId,
+        role: _user!.role,
+        name: me['name'] as String? ?? _user!.name,
+        email: _user!.email,
+        phone: me['phone'] as String?,
+        totpEnabled: me['totp_enabled'] as bool? ?? false,
+      );
+      notifyListeners();
+    } catch (_) {}
     return null;
   }
 

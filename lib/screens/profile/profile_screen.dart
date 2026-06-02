@@ -126,6 +126,13 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                   ('Role',       user.role.replaceAll('_', ' ')),
                 ]),
               const SizedBox(height: 20),
+              const Text('ACCOUNT SETTINGS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0, color: Color(0x66FFFFFF))),
+              const SizedBox(height: 10),
+              _settingsRow(Icons.person_outline, 'Edit Profile', () => context.push('/profile/edit')),
+              _settingsRow(Icons.notifications_outlined, 'Notification Preferences', () => context.push('/profile/settings/notifications')),
+              _settingsRow(Icons.shield_outlined, 'Security & 2FA', () => context.push('/profile/settings/security')),
+              _settingsRow(Icons.palette_outlined, 'Appearance', () => context.push('/profile/settings/appearance')),
+              const SizedBox(height: 20),
               AppButton(
                 label: 'Sign Out',
                 outline: true,
@@ -362,6 +369,30 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                           }),
                       ],
                     ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _settingsRow(IconData icon, String label, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GlassCard(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        onTap: onTap,
+        child: Row(children: [
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+            ),
+            child: Icon(icon, color: AppColors.primary, size: 18),
+          ),
+          const SizedBox(width: 14),
+          Expanded(child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white))),
+          Icon(Icons.chevron_right, color: Colors.white.withOpacity(0.35), size: 18),
         ]),
       ),
     );

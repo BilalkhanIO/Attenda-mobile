@@ -231,6 +231,48 @@ class ApiService {
     return res.data['data'] as List;
   }
 
+  // ─── Notification Preferences ────────────────────
+  Future<Map<String, dynamic>> getNotificationPrefs() async {
+    final res = await _dio.get('/users/me/notification-prefs');
+    return (res.data['data'] as Map<String, dynamic>?) ?? {};
+  }
+
+  Future<Map<String, dynamic>> updateNotificationPrefs(Map<String, bool> prefs) async {
+    final res = await _dio.put('/users/me/notification-prefs', data: prefs);
+    return (res.data['data'] as Map<String, dynamic>?) ?? {};
+  }
+
+  // ─── Profile ──────────────────────────────────────
+  Future<Map<String, dynamic>> updateProfile({String? name, String? phone}) async {
+    final data = <String, dynamic>{};
+    if (name != null) data['name'] = name;
+    if (phone != null) data['phone'] = phone;
+    final res = await _dio.put('/users/me', data: data);
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  // ─── Change Password ──────────────────────────────
+  Future<void> changePassword(String currentPassword, String newPassword) async {
+    await _dio.put('/auth/change-password', data: {
+      'current_password': currentPassword,
+      'new_password': newPassword,
+    });
+  }
+
+  // ─── 2FA ──────────────────────────────────────────
+  Future<Map<String, dynamic>> setup2fa() async {
+    final res = await _dio.post('/auth/2fa/setup');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<void> verify2fa(String code) async {
+    await _dio.post('/auth/2fa/verify', data: {'token': code});
+  }
+
+  Future<void> disable2fa(String code) async {
+    await _dio.delete('/auth/2fa', data: {'code': code});
+  }
+
   // ─── Notifications ────────────────────────────────
   Future<Map<String, dynamic>> getNotifications({int page = 1, int limit = 20}) async {
     final res = await _dio.get('/notifications', queryParameters: {'page': page, 'limit': limit});

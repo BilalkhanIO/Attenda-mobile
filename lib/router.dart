@@ -13,6 +13,10 @@ import '../screens/profile/profile_screen.dart';
 import '../screens/home/remote_work_screen.dart';
 import '../screens/home/remote_detail_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
+import '../screens/settings/notification_settings_screen.dart';
+import '../screens/settings/security_screen.dart';
+import '../screens/settings/appearance_screen.dart';
+import '../screens/settings/edit_profile_screen.dart';
 import 'shell.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
@@ -65,7 +69,16 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
           ],
         ),
         GoRoute(path: '/schedule', builder: (_, __) => const ScheduleScreen()),
-        GoRoute(path: '/profile',  builder: (_, __) => const ProfileScreen()),
+        GoRoute(
+          path: '/profile',
+          builder: (_, __) => const ProfileScreen(),
+          routes: [
+            GoRoute(path: 'edit', parentNavigatorKey: _rootKey, builder: (_, __) => const EditProfileScreen()),
+            GoRoute(path: 'settings/notifications', parentNavigatorKey: _rootKey, builder: (_, __) => const NotificationSettingsScreen()),
+            GoRoute(path: 'settings/security', parentNavigatorKey: _rootKey, builder: (_, __) => const SecurityScreen()),
+            GoRoute(path: 'settings/appearance', parentNavigatorKey: _rootKey, builder: (_, __) => const AppearanceScreen()),
+          ],
+        ),
       ],
     ),
   ],
