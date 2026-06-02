@@ -17,8 +17,8 @@ class GlassCard extends StatelessWidget {
     required this.child,
     this.padding,
     this.onTap,
-    this.blurSigma = 22,
-    this.borderRadius = 20,
+    this.blurSigma = 20,
+    this.borderRadius = 28,
     this.tint,
   });
 
@@ -34,20 +34,21 @@ class GlassCard extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
         child: Container(
           decoration: BoxDecoration(
+            color: tint != null ? null : Colors.white.withOpacity(0.12),
             gradient: tint != null
                 ? LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [tint!.withOpacity(0.25), tint!.withOpacity(0.12)],
+                    colors: [tint!.withOpacity(0.20), tint!.withOpacity(0.08)],
                   )
-                : AppGradients.glassCard,
+                : null,
             borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(color: Colors.white.withOpacity(0.22), width: 1.0),
+            border: Border.all(color: Colors.white.withOpacity(0.18), width: 1.0),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.18),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
+                color: (tint ?? Colors.black).withOpacity(tint != null ? 0.15 : 0.12),
+                blurRadius: tint != null ? 24 : 16,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
@@ -55,7 +56,8 @@ class GlassCard extends StatelessWidget {
               ? InkWell(
                   onTap: onTap,
                   borderRadius: BorderRadius.circular(borderRadius),
-                  splashColor: Colors.white.withOpacity(0.08),
+                  splashColor: Colors.white.withOpacity(0.06),
+                  highlightColor: Colors.white.withOpacity(0.04),
                   child: inner,
                 )
               : inner,
@@ -162,9 +164,10 @@ class UserAvatar extends StatelessWidget {
     return Container(
       width: size, height: size,
       decoration: BoxDecoration(
-        color: AppColors.primary600,
+        gradient: imageUrl == null ? AppGradients.aurora : null,
+        color: imageUrl != null ? Colors.transparent : null,
         borderRadius: BorderRadius.circular(size / 2),
-        border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
+        border: Border.all(color: Colors.white.withOpacity(0.25), width: 2),
         image: imageUrl != null
             ? DecorationImage(image: NetworkImage(imageUrl!), fit: BoxFit.cover)
             : null,
@@ -193,40 +196,63 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg  = color ?? AppColors.primary600;
-    final child = loading
-        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(Colors.white)))
-        : Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[Icon(icon, size: 16), const SizedBox(width: 8)],
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-            ],
-          );
+    final customColor = color;
+    final buttonChild = loading
+        ? const SizedBox(width: 18, height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+        : Row(mainAxisSize: MainAxisSize.min, children: [
+            if (icon != null) ...[Icon(icon, size: 16), const SizedBox(width: 8)],
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+          ]);
+
+    if (outline) {
+      return SizedBox(
+        width: fullWidth ? double.infinity : null, height: 50,
+        child: OutlinedButton(
+          onPressed: loading ? null : onPressed,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: customColor ?? AppColors.primary,
+            side: BorderSide(color: (customColor ?? AppColors.primary).withOpacity(0.6)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+          child: buttonChild,
+        ),
+      );
+    }
+
+    // Gradient primary button with glow
+    final gradient = customColor != null
+        ? LinearGradient(colors: [customColor, customColor])
+        : AppGradients.primaryBtn;
 
     return SizedBox(
-      width: fullWidth ? double.infinity : null,
-      height: 50,
-      child: outline
-          ? OutlinedButton(
-              onPressed: loading ? null : onPressed,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: bg,
-                side: BorderSide(color: bg.withOpacity(0.7)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: child,
-            )
-          : ElevatedButton(
-              onPressed: loading ? null : onPressed,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: bg,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
-              ),
-              child: child,
+      width: fullWidth ? double.infinity : null, height: 50,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: loading || onPressed == null ? null : gradient,
+          color: loading || onPressed == null ? Colors.white12 : null,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: onPressed != null && !loading ? [
+            BoxShadow(
+              color: (customColor ?? AppColors.primary).withOpacity(0.35),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
             ),
+          ] : null,
+        ),
+        child: ElevatedButton(
+          onPressed: loading ? null : onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            elevation: 0,
+            padding: EdgeInsets.zero,
+          ),
+          child: buttonChild,
+        ),
+      ),
     );
   }
 }
@@ -265,7 +291,10 @@ class SectionHeader extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+        Text(title, style: const TextStyle(
+          fontSize: 16, fontWeight: FontWeight.w800,
+          color: Colors.white, letterSpacing: 0.2,
+        )),
         if (trailing != null) trailing!,
       ],
     );
@@ -283,14 +312,14 @@ class KpiChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(14),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: color.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: color.withOpacity(0.3)),
           ),
           child: Column(

@@ -1,101 +1,147 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// ─── Attenda Color Tokens ─────────────────────────────
+// ─── Aurora Liquid Glass 2026 Color Tokens ────────────
 class AppColors {
-  static const primary600  = Color(0xFFF15153);
-  static const primary100  = Color(0xFFFDE8E8);
-  static const primary900  = Color(0xFFB91C1E);
-  static const dark950     = Color(0xFF321847);
-  static const dark800     = Color(0xFF4A2466);
-  static const dark700     = Color(0xFF5E2E7A);
-  static const gray500     = Color(0xFF64748B);
-  static const gray400     = Color(0xFF94A3B8);
-  static const gray200     = Color(0xFFE2E8F0);
-  static const gray100     = Color(0xFFF1F5F9);
-  static const gray50      = Color(0xFFF8FAFC);
-  static const success700  = Color(0xFF065F46);
-  static const success500  = Color(0xFF10B981);
-  static const success100  = Color(0xFFD1FAE5);
-  static const warning800  = Color(0xFF92400E);
-  static const warning500  = Color(0xFFF59E0B);
-  static const warning100  = Color(0xFFFEF3C7);
-  static const danger800   = Color(0xFF991B1B);
-  static const danger500   = Color(0xFFEF4444);
-  static const danger100   = Color(0xFFFEE2E2);
-  static const purple700   = Color(0xFF5B21B6);
-  static const purple500   = Color(0xFF8B5CF6);
-  static const purple100   = Color(0xFFEDE9FE);
-  static const teal700     = Color(0xFF0F766E);
-  static const teal100     = Color(0xFFCCFBF1);
-  static const white       = Color(0xFFFFFFFF);
+  // ── Primary palette ──────────────────────────────────
+  static const primary   = Color(0xFF6C63FF);
+  static const secondary = Color(0xFF00D4FF);
+  static const accent    = Color(0xFFFF6FD8);
 
-  // Glass surface tokens
+  // ── Legacy aliases (used across all screens) ──────────
+  static const primary600 = primary;
+  static const primary500 = Color(0xFF7B73FF);
+  static const primary100 = Color(0xFFEEEDFF);
+  static const primary900 = Color(0xFF3730A3);
+
+  // ── Semantic colors ───────────────────────────────────
+  static const success500 = Color(0xFF22C55E);
+  static const success700 = Color(0xFF15803D);
+  static const success100 = Color(0xFFDCFCE7);
+  static const warning500 = Color(0xFFF59E0B);
+  static const warning800 = Color(0xFF92400E);
+  static const warning100 = Color(0xFFFEF3C7);
+  static const danger500  = Color(0xFFEF4444);
+  static const danger800  = Color(0xFF991B1B);
+  static const danger100  = Color(0xFFFEE2E2);
+
+  // ── Neutral ───────────────────────────────────────────
+  static const gray50  = Color(0xFFF8FAFC);
+  static const gray100 = Color(0xFFF1F5F9);
+  static const gray200 = Color(0xFFE2E8F0);
+  static const gray400 = Color(0xFF94A3B8);
+  static const gray500 = Color(0xFF64748B);
+  static const white   = Color(0xFFFFFFFF);
+
+  // ── Legacy accent aliases ─────────────────────────────
+  static const purple500 = primary;           // indigo is the new purple
+  static const purple700 = Color(0xFF4338CA);
+  static const purple100 = primary100;
+  static const teal100   = secondary;         // cyan is the new teal
+  static const teal700   = Color(0xFF0EA5E9);
+
+  // ── Dark backgrounds ──────────────────────────────────
+  static const bgDark  = Color(0xFF0B1020);
+  static const bgDark2 = Color(0xFF121A35);
+  static const bgDark3 = Color(0xFF1B2550);
+
+  // ── Legacy mesh aliases ───────────────────────────────
+  static const meshBot = bgDark;
+  static const meshMid = bgDark2;
+  static const meshTop = bgDark3;
+  static const dark950 = bgDark;
+  static const dark800 = bgDark2;
+  static const dark700 = bgDark3;
+
+  // ── Glass surface tokens ──────────────────────────────
   static const glass05     = Color(0x0DFFFFFF);
   static const glass10     = Color(0x1AFFFFFF);
+  static const glass12     = Color(0x1FFFFFFF);
   static const glass15     = Color(0x26FFFFFF);
   static const glass20     = Color(0x33FFFFFF);
-  static const glassBorder = Color(0x40FFFFFF);
+  static const glassBorder = Color(0x2EFFFFFF);
   static const glassHigh   = Color(0x5AFFFFFF);
 
-  // Glass text tokens
-  static const onGlass     = Colors.white;
-  static const onGlassSub  = Color(0xCCFFFFFF); // 80%
-  static const onGlassMuted= Color(0x99FFFFFF); // 60%
-  static const onGlassDim  = Color(0x55FFFFFF); // 33%
+  // ── On-glass text tokens ──────────────────────────────
+  static const onGlass      = white;
+  static const onGlassSub   = Color(0xCCFFFFFF);
+  static const onGlassMuted = Color(0x99FFFFFF);
+  static const onGlassDim   = Color(0x55FFFFFF);
 
-  // Mesh background colors
-  static const meshTop     = Color(0xFF2D1952);
-  static const meshMid     = Color(0xFF1A0E38);
-  static const meshBot     = Color(0xFF0D0724);
+  // ── Text ──────────────────────────────────────────────
+  static const textPrimary   = white;
+  static const textSecondary = Color(0xFFB8C0D4);
 }
 
-// ─── Background Gradients ────────────────────────────
+// ─── Gradient Palette ────────────────────────────────
 class AppGradients {
+  // Background
   static const mesh = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [AppColors.meshTop, AppColors.meshMid, AppColors.meshBot],
-    stops: [0.0, 0.55, 1.0],
+    colors: [AppColors.bgDark3, AppColors.bgDark2, AppColors.bgDark],
+    stops: [0.0, 0.5, 1.0],
   );
 
+  // Primary action button: Aurora
   static const primaryBtn = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFFF6B6D), Color(0xFFF15153)],
+    colors: [AppColors.primary, AppColors.secondary],
   );
 
+  // Glass card surface
   static const glassCard = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0x2EFFFFFF), Color(0x0DFFFFFF)],
+    colors: [Color(0x1FFFFFFF), Color(0x0AFFFFFF)],
+  );
+
+  // Premium gradient set
+  static const aurora = LinearGradient(
+    colors: [AppColors.primary, AppColors.secondary],
+    begin: Alignment.topLeft, end: Alignment.bottomRight,
+  );
+  static const sunset = LinearGradient(
+    colors: [AppColors.accent, Color(0xFFFF9671)],
+    begin: Alignment.topLeft, end: Alignment.bottomRight,
+  );
+  static const emerald = LinearGradient(
+    colors: [Color(0xFF00C896), Color(0xFF00E5FF)],
+    begin: Alignment.topLeft, end: Alignment.bottomRight,
+  );
+  static const cyber = LinearGradient(
+    colors: [Color(0xFF7B61FF), Color(0xFFFF3CAC)],
+    begin: Alignment.topLeft, end: Alignment.bottomRight,
   );
 }
 
-// ─── Status colors ────────────────────────────────────
+// ─── Status Colors ────────────────────────────────────
 class StatusColors {
   static Color bg(String status) {
     switch (status) {
       case 'in':         return AppColors.success100;
       case 'late':       return AppColors.warning100;
       case 'absent':     return AppColors.danger100;
-      case 'remote':     return AppColors.purple100;
+      case 'remote':     return AppColors.primary100;
       case 'leave':      return AppColors.primary100;
-      case 'half_leave': return AppColors.teal100;
+      case 'half_leave': return const Color(0xFFE0F2FE);
       default:           return AppColors.gray100;
     }
   }
+
   static Color fg(String status) {
     switch (status) {
       case 'in':         return AppColors.success700;
       case 'late':       return AppColors.warning800;
       case 'absent':     return AppColors.danger800;
       case 'remote':     return AppColors.purple700;
-      case 'leave':      return AppColors.primary600;
-      case 'half_leave': return AppColors.teal700;
+      case 'leave':      return AppColors.primary900;
+      case 'half_leave': return const Color(0xFF0369A1);
       default:           return AppColors.gray500;
     }
   }
+
   static String label(String status) {
     switch (status) {
       case 'in':         return 'Checked In';
@@ -104,10 +150,11 @@ class StatusColors {
       case 'absent':     return 'Absent';
       case 'remote':     return 'Remote';
       case 'leave':      return 'On Leave';
-      case 'half_leave': return 'Half-Day Leave';
+      case 'half_leave': return 'Half-Day';
       default:           return status;
     }
   }
+
   static IconData icon(String status) {
     switch (status) {
       case 'in':         return Icons.check_circle;
@@ -115,205 +162,157 @@ class StatusColors {
       case 'late':       return Icons.warning_rounded;
       case 'absent':     return Icons.cancel;
       case 'remote':     return Icons.home_rounded;
-      case 'leave':      return Icons.calendar_today;
+      case 'leave':      return Icons.beach_access;
       case 'half_leave': return Icons.calendar_today;
       default:           return Icons.help_outline;
     }
   }
 }
 
-// ─── Light Theme (kept for reference) ────────────────
+// ─── App Theme ────────────────────────────────────────
 class AppTheme {
-  static ThemeData get light => ThemeData(
-    useMaterial3: true,
-    scaffoldBackgroundColor: AppColors.gray50,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: AppColors.primary600,
-      primary: AppColors.primary600,
-      surface: AppColors.white,
-      background: AppColors.gray50,
-    ),
-    textTheme: GoogleFonts.dmSansTextTheme().copyWith(
-      displayLarge:   const TextStyle(fontSize: 36, fontWeight: FontWeight.w700, color: AppColors.dark950),
-      headlineLarge:  const TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: AppColors.dark950),
-      headlineMedium: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: AppColors.dark950),
-      titleLarge:     const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.dark950),
-      titleMedium:    const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.dark950),
-      bodyLarge:      const TextStyle(fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.dark950),
-      bodyMedium:     const TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.dark800),
-      bodySmall:      const TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.gray500),
-      labelLarge:     const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.white),
-    ),
-    appBarTheme: AppBarTheme(
-      backgroundColor: AppColors.white,
-      foregroundColor: AppColors.dark950,
-      elevation: 0,
-      shadowColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-      titleTextStyle: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.dark950),
-    ),
-    cardTheme: CardTheme(
-      color: AppColors.white,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColors.gray200),
-      ),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.primary600,
-        foregroundColor: AppColors.white,
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-        textStyle: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600),
-      ),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: AppColors.white,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.gray200)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.gray200)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary600, width: 2)),
-      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.danger500)),
-      hintStyle: const TextStyle(color: AppColors.gray500, fontSize: 14),
-      labelStyle: const TextStyle(color: AppColors.dark800, fontWeight: FontWeight.w600, fontSize: 14),
-    ),
-    snackBarTheme: SnackBarThemeData(
-      backgroundColor: AppColors.dark800,
-      contentTextStyle: GoogleFonts.dmSans(color: AppColors.white, fontSize: 14),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      behavior: SnackBarBehavior.floating,
-    ),
-    dividerTheme: const DividerThemeData(color: AppColors.gray200, thickness: 1),
-    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-      backgroundColor: AppColors.white,
-      selectedItemColor: AppColors.primary600,
-      unselectedItemColor: AppColors.gray500,
-      type: BottomNavigationBarType.fixed,
-      elevation: 8,
-    ),
+  static TextTheme get _textTheme => GoogleFonts.plusJakartaSansTextTheme(
+    ThemeData.dark().textTheme,
+  ).copyWith(
+    displayLarge:   const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+    headlineLarge:  const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+    headlineMedium: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+    titleLarge:     const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+    titleMedium:    const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+    bodyLarge:      const TextStyle(fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.textPrimary),
+    bodyMedium:     const TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.textSecondary),
+    bodySmall:      const TextStyle(fontSize: 13, fontWeight: FontWeight.w400, color: AppColors.textSecondary),
+    labelLarge:     const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
   );
 
-  // ─── Glass / Dark Theme ───────────────────────────
-  static ThemeData get glass => ThemeData(
+  // Light theme kept for compatibility (dialogs, pickers, etc.)
+  static ThemeData get light => _buildGlass();
+
+  // Primary dark glass theme
+  static ThemeData get glass => _buildGlass();
+
+  static ThemeData _buildGlass() => ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
-    scaffoldBackgroundColor: AppColors.meshBot,
+    scaffoldBackgroundColor: AppColors.bgDark,
     colorScheme: const ColorScheme(
-      brightness: Brightness.dark,
-      primary:    AppColors.primary600,
-      onPrimary:  Colors.white,
-      secondary:  AppColors.dark700,
-      onSecondary:Colors.white,
-      error:      AppColors.danger500,
-      onError:    Colors.white,
-      background: AppColors.meshMid,
-      onBackground: Colors.white,
-      surface:    Color(0xFF1E1040),
-      onSurface:  Colors.white,
+      brightness:    Brightness.dark,
+      primary:       AppColors.primary,
+      onPrimary:     Colors.white,
+      secondary:     AppColors.secondary,
+      onSecondary:   Colors.white,
+      tertiary:      AppColors.accent,
+      onTertiary:    Colors.white,
+      error:         AppColors.danger500,
+      onError:       Colors.white,
+      background:    AppColors.bgDark2,
+      onBackground:  Colors.white,
+      surface:       AppColors.bgDark3,
+      onSurface:     Colors.white,
     ),
-    textTheme: GoogleFonts.dmSansTextTheme(ThemeData.dark().textTheme).copyWith(
-      displayLarge:   const TextStyle(fontSize: 36, fontWeight: FontWeight.w700, color: Colors.white),
-      headlineLarge:  const TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: Colors.white),
-      headlineMedium: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: Colors.white),
-      titleLarge:     const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white),
-      titleMedium:    const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.white),
-      bodyLarge:      const TextStyle(fontSize: 16, fontWeight: FontWeight.w400, color: Colors.white),
-      bodyMedium:     TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: Colors.white.withOpacity(0.8)),
-      bodySmall:      TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: Colors.white.withOpacity(0.6)),
-      labelLarge:     const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white),
-    ),
+    textTheme: _textTheme,
     appBarTheme: AppBarTheme(
-      backgroundColor: Colors.transparent,
-      foregroundColor: Colors.white,
-      elevation: 0,
-      shadowColor: Colors.transparent,
+      backgroundColor:  Colors.transparent,
+      foregroundColor:  Colors.white,
+      elevation:        0,
+      shadowColor:      Colors.transparent,
       surfaceTintColor: Colors.transparent,
-      titleTextStyle: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
+      titleTextStyle: GoogleFonts.plusJakartaSans(
+        fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white,
+      ),
       iconTheme: const IconThemeData(color: Colors.white),
     ),
     cardTheme: CardTheme(
-      color: AppColors.glass10,
+      color: AppColors.glass12,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: Colors.white.withOpacity(0.2)),
+        borderRadius: BorderRadius.circular(28),
+        side: BorderSide(color: Colors.white.withOpacity(0.18)),
       ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.primary600,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-        textStyle: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600),
+        textStyle: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w700),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: Colors.white,
-        side: BorderSide(color: Colors.white.withOpacity(0.4)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        side: BorderSide(color: Colors.white.withOpacity(0.3)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-        textStyle: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600),
+        textStyle: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w600),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: Colors.white.withOpacity(0.08),
+      fillColor: Colors.white.withOpacity(0.07),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: Colors.white.withOpacity(0.18)),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: Colors.white.withOpacity(0.18)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.primary600, width: 2),
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: AppColors.primary, width: 2),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         borderSide: const BorderSide(color: AppColors.danger500),
       ),
-      hintStyle: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 14),
-      labelStyle: TextStyle(color: Colors.white.withOpacity(0.7), fontWeight: FontWeight.w600, fontSize: 14),
+      hintStyle: TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 14),
+      labelStyle: GoogleFonts.plusJakartaSans(
+        color: Colors.white.withOpacity(0.7), fontWeight: FontWeight.w600, fontSize: 14,
+      ),
     ),
     tabBarTheme: TabBarTheme(
-      labelColor: Colors.white,
-      unselectedLabelColor: Colors.white.withOpacity(0.5),
-      indicatorColor: AppColors.primary600,
-      dividerColor: Colors.white.withOpacity(0.1),
-      labelStyle: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w600),
-      unselectedLabelStyle: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w500),
+      labelColor:            Colors.white,
+      unselectedLabelColor:  Colors.white.withOpacity(0.45),
+      indicatorColor:        AppColors.primary,
+      dividerColor:          Colors.white.withOpacity(0.1),
+      labelStyle:            GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700),
+      unselectedLabelStyle:  GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w500),
     ),
     snackBarTheme: SnackBarThemeData(
-      backgroundColor: const Color(0xFF2D1952),
-      contentTextStyle: GoogleFonts.dmSans(color: Colors.white, fontSize: 14),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      backgroundColor: AppColors.bgDark3,
+      contentTextStyle: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       behavior: SnackBarBehavior.floating,
     ),
-    dividerTheme: DividerThemeData(color: Colors.white.withOpacity(0.12), thickness: 1),
+    dividerTheme: DividerThemeData(color: Colors.white.withOpacity(0.1), thickness: 1),
     dialogTheme: DialogTheme(
-      backgroundColor: const Color(0xFF2A1650),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      titleTextStyle: GoogleFonts.dmSans(fontSize: 17, fontWeight: FontWeight.w700, color: Colors.white),
-      contentTextStyle: GoogleFonts.dmSans(fontSize: 14, color: Colors.white70),
+      backgroundColor: AppColors.bgDark3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      titleTextStyle: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
+      contentTextStyle: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textSecondary),
     ),
     bottomSheetTheme: const BottomSheetThemeData(
-      backgroundColor: Color(0xFF1E1040),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      backgroundColor: AppColors.bgDark2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
     ),
     checkboxTheme: CheckboxThemeData(
       fillColor: MaterialStateProperty.resolveWith((s) =>
-          s.contains(MaterialState.selected) ? AppColors.primary600 : Colors.transparent),
+          s.contains(MaterialState.selected) ? AppColors.primary : Colors.transparent),
       side: BorderSide(color: Colors.white.withOpacity(0.4)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+    ),
+    switchTheme: SwitchThemeData(
+      thumbColor: MaterialStateProperty.resolveWith((s) =>
+          s.contains(MaterialState.selected) ? Colors.white : Colors.white54),
+      trackColor: MaterialStateProperty.resolveWith((s) =>
+          s.contains(MaterialState.selected) ? AppColors.primary : Colors.white24),
+    ),
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: AppColors.primary,
     ),
   );
 }

@@ -24,9 +24,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? _lateNotice;
   bool _loading           = true;
   bool _vpnDetected       = false;
-  bool _gracePeriod       = false;
+  bool _heartbeatLost     = false;
+  String?   _disconnectSsid;
+  DateTime? _disconnectDeadline; // 10 min from when heartbeat was lost
   bool _noNetworksConfig  = false;
   Timer? _timer;
+  Timer? _refreshTimer;
   Duration _elapsed   = Duration.zero;
   int _unreadNotifs   = 0;
 
@@ -36,25 +39,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _load();
     _startTimer();
+    _startAutoRefresh();
 
-    WifiAttendanceService().onStatusChange = (status) {
+    WifiAttendanceService().onStatusChange = (status, [data]) {
       if (!mounted) return;
       switch (status) {
         case 'checked_in':
+          setState(() { _heartbeatLost = false; _disconnectDeadline = null; });
           _load();
           _showSnack('✅ Auto checked in via office WiFi');
           break;
-        case 'checked_out':
-          _load();
-          _showSnack('🔴 Auto checked out — WiFi disconnected');
+        case 'heartbeat_lost':
+          setState(() {
+            _heartbeatLost      = true;
+            _disconnectSsid     = data;
+            _disconnectDeadline = DateTime.now().add(const Duration(minutes: 10));
+          });
           break;
-        case 'grace_period':
-          setState(() => _gracePeriod = true);
-          _showSnack('WiFi signal lost — checking out in 5 min if not reconnected');
-          break;
-        case 'grace_cancelled':
-          setState(() => _gracePeriod = false);
-          _showSnack('Welcome back! Check-out cancelled.');
+        case 'heartbeat_restored':
+          setState(() { _heartbeatLost = false; _disconnectDeadline = null; });
+          _showSnack('✅ Back on office WiFi');
           break;
         case 'vpn_detected':
           setState(() => _vpnDetected = true);
@@ -69,6 +73,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     _timer?.cancel();
+    _refreshTimer?.cancel();
     WifiAttendanceService().onStatusChange = null;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -83,9 +88,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  void _showSnack(String msg) {
+  void _showSnack(String msg, {bool isError = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w600)),
+      backgroundColor: isError ? AppColors.danger500 : AppColors.bgDark3,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 90),
+      duration: const Duration(seconds: 3),
+    ));
   }
 
   Future<void> _load() async {
@@ -139,6 +151,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
   }
 
+  void _startAutoRefresh() {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted && !_loading) _load();
+    });
+  }
+
   void _updateElapsed() {
     final checkIn  = _todayRecord?['check_in_at']  as String?;
     final checkOut = _todayRecord?['check_out_at'] as String?;
@@ -154,6 +172,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (h > 0) return '${h}h ${m}m';
     if (m > 0) return '${m}m ${s}s';
     return '${s}s';
+  }
+
+  String get _disconnectCountdown {
+    if (_disconnectDeadline == null) return '';
+    final remaining = _disconnectDeadline!.difference(DateTime.now());
+    if (remaining.isNegative) return '00:00';
+    final m = remaining.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = remaining.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 
   String get _status   => _todayRecord?['status'] as String? ?? 'none';
@@ -173,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         bottom: false,
         child: RefreshIndicator(
           color: AppColors.primary600,
-          backgroundColor: const Color(0xFF2D1952),
+          backgroundColor: AppColors.bgDark3,
           onRefresh: () async {
             await _load();
             await WifiAttendanceService().checkAndReport();
@@ -232,20 +259,44 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 const SizedBox(height: 20),
 
                 // ─── Banners ──────────────────────────────
-                if (_vpnDetected)        _vpnBanner(),
-                if (_gracePeriod)        _graceBanner(),
-                if (_noNetworksConfig && !_vpnDetected) _noNetworksBanner(),
-                if (!_loading && _todayLeave != null &&
-                    _status != 'in' && _status != 'late' && _status != 'out')
-                  _leaveTodayBanner(),
-                if (!_loading && _lateNotice != null &&
-                    _status != 'in' && _status != 'late' && _status != 'out')
-                  _lateNoticeBanner(),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutCubic,
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    if (_vpnDetected)    _vpnBanner(),
+                    if (_heartbeatLost)  _heartbeatLostBanner(),
+                    if (_noNetworksConfig && !_vpnDetected) _noNetworksBanner(),
+                    if (!_loading && _todayLeave != null &&
+                        _status != 'in' && _status != 'late' && _status != 'out')
+                      _leaveTodayBanner(),
+                    if (!_loading && _lateNotice != null &&
+                        _status != 'in' && _status != 'late' && _status != 'out')
+                      _lateNoticeBanner(),
+                  ]),
+                ),
 
                 // ─── Status Card ──────────────────────────
                 _loading
-                    ? SkeletonBox(width: double.infinity, height: 160, radius: 20)
-                    : _buildStatusCard(),
+                    ? SkeletonBox(width: double.infinity, height: 160, radius: 28)
+                    : AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        switchInCurve:  Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        transitionBuilder: (child, animation) => FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, 0.05),
+                              end: Offset.zero,
+                            ).animate(animation),
+                            child: child,
+                          ),
+                        ),
+                        child: KeyedSubtree(
+                          key: ValueKey(_status + (_heartbeatLost ? '_hl' : '')),
+                          child: _buildStatusCard(),
+                        ),
+                      ),
 
                 const SizedBox(height: 20),
 
@@ -311,11 +362,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     tint: Colors.white,
   );
 
-  Widget _graceBanner() => _glassBanner(
-    icon: Icons.wifi_off,
-    text: "WiFi signal lost — you'll be checked out in 5 minutes if not reconnected.",
-    tint: AppColors.primary600,
-  );
+  Widget _heartbeatLostBanner() {
+    final ssid = _disconnectSsid;
+    return _glassBanner(
+      icon: Icons.wifi_off,
+      text: ssid != null && ssid.isNotEmpty
+          ? 'Not on "$ssid" — reconnect within $_disconnectCountdown or you\'ll be checked out'
+          : 'Left office WiFi — reconnect within $_disconnectCountdown to stay checked in',
+      tint: AppColors.warning500,
+    );
+  }
 
   Widget _leaveTodayBanner() {
     final leaveType = (_todayLeave?['leave_type'] as String? ?? 'leave').replaceAll('_', ' ');
@@ -500,6 +556,77 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     reasonCtrl.dispose();
   }
 
+  // ─── Break Info ────────────────────────────────────────
+
+  Map<String, dynamic>? _computeBreakInfo() {
+    final checkInStr = _todayRecord?['check_in_at'] as String?;
+    if (checkInStr == null) return null;
+    final checkIn = DateTime.parse(checkInStr);
+
+    // Check for active break in break_records
+    final breakRecords = (_todayRecord?['break_records'] as List?)
+        ?.cast<Map<String, dynamic>>() ?? [];
+    final activeBreak = breakRecords.where((b) => b['break_end'] == null).firstOrNull;
+    if (activeBreak != null) {
+      final startedAt = DateTime.parse(activeBreak['break_start'] as String);
+      final durationMins = activeBreak['duration_mins'] as int? ?? 30;
+      final endsAt = startedAt.add(Duration(minutes: durationMins));
+      final remaining = endsAt.difference(DateTime.now());
+      if (remaining.isNegative) {
+        return {
+          'icon': Icons.free_breakfast,
+          'color': AppColors.warning500,
+          'text': 'Break running ${(-remaining.inMinutes)}m over',
+        };
+      }
+      final m = remaining.inMinutes;
+      final s = remaining.inSeconds % 60;
+      return {
+        'icon': Icons.free_breakfast,
+        'color': AppColors.teal100,
+        'text': 'On break — ${m}m ${s}s remaining',
+      };
+    }
+
+    // Check for upcoming breaks from shift schedule
+    final shiftBreaks = (_nextShift?['shift']?['shift_breaks'] as List?)
+        ?.cast<Map<String, dynamic>>() ?? [];
+    for (final sb in shiftBreaks) {
+      final afterMins   = (sb['after_minutes'] as num?)?.toInt() ?? 0;
+      final breakMins   = (sb['break_minutes'] as num?)?.toInt() ?? 15;
+      final name        = sb['name'] as String? ?? 'Break';
+      final breakStart  = checkIn.add(Duration(minutes: afterMins));
+      final breakEnd    = breakStart.add(Duration(minutes: breakMins));
+
+      // Already past this break? Skip.
+      if (DateTime.now().isAfter(breakEnd)) continue;
+
+      final untilStart = breakStart.difference(DateTime.now());
+      if (untilStart.isNegative) {
+        // Should be on break but no active record yet
+        return {
+          'icon': Icons.free_breakfast,
+          'color': AppColors.warning500,
+          'text': '$name started — take your break',
+        };
+      }
+      if (untilStart.inMinutes <= 10) {
+        return {
+          'icon': Icons.schedule,
+          'color': AppColors.primary600,
+          'text': '$name in ${untilStart.inMinutes}m ${untilStart.inSeconds % 60}s',
+        };
+      }
+      // More than 10 min away — show next break time
+      return {
+        'icon': Icons.schedule,
+        'color': Colors.white.withOpacity(0.45),
+        'text': '$name at ${DateFormat('hh:mm a').format(breakStart)}',
+      };
+    }
+    return null;
+  }
+
   // ─── Status Card ───────────────────────────────────────
 
   Widget _buildStatusCard() {
@@ -509,12 +636,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     String statusSub;
     Color iconColor;
 
-    if (_gracePeriod) {
+    if (_heartbeatLost) {
       cardTint    = AppColors.warning500;
       cardIcon    = Icons.wifi_off;
       iconColor   = AppColors.warning500;
-      statusTitle = 'WiFi Lost — Grace Period';
-      statusSub   = 'Will auto check-out in 5 min';
+      statusTitle = 'Not on Office WiFi';
+      statusSub   = _disconnectCountdown.isNotEmpty
+          ? 'Auto check-out in $_disconnectCountdown — reconnect to stay'
+          : 'Reconnect to office WiFi';
     } else if (_vpnDetected) {
       cardTint    = AppColors.warning500;
       cardIcon    = Icons.vpn_lock;
@@ -601,6 +730,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               _infoChip(Icons.wifi, 'Via', _formatCheckInType(_todayRecord!['check_in_type'] as String)),
             ],
           ]),
+          // Break status row (shows upcoming break warning or active break)
+          Builder(builder: (context) {
+            final breakInfo = _computeBreakInfo();
+            if (breakInfo == null) return const SizedBox.shrink();
+            return Column(children: [
+              const SizedBox(height: 8),
+              Divider(color: Colors.white.withOpacity(0.12), height: 1),
+              const SizedBox(height: 8),
+              Row(children: [
+                Icon(breakInfo['icon'] as IconData, size: 14, color: breakInfo['color'] as Color),
+                const SizedBox(width: 6),
+                Expanded(child: Text(
+                  breakInfo['text'] as String,
+                  style: TextStyle(fontSize: 12, color: breakInfo['color'] as Color, fontWeight: FontWeight.w600),
+                )),
+              ]),
+            ]);
+          }),
         ],
 
         // Check-in actions

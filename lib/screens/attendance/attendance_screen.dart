@@ -63,7 +63,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       ),
       body: RefreshIndicator(
         color: AppColors.primary600,
-        backgroundColor: const Color(0xFF2D1952),
+        backgroundColor: AppColors.bgDark3,
         onRefresh: _load,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
