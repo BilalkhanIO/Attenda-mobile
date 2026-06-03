@@ -46,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       switch (status) {
         case 'checked_in':
           setState(() { _heartbeatLost = false; _disconnectDeadline = null; });
-          _load();
+          _load(silent: true);
           _showSnack('✅ Auto checked in via office WiFi');
           break;
         case 'heartbeat_lost':
@@ -82,9 +82,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _load();
+      _startAutoRefresh(); // resume polling
+      _load(silent: true);
       WifiAttendanceService().checkAndReport();
       WifiAttendanceService().syncOfflineQueue();
+    } else if (state == AppLifecycleState.paused) {
+      _refreshTimer?.cancel(); // stop polling the network while backgrounded
     }
   }
 
@@ -100,8 +103,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ));
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  Future<void> _load({bool silent = false}) async {
+    // Silent refreshes (the 30s poll, resume, pull-to-refresh) skip the loading
+    // flag so the status card doesn't flash its skeleton or re-run entry
+    // animations. Only the very first load shows the skeleton.
+    if (!silent) setState(() => _loading = true);
     try {
       final results = await Future.wait([
         api.getMyAttendance(days: 1),
@@ -152,8 +158,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _startAutoRefresh() {
+    _refreshTimer?.cancel();
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted && !_loading) _load();
+      if (mounted && !_loading) _load(silent: true);
     });
   }
 
@@ -202,7 +209,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           color: AppColors.primary600,
           backgroundColor: AppColors.bgDark3,
           onRefresh: () async {
-            await _load();
+            await _load(silent: true);
             await WifiAttendanceService().checkAndReport();
           },
           child: SingleChildScrollView(
@@ -224,7 +231,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     GestureDetector(
                       onTap: () async {
                         await context.push('/home/notifications');
-                        _load();
+                        _load(silent: true);
                       },
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(20),
@@ -738,14 +745,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             const SizedBox(height: 12),
             Divider(color: Colors.white.withOpacity(0.15), height: 1),
             const SizedBox(height: 12),
-            Row(children: [
-              _infoChip(Icons.login, 'In', checkInTime),
-              const SizedBox(width: 20),
-              _infoChip(Icons.timer_outlined, 'Elapsed', _elapsedDisplay),
-              if (checkInType != null) ...[
-                const SizedBox(width: 20),
-                _infoChip(Icons.wifi, 'Via', _formatCheckInType(checkInType)),
-              ],
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              _infoChip(Icons.login, 'Checked in', checkInTime),
+              if (checkInType != null)
+                _infoChip(Icons.wifi, 'Method', _formatCheckInType(checkInType)),
             ]),
           ],
 
@@ -780,22 +783,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           // ── QR + Check Out buttons ─────────────────────────
           const SizedBox(height: 16),
           Row(children: [
-            Expanded(
-              child: OutlinedButton.icon(
+            // Compact icon-only QR button — avoids the label wrapping and lets
+            // Check Out take the full remaining width as the primary action.
+            SizedBox(
+              width: 52, height: 48,
+              child: OutlinedButton(
                 onPressed: () => context.push('/attendance/qr'),
-                icon: const Icon(Icons.qr_code_scanner, size: 16),
-                label: const Text('QR'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white,
                   side: BorderSide(color: Colors.white.withOpacity(0.3)),
+                  padding: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  minimumSize: const Size(0, 42),
                 ),
+                child: const Icon(Icons.qr_code_scanner, size: 20),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
-              flex: 2,
               child: AppButton(
                 label: 'Check Out',
                 icon: Icons.logout,
@@ -811,7 +815,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   if (confirmed == true) {
                     try {
                       await api.checkOut();
-                      _load();
+                      await WifiAttendanceService().onManualCheckOut();
+                      _load(silent: true);
                       _showSnack('Checked out ✅');
                     } catch (e) {
                       _showSnack('Failed to check out', isError: true);

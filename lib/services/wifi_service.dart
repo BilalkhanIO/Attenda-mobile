@@ -5,10 +5,13 @@ import 'package:network_info_plus/network_info_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../services/api_service.dart';
 
 const _heartbeatTask = 'com.attenda.heartbeat';
-const _heartbeatInterval = Duration(minutes: 4);
+// Android clamps periodic WorkManager tasks to a 15-minute minimum, so anything
+// shorter is silently rounded up. Keep this at the floor for the tightest cadence.
+const _heartbeatInterval = Duration(minutes: 15);
 const _heartbeatExpiry   = Duration(minutes: 10);
 
 const _queueBox = 'offline_queue';
@@ -56,6 +59,10 @@ class WifiAttendanceService {
     if (!Hive.isBoxOpen(_stateBox)) await Hive.openBox(_stateBox);
     _restoreState();
 
+    // Reading the WiFi SSID/IP requires location permission on Android 8.1+.
+    // Without it getWifiName()/getWifiIP() return null and auto check-in never fires.
+    await ensureLocationPermission();
+
     await Workmanager().initialize(_bgCallback);
     await Workmanager().registerPeriodicTask(
       _heartbeatTask, _heartbeatTask,
@@ -83,6 +90,29 @@ class WifiAttendanceService {
     await box.put(_kCheckedInViaWifi, _checkedInViaWifi);
     await box.put(_kLastKnownIp,      _lastKnownIp);
     await box.put(_kLastKnownSsid,    _lastKnownSsid);
+  }
+
+  /// Requests location permission (needed to read the WiFi SSID/IP).
+  /// Safe to call repeatedly — returns true once granted.
+  Future<bool> ensureLocationPermission() async {
+    try {
+      var status = await Permission.locationWhenInUse.status;
+      if (!status.isGranted) {
+        status = await Permission.locationWhenInUse.request();
+      }
+      return status.isGranted;
+    } catch (e) {
+      debugPrint('[WiFi] Location permission request failed: $e');
+      return false;
+    }
+  }
+
+  /// Call when the user checks out manually so we stop sending heartbeats and
+  /// the state stays consistent (otherwise heartbeats keep firing until the
+  /// backend rejects them with `not_checked_in`).
+  Future<void> onManualCheckOut() async {
+    _checkedInViaWifi = false;
+    await _saveState();
   }
 
   Future<void> checkAndReport() async {
@@ -113,10 +143,17 @@ class WifiAttendanceService {
         _lastKnownIp   = ip;
         _lastKnownSsid = ssid;
         await _saveState();
-        await _reportNetworkEvent(ip: ip, ssid: ssid);
-      } else if (_checkedInViaWifi) {
-        // Same network — send heartbeat
+      }
+
+      if (_checkedInViaWifi) {
+        // Already checked in — keep the session alive with a heartbeat.
         await _sendHeartbeat(ip: ip, ssid: ssid);
+      } else {
+        // Not checked in yet — attempt an auto check-in. The backend is
+        // idempotent (returns `already_in` if we already are), so it's safe to
+        // call even when the network hasn't changed. This is what lets check-in
+        // recover after a restart or manual check-out on the same network.
+        await _reportNetworkEvent(ip: ip, ssid: ssid);
       }
     } catch (e) {
       debugPrint('[WiFi] checkAndReport error: $e');
