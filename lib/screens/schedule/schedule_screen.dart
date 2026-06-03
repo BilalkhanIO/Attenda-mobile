@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -98,7 +97,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 1.4,
-                            color: Colors.white.withOpacity(0.45),
+                            color: Colors.white.withValues(alpha: 0.45),
                           ),
                         ),
                       ));
@@ -123,7 +122,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
                                 Text(shift['name'] as String? ?? 'Shift',
                                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
                                 Text('${shift['start_time'] ?? '--'} – ${shift['end_time'] ?? '--'}',
-                                    style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.55), fontFamily: 'monospace')),
+                                    style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.55), fontFamily: 'monospace')),
                               ])),
                               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                                 Text(DateFormat('EEE, d MMM').format(date),
@@ -133,9 +132,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                     decoration: BoxDecoration(
-                                      color: AppColors.primary600.withOpacity(0.2),
+                                      color: AppColors.primary600.withValues(alpha: 0.2),
                                       borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(color: AppColors.primary600.withOpacity(0.4)),
+                                      border: Border.all(color: AppColors.primary600.withValues(alpha: 0.4)),
                                     ),
                                     child: const Text('TODAY',
                                         style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.primary600, letterSpacing: 0.8)),
@@ -201,7 +200,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
                           const SizedBox(height: 6),
                           Text(
                             'With: ${(sw['target'] as Map?)?['name'] ?? '—'}',
-                            style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.55)),
+                            style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.55)),
                           ),
                           if (sw['rejection_reason'] != null) ...[
                             const SizedBox(height: 4),

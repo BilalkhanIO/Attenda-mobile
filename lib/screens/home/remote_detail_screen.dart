@@ -41,7 +41,7 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
               ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   const Icon(Icons.error_outline, size: 40, color: AppColors.danger500),
                   const SizedBox(height: 12),
-                  Text('Failed to load activity', style: TextStyle(color: Colors.white.withOpacity(0.6))),
+                  Text('Failed to load activity', style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
                   const SizedBox(height: 12),
                   AppButton(label: 'Retry', onPressed: _load),
                 ]))
@@ -69,7 +69,7 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
                 date != null ? DateFormat('EEEE, d MMMM yyyy').format(DateTime.parse(date)) : 'Today',
                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
               ),
-              Text(duration, style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.55))),
+              Text(duration, style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.55))),
             ])),
             _statusChip(status),
           ]),
@@ -88,7 +88,7 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.purple100)),
               ]),
               const SizedBox(height: 6),
-              Text(aiSummary, style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.85))),
+              Text(aiSummary, style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.85))),
             ]),
           ),
           const SizedBox(height: 16),
@@ -130,8 +130,8 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
             if (sentAt != null)
-              Text(DateFormat('HH:mm').format(DateTime.parse(sentAt)),
-                  style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.45))),
+              Text(DateFormat('HH:mm').format(DateTime.parse(sentAt).toLocal()),
+                  style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.45))),
           ]),
           const SizedBox(height: 8),
 
@@ -144,17 +144,17 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.07),
+                    color: Colors.white.withValues(alpha: 0.07),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white.withOpacity(0.12)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
                   ),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                       Text('Your reply',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.5))),
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.5))),
                       if (repliedAt != null)
-                        Text(DateFormat('HH:mm').format(DateTime.parse(repliedAt)),
-                            style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.4))),
+                        Text(DateFormat('HH:mm').format(DateTime.parse(repliedAt).toLocal()),
+                            style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.4))),
                     ]),
                     const SizedBox(height: 4),
                     Text(replyText, style: const TextStyle(fontSize: 13, color: Colors.white)),
@@ -179,33 +179,33 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
                   const SizedBox(height: 6),
                   if (taskSummary != null)
                     Text('Working on: $taskSummary',
-                        style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8))),
+                        style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.8))),
                   if (blockers != null) ...[
                     const SizedBox(height: 3),
                     Text('Blockers: $blockers',
-                        style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8))),
+                        style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.8))),
                   ],
                   if (sentiment != null) ...[
                     const SizedBox(height: 3),
                     Row(children: [
-                      Text('Mood: ', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8), fontWeight: FontWeight.w600)),
+                      Text('Mood: ', style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.8), fontWeight: FontWeight.w600)),
                       Text('${_sentimentEmoji(sentiment)} $sentiment',
-                          style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8))),
+                          style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.8))),
                     ]),
                   ],
                 ]),
               ),
             ],
           ] else if (noReply) ...[
-            Row(children: [
-              const Icon(Icons.warning_amber_rounded, size: 15, color: AppColors.danger500),
-              const SizedBox(width: 6),
-              const Text('No reply — manager was notified',
+            const Row(children: [
+              Icon(Icons.warning_amber_rounded, size: 15, color: AppColors.danger500),
+              SizedBox(width: 6),
+              Text('No reply — manager was notified',
                   style: TextStyle(fontSize: 12, color: AppColors.danger500)),
             ]),
           ] else ...[
             Text('Waiting for your WhatsApp reply…',
-                style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.4), fontStyle: FontStyle.italic)),
+                style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.4), fontStyle: FontStyle.italic)),
           ],
         ]),
       ),
@@ -223,9 +223,9 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.18),
+        color: color.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.4)),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
     );

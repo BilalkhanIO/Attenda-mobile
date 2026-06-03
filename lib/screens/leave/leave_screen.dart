@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -111,7 +110,7 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
                           Expanded(
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text('TOTAL REMAINING',
-                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: Colors.white.withOpacity(0.55))),
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: Colors.white.withValues(alpha: 0.55))),
                               const SizedBox(height: 6),
                               Text(
                                 'You have $remainingInt days of leave left across all types this year.',
@@ -188,7 +187,7 @@ class _LeaveRequestTile extends StatelessWidget {
         Text('${DateFormat('MMM d').format(start)} – ${DateFormat('MMM d, yyyy').format(end)}',
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white)),
         Text('${days == 0.5 ? '½' : days.toInt()} working day${days != 1 ? 's' : ''}',
-            style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.55))),
+            style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.55))),
         if (reason != null) ...[
           const SizedBox(height: 6),
           Text('Reason: $reason', style: const TextStyle(fontSize: 12, color: AppColors.danger500)),
@@ -234,7 +233,7 @@ class _LeaveRing extends StatelessWidget {
         CustomPaint(size: const Size(90, 90), painter: _RingPainter(pct: pct)),
         Column(mainAxisSize: MainAxisSize.min, children: [
           Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
-          Text(label, style: TextStyle(fontSize: 9, color: Colors.white.withOpacity(0.5))),
+          Text(label, style: TextStyle(fontSize: 9, color: Colors.white.withValues(alpha: 0.5))),
         ]),
       ]),
     );
@@ -254,7 +253,7 @@ class _RingPainter extends CustomPainter {
     canvas.drawCircle(
       c, r,
       Paint()
-        ..color = Colors.white.withOpacity(0.12)
+        ..color = Colors.white.withValues(alpha: 0.12)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 8
         ..strokeCap = StrokeCap.round,
@@ -315,14 +314,14 @@ class _BalanceTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
             value: pct,
-            backgroundColor: Colors.white.withOpacity(0.12),
+            backgroundColor: Colors.white.withValues(alpha: 0.12),
             valueColor: AlwaysStoppedAnimation(pct > 0.8 ? AppColors.danger500 : AppColors.primary600),
             minHeight: 6,
           ),
         ),
         const SizedBox(height: 6),
         Text('${used % 1 == 0 ? used.toInt() : used} used of ${entitled % 1 == 0 ? entitled.toInt() : entitled} days',
-            style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.55))),
+            style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.55))),
       ]),
     );
   }

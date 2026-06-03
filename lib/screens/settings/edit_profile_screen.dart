@@ -65,11 +65,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     child: Container(
                       width: 42, height: 42,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(15),
-                        border: Border.all(color: Colors.white.withOpacity(0.18)),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
                       ),
-                      child: Icon(Icons.arrow_back, color: Colors.white.withOpacity(0.8), size: 20),
+                      child: Icon(Icons.arrow_back, color: Colors.white.withValues(alpha: 0.8), size: 20),
                     ),
                   ),
                 ),
@@ -84,9 +84,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: AppColors.danger500.withOpacity(0.15),
+                  color: AppColors.danger500.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.danger500.withOpacity(0.4)),
+                  border: Border.all(color: AppColors.danger500.withValues(alpha: 0.4)),
                 ),
                 child: Row(children: [
                   const Icon(Icons.error_outline, color: AppColors.danger500, size: 16),
@@ -103,7 +103,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     labelText: 'Full Name',
-                    prefixIcon: Icon(Icons.person_outline, size: 18, color: Colors.white.withOpacity(0.4)),
+                    prefixIcon: Icon(Icons.person_outline, size: 18, color: Colors.white.withValues(alpha: 0.4)),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -114,7 +114,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   decoration: InputDecoration(
                     labelText: 'Phone Number',
                     hintText: '+44 7700 000000',
-                    prefixIcon: Icon(Icons.phone_outlined, size: 18, color: Colors.white.withOpacity(0.4)),
+                    prefixIcon: Icon(Icons.phone_outlined, size: 18, color: Colors.white.withValues(alpha: 0.4)),
                   ),
                 ),
               ]),

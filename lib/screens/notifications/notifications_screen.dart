@@ -124,7 +124,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             const Text('Notifications'),
             if (_unreadCount > 0)
               Text('$_unreadCount unread',
-                  style: TextStyle(fontSize: 11, color: AppColors.primary600, fontWeight: FontWeight.w500)),
+                  style: const TextStyle(fontSize: 11, color: AppColors.primary600, fontWeight: FontWeight.w500)),
           ],
         ),
         actions: [
@@ -143,9 +143,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.notifications_none_rounded, size: 56, color: Colors.white.withOpacity(0.2)),
+                      Icon(Icons.notifications_none_rounded, size: 56, color: Colors.white.withValues(alpha: 0.2)),
                       const SizedBox(height: 12),
-                      Text('No notifications yet', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 15)),
+                      Text('No notifications yet', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 15)),
                     ],
                   ),
                 )
@@ -208,9 +208,9 @@ class _NotifTile extends StatelessWidget {
         padding: const EdgeInsets.only(right: 20),
         margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
-          color: AppColors.danger500.withOpacity(0.25),
+          color: AppColors.danger500.withValues(alpha: 0.25),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.danger500.withOpacity(0.4)),
+          border: Border.all(color: AppColors.danger500.withValues(alpha: 0.4)),
         ),
         child: const Icon(Icons.delete_outline_rounded, color: AppColors.danger500),
       ),
@@ -231,11 +231,11 @@ class _NotifTile extends StatelessWidget {
                     width: 40, height: 40,
                     decoration: BoxDecoration(
                       color: isUnread
-                          ? AppColors.primary600.withOpacity(0.2)
-                          : Colors.white.withOpacity(0.08),
+                          ? AppColors.primary600.withValues(alpha: 0.2)
+                          : Colors.white.withValues(alpha: 0.08),
                       shape: BoxShape.circle,
                       border: isUnread
-                          ? Border.all(color: AppColors.primary600.withOpacity(0.4))
+                          ? Border.all(color: AppColors.primary600.withValues(alpha: 0.4))
                           : null,
                     ),
                     child: Center(child: Text(icon, style: const TextStyle(fontSize: 18))),
@@ -258,13 +258,13 @@ class _NotifTile extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       notif['body'] as String? ?? '',
-                      style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.55), height: 1.4),
+                      style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.55), height: 1.4),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 6),
                     Row(children: [
-                      Text(timeAgo, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.35))),
+                      Text(timeAgo, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.35))),
                       if (isUnread) ...[
                         const SizedBox(width: 8),
                         Container(
@@ -279,8 +279,8 @@ class _NotifTile extends StatelessWidget {
               if (isUnread)
                 GestureDetector(
                   onTap: onMarkRead,
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 8, top: 2),
+                  child: const Padding(
+                    padding: EdgeInsets.only(left: 8, top: 2),
                     child: Icon(Icons.done_rounded, size: 16, color: AppColors.primary600),
                   ),
                 ),

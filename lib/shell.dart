@@ -56,12 +56,12 @@ class _AuroraNavDock extends StatelessWidget {
           child: Container(
             height: 72,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.10),
+              color: Colors.white.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: Colors.white.withOpacity(0.18), width: 1),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.18), width: 1),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.25),
+                  color: Colors.black.withValues(alpha: 0.25),
                   blurRadius: 30,
                   offset: const Offset(0, 10),
                 ),
@@ -91,7 +91,7 @@ class _AuroraNavDock extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(20),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: AppColors.primary.withOpacity(0.4),
+                                        color: AppColors.primary.withValues(alpha: 0.4),
                                         blurRadius: 12,
                                         offset: const Offset(0, 3),
                                       ),
@@ -100,7 +100,7 @@ class _AuroraNavDock extends StatelessWidget {
                                 : null,
                             child: Icon(
                               active ? tab.activeIcon : tab.icon,
-                              color: active ? Colors.white : Colors.white.withOpacity(0.45),
+                              color: active ? Colors.white : Colors.white.withValues(alpha: 0.45),
                               size: 22,
                             ),
                           ),
@@ -110,7 +110,7 @@ class _AuroraNavDock extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: active ? FontWeight.w800 : FontWeight.w500,
-                              color: active ? AppColors.primary : Colors.white.withOpacity(0.4),
+                              color: active ? AppColors.primary : Colors.white.withValues(alpha: 0.4),
                             ),
                             child: Text(tab.label),
                           ),

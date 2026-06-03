@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Transparent background for adaptive icon; logo kept within the center
+       safe zone (scale x12, tx=ty=248) so the system mask never clips it. -->
+  <g transform="translate(248,248) scale(12)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="22" cy="22" r="20" stroke="#00C896" stroke-width="2.5"/>
+    <circle cx="22" cy="22" r="14" fill="#00C896" fill-opacity="0.15"/>
+    <line x1="22" y1="9"  x2="22" y2="12" stroke="#00C896" stroke-width="2.0"/>
+    <line x1="22" y1="32" x2="22" y2="35" stroke="#00C896" stroke-width="1.2" stroke-opacity="0.4"/>
+    <line x1="9"  y1="22" x2="12" y2="22" stroke="#00C896" stroke-width="1.2" stroke-opacity="0.4"/>
+    <line x1="32" y1="22" x2="35" y2="22" stroke="#00C896" stroke-width="1.2" stroke-opacity="0.4"/>
+    <line x1="22" y1="22" x2="22"   y2="15" stroke="#00C896" stroke-width="2.2"/>
+    <line x1="22" y1="22" x2="27.5" y2="22" stroke="#F1F5F9" stroke-width="2.2"/>
+    <circle cx="22" cy="22" r="2.2" fill="#00C896"/>
+    <circle cx="33" cy="33" r="7" fill="#081D24"/>
+    <circle cx="33" cy="33" r="6" fill="#10B981"/>
+    <path d="M29.5 33 L32 35.5 L36.5 30.5" stroke="#FFFFFF" stroke-width="2.0"/>
+  </g>
+</svg>

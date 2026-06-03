@@ -5,6 +5,13 @@ import '../../services/api_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
 
+// Backend serializes Decimal fields (hours_worked, net_hours_worked) as strings
+// and Int fields as numbers — parse defensively for either.
+double? _asDouble(dynamic v) =>
+    v == null ? null : v is num ? v.toDouble() : double.tryParse(v.toString());
+int? _asInt(dynamic v) =>
+    v == null ? null : v is num ? v.toInt() : int.tryParse(v.toString());
+
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key});
   @override
@@ -25,7 +32,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final data = await api.getMyAttendance(days: 90);
+      // 186 days ≈ 6 months, matching the 6-entry month selector below so older
+      // months aren't shown empty for lack of fetched data.
+      final data = await api.getMyAttendance(days: 186);
       setState(() {
         _records = data.cast<Map<String, dynamic>>();
         _loading = false;
@@ -98,12 +107,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                         end: Alignment.centerRight,
                                       )
                                     : null,
-                                color: selected ? null : Colors.white.withOpacity(0.1),
+                                color: selected ? null : Colors.white.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(22),
                                 border: Border.all(
                                   color: selected
                                       ? Colors.transparent
-                                      : Colors.white.withOpacity(0.2),
+                                      : Colors.white.withValues(alpha: 0.2),
                                 ),
                               ),
                               child: Text(
@@ -111,7 +120,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color: selected ? Colors.white : Colors.white.withOpacity(0.7),
+                                  color: selected ? Colors.white : Colors.white.withValues(alpha: 0.7),
                                 ),
                               ),
                             ),
@@ -142,8 +151,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               const SizedBox(height: 12),
 
               if (_loading)
-                ...List.generate(5, (_) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+                ...List.generate(5, (_) => const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
                   child: SkeletonBox(width: double.infinity, height: 68, radius: 16),
                 ))
               else if (_monthRecords.isEmpty)
@@ -181,9 +190,9 @@ class _StatChip extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.14),
+            color: color.withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withOpacity(0.28), width: 1.0),
+            border: Border.all(color: color.withValues(alpha: 0.28), width: 1.0),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -192,7 +201,7 @@ class _StatChip extends StatelessWidget {
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
               const SizedBox(height: 2),
               Text(label,
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color.withOpacity(0.75))),
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color.withValues(alpha: 0.75))),
             ],
           ),
         ),
@@ -211,7 +220,7 @@ class _RecordTile extends StatelessWidget {
     final status   = record['status'] as String? ?? 'out';
     final checkIn  = record['check_in_at']  as String?;
     final checkOut = record['check_out_at'] as String?;
-    final hours    = record['hours_worked'];
+    final hours    = _asDouble(record['hours_worked']);
 
     return GlassCard(
       onTap: () => _showDetail(context, record),
@@ -236,15 +245,15 @@ class _RecordTile extends StatelessWidget {
           const SizedBox(height: 3),
           Row(children: [
             if (checkIn != null)
-              Text('In: ${DateFormat('HH:mm').format(DateTime.parse(checkIn))}',
-                  style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.55))),
+              Text('In: ${DateFormat('HH:mm').format(DateTime.parse(checkIn).toLocal())}',
+                  style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.55))),
             if (checkIn != null && checkOut != null)
-              Text('  ·  ', style: TextStyle(color: Colors.white.withOpacity(0.25))),
+              Text('  ·  ', style: TextStyle(color: Colors.white.withValues(alpha: 0.25))),
             if (checkOut != null)
-              Text('Out: ${DateFormat('HH:mm').format(DateTime.parse(checkOut))}',
-                  style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.55))),
+              Text('Out: ${DateFormat('HH:mm').format(DateTime.parse(checkOut).toLocal())}',
+                  style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.55))),
             if (hours != null)
-              Text('  ·  ${hours}h', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.55))),
+              Text('  ·  ${hours.toStringAsFixed(1)}h', style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.55))),
           ]),
         ])),
         StatusBadge(status: status, small: true),
@@ -269,12 +278,29 @@ class _RecordTile extends StatelessWidget {
               StatusBadge(status: r['status'] as String? ?? 'out'),
             ]),
             const SizedBox(height: 16),
-            Divider(color: Colors.white.withOpacity(0.12)),
+            Divider(color: Colors.white.withValues(alpha: 0.12)),
             const SizedBox(height: 8),
-            glassDetailRow('Check In',  r['check_in_at']  != null ? DateFormat('hh:mm a').format(DateTime.parse(r['check_in_at']  as String)) : '—'),
-            glassDetailRow('Check Out', r['check_out_at'] != null ? DateFormat('hh:mm a').format(DateTime.parse(r['check_out_at'] as String)) : '—'),
-            glassDetailRow('Hours',     r['hours_worked'] != null ? '${r['hours_worked']}h' : '—'),
+            glassDetailRow('Check In',  r['check_in_at']  != null ? DateFormat('hh:mm a').format(DateTime.parse(r['check_in_at']  as String).toLocal()) : '—'),
+            glassDetailRow('Check Out', r['check_out_at'] != null ? DateFormat('hh:mm a').format(DateTime.parse(r['check_out_at'] as String).toLocal()) : '—'),
+            Builder(builder: (_) {
+              final hours = _asDouble(r['hours_worked']);
+              return glassDetailRow('Hours', hours != null ? '${hours.toStringAsFixed(1)}h' : '—');
+            }),
+            Builder(builder: (_) {
+              final net = _asDouble(r['net_hours_worked']);
+              return net != null ? glassDetailRow('Net Hours', '${net.toStringAsFixed(1)}h') : const SizedBox.shrink();
+            }),
+            Builder(builder: (_) {
+              final late = _asInt(r['late_minutes']) ?? 0;
+              return late > 0 ? glassDetailRow('Late By', '$late min', highlight: true) : const SizedBox.shrink();
+            }),
+            Builder(builder: (_) {
+              final brk = _asInt(r['break_minutes']) ?? 0;
+              return brk > 0 ? glassDetailRow('Breaks', '$brk min') : const SizedBox.shrink();
+            }),
             glassDetailRow('Type',      (r['check_in_type'] as String? ?? 'manual').replaceAll('_', ' ').toUpperCase()),
+            if (r['auto_checked_out'] == true)
+              glassDetailRow('Check Out', 'Auto checked-out by system', highlight: true),
             if (r['ip_detected'] != null)
               glassDetailRow('IP', r['ip_detected'] as String),
             if (r['is_overridden'] == true)

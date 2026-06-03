@@ -50,7 +50,7 @@ class _AttendaWordmark extends StatelessWidget {
     final baseColor = variant == AttendaLogoVariant.dark
         ? const Color(0xFFF1F5F9)
         : const Color(0xFF321847);
-    final accentColor = AppColors.primary;
+    const accentColor = AppColors.primary;
 
     final style = GoogleFonts.dmSans(
       fontWeight: FontWeight.w800,
@@ -101,8 +101,8 @@ class _AttendaIconPainter extends CustomPainter {
       14,
       Paint()
         ..color = isDark
-            ? AppColors.primary.withOpacity(0.15)
-            : AppColors.primary.withOpacity(0.1),
+            ? AppColors.primary.withValues(alpha: 0.15)
+            : AppColors.primary.withValues(alpha: 0.1),
     );
 
     // ── Clock ticks ─────────────────────────────────────────
@@ -185,7 +185,7 @@ class _AttendaIconPainter extends CustomPainter {
       p1,
       p2,
       Paint()
-        ..color = color.withOpacity(opacity)
+        ..color = color.withValues(alpha: opacity)
         ..strokeWidth = width
         ..strokeCap = StrokeCap.round,
     );

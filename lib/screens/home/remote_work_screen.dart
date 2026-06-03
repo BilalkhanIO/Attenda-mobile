@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/api_service.dart';
@@ -25,8 +24,10 @@ class _RemoteWorkScreenState extends State<RemoteWorkScreen> {
         context.pop();
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: ${e.toString().replaceAll('Exception: ', '')}')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed: ${e.toString().replaceAll('Exception: ', '')}')));
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -40,13 +41,13 @@ class _RemoteWorkScreenState extends State<RemoteWorkScreen> {
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Info banner
-        GlassCard(
+        const GlassCard(
           tint: AppColors.purple500,
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16),
           child: Row(children: [
-            const Icon(Icons.info_outline, color: AppColors.purple500, size: 20),
-            const SizedBox(width: 12),
-            const Expanded(child: Text(
+            Icon(Icons.info_outline, color: AppColors.purple500, size: 20),
+            SizedBox(width: 12),
+            Expanded(child: Text(
               'Your manager will be notified. AI will check in with you via WhatsApp at shift start.',
               style: TextStyle(fontSize: 13, color: AppColors.purple100),
             )),
@@ -70,14 +71,14 @@ class _RemoteWorkScreenState extends State<RemoteWorkScreen> {
                 tint: _duration == val ? AppColors.purple500 : null,
                 child: Row(children: [
                   Icon(icon,
-                      color: _duration == val ? AppColors.purple500 : Colors.white.withOpacity(0.5),
+                      color: _duration == val ? AppColors.purple500 : Colors.white.withValues(alpha: 0.5),
                       size: 22),
                   const SizedBox(width: 14),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(label, style: TextStyle(
                         fontSize: 15, fontWeight: FontWeight.w700,
-                        color: _duration == val ? Colors.white : Colors.white.withOpacity(0.8))),
-                    Text(desc, style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.5))),
+                        color: _duration == val ? Colors.white : Colors.white.withValues(alpha: 0.8))),
+                    Text(desc, style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5))),
                   ])),
                   if (_duration == val)
                     const Icon(Icons.check_circle, color: AppColors.purple500),

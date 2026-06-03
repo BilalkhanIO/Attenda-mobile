@@ -68,7 +68,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          AppColors.primary.withOpacity(0.28),  // emerald tint at top
+                          AppColors.primary.withValues(alpha: 0.28),  // emerald tint at top
                           Colors.transparent,
                         ],
                       ),
@@ -80,7 +80,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                           // Avatar with glass ring
                           Container(
                             padding: const EdgeInsets.all(3),
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                               shape: BoxShape.circle,
                               gradient: AppGradients.primaryBtn,
                             ),
@@ -95,7 +95,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
                           Text(
                             '${_profile?['job_title'] ?? user.role.replaceAll('_', ' ')} · ${_profile?['department'] ?? ''}',
-                            style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.6)),
+                            style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.6)),
                           ),
                         ]),
                       ),
@@ -146,7 +146,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                     isDanger: true,
                     confirmLabel: 'Sign Out',
                   );
-                  if (ok == true && mounted) {
+                  if (ok == true && context.mounted) {
                     await context.read<AuthProvider>().logout();
                   }
                 },
@@ -180,12 +180,12 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                               Container(
                                 width: 44, height: 44,
                                 decoration: BoxDecoration(
-                                  color: ready ? AppColors.success500.withOpacity(0.2) : Colors.white.withOpacity(0.1),
+                                  color: ready ? AppColors.success500.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: ready ? AppColors.success500.withOpacity(0.4) : Colors.white.withOpacity(0.15)),
+                                  border: Border.all(color: ready ? AppColors.success500.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.15)),
                                 ),
                                 child: Icon(Icons.receipt_long,
-                                    color: ready ? AppColors.success500 : Colors.white.withOpacity(0.4), size: 20),
+                                    color: ready ? AppColors.success500 : Colors.white.withValues(alpha: 0.4), size: 20),
                               ),
                               const SizedBox(width: 14),
                               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -193,7 +193,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
                                 Text(ready ? 'Ready to download' : 'Processing',
                                     style: TextStyle(fontSize: 12,
-                                        color: ready ? AppColors.success500 : Colors.white.withOpacity(0.4))),
+                                        color: ready ? AppColors.success500 : Colors.white.withValues(alpha: 0.4))),
                               ])),
                               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                                 if (gross != null)
@@ -212,7 +212,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                           }
                                         }
                                       } catch (e) {
-                                        if (mounted) {
+                                        if (context.mounted) {
                                           ScaffoldMessenger.of(context).showSnackBar(
                                               SnackBar(content: Text('Download failed: $e')));
                                         }
@@ -290,7 +290,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                   if (r['notes'] != null) ...[
                                     const SizedBox(height: 6),
                                     Text(r['notes'] as String,
-                                        style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.55)),
+                                        style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.55)),
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis),
                                   ],
@@ -298,7 +298,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                   Padding(
                                     padding: const EdgeInsets.only(top: 4),
                                     child: Text('Review pending',
-                                        style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.4))),
+                                        style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.4))),
                                   ),
                               ])),
                             );
@@ -326,12 +326,12 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
                                   ),
                                   Text('${g['weight']}%',
-                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.5))),
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.5))),
                                 ]),
                                 if (g['description'] != null) ...[
                                   const SizedBox(height: 4),
                                   Text(g['description'] as String,
-                                      style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.5)),
+                                      style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5)),
                                       maxLines: 1, overflow: TextOverflow.ellipsis),
                                 ],
                                 const SizedBox(height: 10),
@@ -342,7 +342,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                       child: LinearProgressIndicator(
                                         value: completion / 100,
                                         minHeight: 6,
-                                        backgroundColor: Colors.white.withOpacity(0.12),
+                                        backgroundColor: Colors.white.withValues(alpha: 0.12),
                                         valueColor: AlwaysStoppedAnimation<Color>(
                                           completion >= 100
                                               ? AppColors.success500
@@ -361,7 +361,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                   const SizedBox(height: 6),
                                   Text(
                                     'Due ${DateFormat('MMM d, yyyy').format(DateTime.parse(targetDate))}',
-                                    style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.4)),
+                                    style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.4)),
                                   ),
                                 ],
                               ])),
@@ -384,15 +384,15 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           Container(
             width: 36, height: 36,
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.15),
+              color: AppColors.primary.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
             ),
             child: Icon(icon, color: AppColors.primary, size: 18),
           ),
           const SizedBox(width: 14),
           Expanded(child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white))),
-          Icon(Icons.chevron_right, color: Colors.white.withOpacity(0.35), size: 18),
+          Icon(Icons.chevron_right, color: Colors.white.withValues(alpha: 0.35), size: 18),
         ]),
       ),
     );
@@ -403,7 +403,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
       children: items.map((item) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(item.$1, style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.55))),
+          Text(item.$1, style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.55))),
           Text(item.$2, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
         ]),
       )).toList(),

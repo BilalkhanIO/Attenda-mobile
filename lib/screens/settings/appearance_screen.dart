@@ -60,11 +60,11 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
                     child: Container(
                       width: 42, height: 42,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(15),
-                        border: Border.all(color: Colors.white.withOpacity(0.18)),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
                       ),
-                      child: Icon(Icons.arrow_back, color: Colors.white.withOpacity(0.8), size: 20),
+                      child: Icon(Icons.arrow_back, color: Colors.white.withValues(alpha: 0.8), size: 20),
                     ),
                   ),
                 ),
@@ -93,13 +93,13 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
                           decoration: BoxDecoration(
                             gradient: LinearGradient(colors: [c1, c2], begin: Alignment.topLeft, end: Alignment.bottomRight),
                             shape: BoxShape.circle,
-                            boxShadow: selected ? [BoxShadow(color: c1.withOpacity(0.5), blurRadius: 14, spreadRadius: 2)] : null,
+                            boxShadow: selected ? [BoxShadow(color: c1.withValues(alpha: 0.5), blurRadius: 14, spreadRadius: 2)] : null,
                             border: selected ? Border.all(color: Colors.white, width: 2.5) : null,
                           ),
                           child: selected ? const Icon(Icons.check, color: Colors.white, size: 20) : null,
                         ),
                         const SizedBox(height: 6),
-                        Text(name, style: TextStyle(fontSize: 11, fontWeight: selected ? FontWeight.w700 : FontWeight.w400, color: selected ? Colors.white : Colors.white.withOpacity(0.5))),
+                        Text(name, style: TextStyle(fontSize: 11, fontWeight: selected ? FontWeight.w700 : FontWeight.w400, color: selected ? Colors.white : Colors.white.withValues(alpha: 0.5))),
                       ]),
                     );
                   }),
@@ -126,9 +126,9 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
                           gradient: selected ? const LinearGradient(colors: [AppColors.primary, AppColors.secondary]) : null,
                           color: selected ? null : Colors.transparent,
                           borderRadius: BorderRadius.circular(10),
-                          boxShadow: selected ? [BoxShadow(color: AppColors.primary.withOpacity(0.35), blurRadius: 10)] : null,
+                          boxShadow: selected ? [BoxShadow(color: AppColors.primary.withValues(alpha: 0.35), blurRadius: 10)] : null,
                         ),
-                        child: Center(child: Text(_densities[i], style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: selected ? Colors.white : Colors.white.withOpacity(0.5)))),
+                        child: Center(child: Text(_densities[i], style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: selected ? Colors.white : Colors.white.withValues(alpha: 0.5)))),
                       ),
                     ),
                   );
@@ -142,7 +142,7 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
               child: Row(children: [
                 const Icon(Icons.info_outline, color: Color(0x66FFFFFF), size: 16),
                 const SizedBox(width: 10),
-                Expanded(child: Text('Appearance settings are stored locally on this device.', style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.4)))),
+                Expanded(child: Text('Appearance settings are stored locally on this device.', style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.4)))),
               ]),
             ),
           ]),

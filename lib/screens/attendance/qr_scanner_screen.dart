@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../services/api_service.dart';
+import '../../services/wifi_service.dart';
 import '../../utils/theme.dart';
 
 class QrScannerScreen extends StatefulWidget {
@@ -64,6 +65,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
         if (confirmed == true) {
           setState(() => _processing = true);
           await api.checkOut();
+          await WifiAttendanceService().onManualCheckOut(); // stop WiFi tracking
           setState(() { _done = true; _message = 'Checked Out!'; _isCheckout = true; });
           await Future.delayed(const Duration(seconds: 2));
           if (mounted) context.pop();
@@ -91,7 +93,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
 
   Future<bool?> _showCheckoutConfirmation(Map<String, dynamic> record) async {
     final checkInStr   = record['check_in_at'] as String?;
-    final checkInTime  = checkInStr != null ? DateTime.parse(checkInStr) : null;
+    final checkInTime  = checkInStr != null ? DateTime.parse(checkInStr).toLocal() : null;
     final elapsed      = checkInTime != null ? DateTime.now().difference(checkInTime) : Duration.zero;
     final h = elapsed.inHours;
     final m = elapsed.inMinutes % 60;
@@ -120,7 +122,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
           const SizedBox(height: 6),
           Text('You checked in at $timeDisplay',
-              style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.6))),
+              style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.6))),
           const SizedBox(height: 4),
           Text('Time in office: $durationDisplay',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
@@ -142,7 +144,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
           const SizedBox(height: 12),
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 15)),
+            child: Text('Cancel', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 15)),
           ),
         ]),
       ),
@@ -188,10 +190,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
           ),
 
           // Instruction text
-          Positioned(
+          const Positioned(
             bottom: 120,
             left: 0, right: 0,
-            child: const Text(
+            child: Text(
               'Point your camera at the office QR code',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500),
@@ -201,7 +203,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
           // Success overlay
           if (_done)
             Container(
-              color: Colors.black.withOpacity(0.85),
+              color: Colors.black.withValues(alpha: 0.85),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -218,7 +220,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: const Color(0xFF00C896).withOpacity(0.4 * (1 - _pulse.value)),
+                              color: const Color(0xFF00C896).withValues(alpha: 0.4 * (1 - _pulse.value)),
                               width: 3,
                             ),
                           ),
@@ -231,7 +233,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: const Color(0xFF00C896).withOpacity(0.25 * (1 - _pulse.value)),
+                              color: const Color(0xFF00C896).withValues(alpha: 0.25 * (1 - _pulse.value)),
                               width: 2,
                             ),
                           ),
@@ -268,7 +270,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
           // Error overlay
           if (_error)
             Container(
-              color: AppColors.danger800.withOpacity(0.9),
+              color: AppColors.danger800.withValues(alpha: 0.9),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -330,8 +332,8 @@ class _ScanLinePainter extends CustomPainter {
     final grad = LinearGradient(
       colors: [
         Colors.transparent,
-        const Color(0xFF00C896).withOpacity(0.8),
-        const Color(0xFF00E5FF).withOpacity(0.8),
+        const Color(0xFF00C896).withValues(alpha: 0.8),
+        const Color(0xFF00E5FF).withValues(alpha: 0.8),
         Colors.transparent,
       ],
       stops: const [0.0, 0.3, 0.7, 1.0],
@@ -357,7 +359,7 @@ class _ScanOverlayPainter extends CustomPainter {
     final rect = Rect.fromCenter(center: Offset(cx, cy), width: sz, height: sz);
 
     // Dim everything outside scan window
-    final paint = Paint()..color = Colors.black.withOpacity(0.6);
+    final paint = Paint()..color = Colors.black.withValues(alpha: 0.6);
     canvas.drawPath(
       Path.combine(
         PathOperation.difference,

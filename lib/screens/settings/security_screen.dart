@@ -24,7 +24,6 @@ class _SecurityScreenState extends State<SecurityScreen> {
   // 2FA
   bool _saving2fa = false;
   String? _setupSecret;
-  String? _otpUrl;
   final _codeCtrl = TextEditingController();
   bool _verifying = false;
 
@@ -59,7 +58,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
     setState(() => _saving2fa = true);
     try {
       final data = await api.setup2fa();
-      setState(() { _setupSecret = data['secret'] as String?; _otpUrl = data['otpauth_url'] as String?; });
+      setState(() { _setupSecret = data['secret'] as String?; });
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not start 2FA setup')));
     } finally {
@@ -74,7 +73,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
     try {
       await api.verify2fa(code);
       if (!mounted) return;
-      setState(() { _setupSecret = null; _otpUrl = null; _codeCtrl.clear(); });
+      setState(() { _setupSecret = null; _codeCtrl.clear(); });
       context.read<AuthProvider>().refreshUser();
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('2FA enabled ✅')));
     } catch (_) {
@@ -86,7 +85,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
 
   Future<void> _disable2fa() async {
     final confirmed = await showConfirmDialog(context, title: 'Disable 2FA', message: 'Enter your current 2FA code to confirm.', confirmLabel: 'Disable', isDanger: true);
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
     String code = '';
     await showDialog<void>(
       context: context,
@@ -143,11 +142,11 @@ class _SecurityScreenState extends State<SecurityScreen> {
                     child: Container(
                       width: 42, height: 42,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(15),
-                        border: Border.all(color: Colors.white.withOpacity(0.18)),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
                       ),
-                      child: Icon(Icons.arrow_back, color: Colors.white.withOpacity(0.8), size: 20),
+                      child: Icon(Icons.arrow_back, color: Colors.white.withValues(alpha: 0.8), size: 20),
                     ),
                   ),
                 ),
@@ -169,9 +168,9 @@ class _SecurityScreenState extends State<SecurityScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     margin: const EdgeInsets.only(bottom: 14),
                     decoration: BoxDecoration(
-                      color: AppColors.danger500.withOpacity(0.15),
+                      color: AppColors.danger500.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.danger500.withOpacity(0.4)),
+                      border: Border.all(color: AppColors.danger500.withValues(alpha: 0.4)),
                     ),
                     child: Text(_pwError!, style: const TextStyle(fontSize: 13, color: AppColors.danger500)),
                   ),
@@ -199,22 +198,22 @@ class _SecurityScreenState extends State<SecurityScreen> {
                   Container(
                     width: 42, height: 42,
                     decoration: BoxDecoration(
-                      color: (has2fa ? AppColors.success500 : Colors.white).withOpacity(0.15),
+                      color: (has2fa ? AppColors.success500 : Colors.white).withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: (has2fa ? AppColors.success500 : Colors.white).withOpacity(0.3)),
+                      border: Border.all(color: (has2fa ? AppColors.success500 : Colors.white).withValues(alpha: 0.3)),
                     ),
-                    child: Icon(Icons.shield, color: has2fa ? AppColors.success500 : Colors.white.withOpacity(0.5), size: 20),
+                    child: Icon(Icons.shield, color: has2fa ? AppColors.success500 : Colors.white.withValues(alpha: 0.5), size: 20),
                   ),
                   const SizedBox(width: 14),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     const Text('Authenticator App', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
                     Text(has2fa ? 'Enabled — your account is protected' : 'Not enabled — add extra security',
-                        style: TextStyle(fontSize: 12, color: has2fa ? AppColors.success500 : Colors.white.withOpacity(0.5))),
+                        style: TextStyle(fontSize: 12, color: has2fa ? AppColors.success500 : Colors.white.withValues(alpha: 0.5))),
                   ])),
                   if (has2fa)
-                    GlassBadge(text: 'ON', color: AppColors.success500)
+                    const GlassBadge(text: 'ON', color: AppColors.success500)
                   else
-                    GlassBadge(text: 'OFF', color: Colors.white.withOpacity(0.3)),
+                    GlassBadge(text: 'OFF', color: Colors.white.withValues(alpha: 0.3)),
                 ]),
 
                 // Setup flow
@@ -230,15 +229,15 @@ class _SecurityScreenState extends State<SecurityScreen> {
 
                 if (!has2fa && _setupSecret != null) ...[
                   const SizedBox(height: 16),
-                  Text('Scan the QR code in your authenticator app, or enter this key manually:', style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.7))),
+                  Text('Scan the QR code in your authenticator app, or enter this key manually:', style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.7))),
                   const SizedBox(height: 12),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
+                      color: Colors.white.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white.withOpacity(0.15)),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
                     ),
                     child: SelectableText(_setupSecret!, style: const TextStyle(fontFamily: 'monospace', fontSize: 14, letterSpacing: 2, color: Colors.white), textAlign: TextAlign.center),
                   ),
@@ -254,7 +253,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
                   const SizedBox(height: 14),
                   AppButton(label: 'Verify & Enable', loading: _verifying, onPressed: _verify2fa),
                   const SizedBox(height: 8),
-                  AppButton(label: 'Cancel', outline: true, onPressed: () => setState(() { _setupSecret = null; _otpUrl = null; _codeCtrl.clear(); })),
+                  AppButton(label: 'Cancel', outline: true, onPressed: () => setState(() { _setupSecret = null; _codeCtrl.clear(); })),
                 ],
 
                 if (has2fa) ...[
@@ -282,9 +281,9 @@ class _SecurityScreenState extends State<SecurityScreen> {
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(Icons.lock_outline, size: 18, color: Colors.white.withOpacity(0.4)),
+        prefixIcon: Icon(Icons.lock_outline, size: 18, color: Colors.white.withValues(alpha: 0.4)),
         suffixIcon: IconButton(
-          icon: Icon(obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 18, color: Colors.white.withOpacity(0.4)),
+          icon: Icon(obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 18, color: Colors.white.withValues(alpha: 0.4)),
           onPressed: toggle,
         ),
       ),
