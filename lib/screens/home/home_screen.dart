@@ -23,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? _todayLeave;
   Map<String, dynamic>? _lateNotice;
   bool _loading           = true;
+  bool _actionLoading     = false;
   bool _vpnDetected       = false;
   bool _heartbeatLost     = false;
   String?   _disconnectSsid;
@@ -48,6 +49,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           setState(() { _heartbeatLost = false; _disconnectDeadline = null; });
           _load(silent: true);
           _showSnack('✅ Auto checked in via office WiFi');
+          break;
+        case 're_entered':
+          setState(() { _heartbeatLost = false; _disconnectDeadline = null; });
+          _load();
+          final gap = int.tryParse(data ?? '0') ?? 0;
+          _showSnack('✅ Returned to office — ${gap}m away logged as break');
           break;
         case 'heartbeat_lost':
           setState(() {
@@ -190,10 +197,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return '$m:$s';
   }
 
-  String get _status   => _todayRecord?['status'] as String? ?? 'none';
-  bool get _checkedIn  => _status == 'in' || _status == 'late';
-  bool get _checkedOut => _status == 'out';
-  bool get _isRemote   => _status == 'remote';
+  String get _status    => _todayRecord?['status'] as String? ?? 'none';
+  bool get _checkedIn   => _status == 'in' || _status == 'late';
+  bool get _checkedOut  => _status == 'out';
+  bool get _isRemote    => _status == 'remote';
+  bool get _isOnBreak   => (_todayRecord?['break_records'] as List?)
+      ?.cast<Map<String, dynamic>>().any((b) => b['break_end'] == null) ?? false;
 
   @override
   Widget build(BuildContext context) {
@@ -576,22 +585,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final activeBreak = breakRecords.where((b) => b['break_end'] == null).firstOrNull;
     if (activeBreak != null) {
       final startedAt = DateTime.parse(activeBreak['break_start'] as String);
-      final durationMins = activeBreak['duration_mins'] as int? ?? 30;
-      final endsAt = startedAt.add(Duration(minutes: durationMins));
-      final remaining = endsAt.difference(DateTime.now());
-      if (remaining.isNegative) {
-        return {
-          'icon': Icons.free_breakfast,
-          'color': AppColors.warning500,
-          'text': 'Break running ${(-remaining.inMinutes)}m over',
-        };
-      }
-      final m = remaining.inMinutes;
-      final s = remaining.inSeconds % 60;
+      final elapsed = DateTime.now().difference(startedAt);
+      final m = elapsed.inMinutes;
+      final s = elapsed.inSeconds % 60;
+      final breakType = activeBreak['break_type'] as String? ?? 'break';
+      final label = _formatBreakType(breakType);
       return {
         'icon': Icons.free_breakfast,
         'color': AppColors.teal100,
-        'text': 'On break — ${m}m ${s}s remaining',
+        'text': '$label — ${m}m ${s}s elapsed',
       };
     }
 
@@ -669,11 +671,62 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ? 'Rejected by manager — please contact HR'
               : 'Pending manager approval';
     } else if (_checkedOut) {
-      cardTint    = Colors.white;
-      cardIcon    = Icons.logout;
-      iconColor   = Colors.white.withOpacity(0.5);
-      statusTitle = 'Checked Out';
-      statusSub   = 'Work day complete · ${_todayRecord?['hours_worked'] != null ? '${_todayRecord!['hours_worked']}h worked' : ''}';
+      // ── CheckedOut summary card ────────────────────────────
+      final checkInStr  = _todayRecord?['check_in_at']  as String?;
+      final checkOutStr = _todayRecord?['check_out_at'] as String?;
+      final hoursWorked = (_todayRecord?['hours_worked']     as num?)?.toDouble();
+      final netHours    = (_todayRecord?['net_hours_worked'] as num?)?.toDouble();
+      final breakMins   = (_todayRecord?['total_break_minutes'] as num?)?.toInt() ?? 0;
+      final wasAutoOut  = (_todayRecord?['check_out_type'] as String?) == 'auto';
+
+      final checkInFmt  = checkInStr  != null ? DateFormat('hh:mm a').format(DateTime.parse(checkInStr))  : '--:--';
+      final checkOutFmt = checkOutStr != null ? DateFormat('hh:mm a').format(DateTime.parse(checkOutStr)) : '--:--';
+
+      String hoursLabel = '';
+      if (netHours != null) {
+        hoursLabel = '${netHours.toStringAsFixed(1)}h net';
+      } else if (hoursWorked != null) {
+        hoursLabel = '${hoursWorked.toStringAsFixed(1)}h worked';
+      }
+
+      return GlassCard(
+        tint: Colors.white,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.check_circle_outline, size: 28, color: Colors.white.withOpacity(0.5)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Work Day Complete',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white)),
+              if (wasAutoOut)
+                Text('Auto checked-out by system',
+                    style: TextStyle(fontSize: 12, color: AppColors.warning500.withOpacity(0.9))),
+            ])),
+            if (hoursLabel.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(hoursLabel,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+              ),
+          ]),
+          const SizedBox(height: 12),
+          Divider(color: Colors.white.withOpacity(0.15), height: 1),
+          const SizedBox(height: 12),
+          Row(children: [
+            _infoChip(Icons.login,  'In',  checkInFmt),
+            const SizedBox(width: 20),
+            _infoChip(Icons.logout, 'Out', checkOutFmt),
+            if (breakMins > 0) ...[
+              const SizedBox(width: 20),
+              _infoChip(Icons.free_breakfast, 'Break', '${breakMins}m'),
+            ],
+          ]),
+        ]),
+      );
     } else if (_checkedIn) {
       // ── CheckedIn hero: ring layout ───────────────────────
       final lateMins  = (_todayRecord?['late_minutes'] as num?)?.toInt() ?? 0;
@@ -780,15 +833,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ],
 
-          // ── QR + Check Out buttons ─────────────────────────
+          // ── Break + QR + Check Out buttons ────────────────
           const SizedBox(height: 16),
           Row(children: [
-            // Compact icon-only QR button — avoids the label wrapping and lets
-            // Check Out take the full remaining width as the primary action.
-            SizedBox(
-              width: 52, height: 48,
-              child: OutlinedButton(
-                onPressed: () => context.push('/attendance/qr'),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _actionLoading ? null : () => context.push('/attendance/qr'),
+                icon: const Icon(Icons.qr_code_scanner, size: 16),
+                label: const Text('QR'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white,
                   side: BorderSide(color: Colors.white.withOpacity(0.3)),
@@ -798,13 +850,36 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: const Icon(Icons.qr_code_scanner, size: 20),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _isOnBreak
+                  ? AppButton(
+                      label: 'End Break',
+                      icon: Icons.play_arrow,
+                      color: AppColors.teal700,
+                      loading: _actionLoading,
+                      onPressed: _actionLoading ? null : _endBreak,
+                    )
+                  : OutlinedButton.icon(
+                      onPressed: _actionLoading ? null : _showBreakTypeSheet,
+                      icon: const Icon(Icons.free_breakfast, size: 16),
+                      label: const Text('Break'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.teal100,
+                        side: BorderSide(color: AppColors.teal100.withOpacity(0.5)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        minimumSize: const Size(0, 42),
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 8),
             Expanded(
               child: AppButton(
                 label: 'Check Out',
                 icon: Icons.logout,
                 color: AppColors.danger500,
-                onPressed: () async {
+                loading: _actionLoading,
+                onPressed: _actionLoading ? null : () async {
                   final confirmed = await showConfirmDialog(
                     context,
                     title: 'Check Out?',
@@ -813,13 +888,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     isDanger: true,
                   );
                   if (confirmed == true) {
+                    setState(() => _actionLoading = true);
                     try {
                       await api.checkOut();
-                      await WifiAttendanceService().onManualCheckOut();
-                      _load(silent: true);
+                      await _load();
                       _showSnack('Checked out ✅');
                     } catch (e) {
                       _showSnack('Failed to check out', isError: true);
+                    } finally {
+                      if (mounted) setState(() => _actionLoading = false);
                     }
                   }
                 },
@@ -909,6 +986,86 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       case 'qr':      return 'QR Code';
       case 'remote':  return 'Remote';
       default:        return 'Manual';
+    }
+  }
+
+  String _formatBreakType(String type) {
+    switch (type) {
+      case 'lunch':   return 'Lunch Break';
+      case 'prayer':  return 'Prayer Break';
+      case 'short':   return 'Short Break';
+      case 'away':    return 'Away';
+      default:        return 'Break';
+    }
+  }
+
+  Future<void> _showBreakTypeSheet() async {
+    final types = [
+      {'type': 'short',  'label': 'Quick Break',   'icon': Icons.coffee},
+      {'type': 'lunch',  'label': 'Lunch',          'icon': Icons.lunch_dining},
+      {'type': 'prayer', 'label': 'Prayer',          'icon': Icons.self_improvement},
+      {'type': 'manual', 'label': 'Other',           'icon': Icons.more_horiz},
+    ];
+
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.bgDark3,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Start Break',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
+            ),
+            const SizedBox(height: 8),
+            ...types.map((t) => ListTile(
+              leading: Icon(t['icon'] as IconData, color: AppColors.teal100, size: 22),
+              title: Text(t['label'] as String,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+              onTap: () => Navigator.pop(context, t['type'] as String),
+            )),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (chosen == null || !mounted) return;
+    setState(() => _actionLoading = true);
+    try {
+      await api.startBreak(breakType: chosen);
+      await _load();
+      _showSnack('Break started ☕');
+    } catch (e) {
+      _showSnack('Could not start break', isError: true);
+    } finally {
+      if (mounted) setState(() => _actionLoading = false);
+    }
+  }
+
+  Future<void> _endBreak() async {
+    setState(() => _actionLoading = true);
+    try {
+      await api.endBreak();
+      await _load();
+      _showSnack('Break ended — welcome back!');
+    } catch (e) {
+      _showSnack('Could not end break', isError: true);
+    } finally {
+      if (mounted) setState(() => _actionLoading = false);
     }
   }
 

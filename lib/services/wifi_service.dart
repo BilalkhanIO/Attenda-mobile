@@ -195,6 +195,12 @@ class WifiAttendanceService {
         await _saveState();
         onStatusChange?.call('checked_in');
         debugPrint('[WiFi] Auto check-in — IP: $ip, SSID: $ssid');
+      } else if (action == 're_entered') {
+        _checkedInViaWifi = true;
+        await _saveState();
+        final gapMins = result['gap_mins'] as int? ?? 0;
+        onStatusChange?.call('re_entered', '$gapMins');
+        debugPrint('[WiFi] Re-entry after auto-checkout — gap: ${gapMins}m');
       } else if (action == 'already_in') {
         _checkedInViaWifi = true;
         await _saveState();
