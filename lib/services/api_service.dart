@@ -105,6 +105,21 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> startBreak({String breakType = 'manual'}) async {
+    final res = await _dio.post('/attendance/break/start', data: {'break_type': breakType});
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> endBreak() async {
+    final res = await _dio.post('/attendance/break/end');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getBreakStatus() async {
+    final res = await _dio.get('/attendance/break/status');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   Future<List<dynamic>> getMyRemoteSessions() async {
     final res = await _dio.get('/attendance/remote/sessions/me');
     return res.data['data'] as List;
