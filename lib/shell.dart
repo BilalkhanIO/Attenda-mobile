@@ -1,31 +1,39 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'services/auth_provider.dart';
 import 'utils/theme.dart';
 
 class AppShell extends StatelessWidget {
   final Widget child;
   const AppShell({super.key, required this.child});
 
-  static const _tabs = [
-    (path: '/home',       label: 'Home',       icon: Icons.home_outlined,           activeIcon: Icons.home_rounded),
-    (path: '/attendance', label: 'Attendance',  icon: Icons.access_time_outlined,    activeIcon: Icons.access_time_filled_rounded),
-    (path: '/leave',      label: 'Leave',       icon: Icons.beach_access_outlined,   activeIcon: Icons.beach_access),
-    (path: '/schedule',   label: 'Schedule',    icon: Icons.calendar_today_outlined, activeIcon: Icons.calendar_today_rounded),
-    (path: '/profile',    label: 'Profile',     icon: Icons.person_outline_rounded,  activeIcon: Icons.person_rounded),
-  ];
+  List<({String path, String label, IconData icon, IconData activeIcon})> _getTabs(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    return [
+      (path: '/home',       label: 'Home',       icon: Icons.home_outlined,           activeIcon: Icons.home_rounded),
+      (path: '/attendance', label: 'Attendance',  icon: Icons.access_time_outlined,    activeIcon: Icons.access_time_filled_rounded),
+      if (auth.hasFeature('leave_management'))
+        (path: '/leave',      label: 'Leave',       icon: Icons.beach_access_outlined,   activeIcon: Icons.beach_access),
+      if (auth.hasFeature('shifts'))
+        (path: '/schedule',   label: 'Schedule',    icon: Icons.calendar_today_outlined, activeIcon: Icons.calendar_today_rounded),
+      (path: '/profile',    label: 'Profile',     icon: Icons.person_outline_rounded,  activeIcon: Icons.person_rounded),
+    ];
+  }
 
-  int _currentIndex(BuildContext context) {
+  int _currentIndex(BuildContext context, List<({String path, String label, IconData icon, IconData activeIcon})> tabs) {
     final loc = GoRouterState.of(context).matchedLocation;
-    for (var i = 0; i < _tabs.length; i++) {
-      if (loc.startsWith(_tabs[i].path)) return i;
+    for (var i = 0; i < tabs.length; i++) {
+      if (loc.startsWith(tabs[i].path)) return i;
     }
     return 0;
   }
 
   @override
   Widget build(BuildContext context) {
-    final idx = _currentIndex(context);
+    final tabs = _getTabs(context);
+    final idx = _currentIndex(context, tabs);
     return Scaffold(
       backgroundColor: AppColors.bgDark,
       extendBody: true,
@@ -33,7 +41,7 @@ class AppShell extends StatelessWidget {
         decoration: const BoxDecoration(gradient: AppGradients.mesh),
         child: child,
       ),
-      bottomNavigationBar: _AuroraNavDock(tabs: _tabs, currentIndex: idx),
+      bottomNavigationBar: _AuroraNavDock(tabs: tabs, currentIndex: idx),
     );
   }
 }

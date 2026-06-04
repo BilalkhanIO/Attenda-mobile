@@ -15,8 +15,7 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
-  late final _tabCtrl = TabController(length: 3, vsync: this);
+class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profile;
   List<Map<String, dynamic>> _payslips = [];
   List<Map<String, dynamic>> _reviews  = [];
@@ -27,7 +26,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   @override
   void initState() { super.initState(); _load(); }
   @override
-  void dispose() { _tabCtrl.dispose(); super.dispose(); }
+  void dispose() { super.dispose(); }
 
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
@@ -49,12 +48,25 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().user!;
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: NestedScrollView(
-        headerSliverBuilder: (_, __) => [
-          SliverAppBar(
+    final auth = context.watch<AuthProvider>();
+    final user = auth.user!;
+    
+    final hasPayroll = auth.hasFeature('payroll');
+    final hasPerformance = auth.hasFeature('performance_reviews');
+
+    final tabs = [
+      const Tab(text: 'Overview'),
+      if (hasPayroll) const Tab(text: 'Payslips'),
+      if (hasPerformance) const Tab(text: 'Performance'),
+    ];
+
+    return DefaultTabController(
+      length: tabs.length,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: NestedScrollView(
+          headerSliverBuilder: (_, __) => [
+            SliverAppBar(
             expandedHeight: 210,
             pinned: true,
             backgroundColor: Colors.transparent,
@@ -105,12 +117,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               ),
             ),
             bottom: TabBar(
-              controller: _tabCtrl,
-              tabs: const [Tab(text: 'Overview'), Tab(text: 'Payslips'), Tab(text: 'Performance')],
+              tabs: tabs,
             ),
           ),
         ],
-        body: TabBarView(controller: _tabCtrl, children: [
+        body: TabBarView(children: [
           // Overview
           SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
@@ -155,7 +166,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           ),
 
           // Payslips
-          _loading
+          if (hasPayroll)
+            _loading
               ? const Center(child: CircularProgressIndicator(color: AppColors.primary600))
               : _payslips.isEmpty
                   ? const EmptyStateWidget(
@@ -228,7 +240,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                     ),
 
           // Performance
-          _loading
+          if (hasPerformance)
+            _loading
               ? const Center(child: CircularProgressIndicator(color: AppColors.primary600))
               : _error != null
                   ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [

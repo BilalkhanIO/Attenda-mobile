@@ -1860,6 +1860,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // ─── Quick Actions ─────────────────────────────────────
 
   Widget _buildQuickActions(BuildContext context) {
+    final auth = context.read<AuthProvider>();
     final actions = [
       _QuickAction(
         icon: Icons.beach_access_outlined,
@@ -1867,25 +1868,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         color: AppColors.primary600,
         onTap: _showAttendanceRequestDialog,
       ),
-      if (!_checkedIn && !_checkedOut && !_isRemote)
+      if (auth.hasFeature('remote_work') && !_checkedIn && !_checkedOut && !_isRemote)
         _QuickAction(
           icon: Icons.home_outlined,
           label: 'Work\nRemote',
           color: AppColors.purple500,
           onTap: () => context.push('/home/remote'),
         ),
-      _QuickAction(
-        icon: Icons.calendar_today_outlined,
-        label: 'My\nSchedule',
-        color: AppColors.teal100.withValues(alpha: 0.8),
-        onTap: () => context.go('/schedule'),
-      ),
-      _QuickAction(
-        icon: Icons.receipt_long_outlined,
-        label: 'My\nPayslips',
-        color: AppColors.warning500,
-        onTap: () => context.go('/profile'),
-      ),
+      if (auth.hasFeature('shifts'))
+        _QuickAction(
+          icon: Icons.calendar_today_outlined,
+          label: 'My\nSchedule',
+          color: AppColors.teal100.withValues(alpha: 0.8),
+          onTap: () => context.go('/schedule'),
+        ),
+      if (auth.hasFeature('payroll'))
+        _QuickAction(
+          icon: Icons.receipt_long_outlined,
+          label: 'My\nPayslips',
+          color: AppColors.warning500,
+          onTap: () => context.go('/profile'),
+        ),
     ];
     return Row(
       children: actions

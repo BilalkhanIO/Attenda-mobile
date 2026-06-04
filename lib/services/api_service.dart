@@ -80,6 +80,11 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> getMyCapabilities() async {
+    final res = await _dio.get('/users/me/capabilities');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   // ─── Attendance ───────────────────────────────────
   Future<List<dynamic>> getTodayAttendance() async {
     final res = await _dio.get('/attendance/today');

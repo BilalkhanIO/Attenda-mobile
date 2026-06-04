@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import '../services/api_service.dart';
+import '../models/capabilities.dart';
 
 class AuthUser {
   final String id;
@@ -31,11 +32,16 @@ class AuthProvider extends ChangeNotifier {
   static const _storage = FlutterSecureStorage();
 
   AuthUser? _user;
+  Capabilities? _capabilities;
   bool _loading = true;
 
   AuthUser? get user     => _user;
+  Capabilities? get capabilities => _capabilities;
   bool get isLoading     => _loading;
   bool get isAuthenticated => _user != null;
+
+  bool hasFeature(String feature) => _capabilities?.hasFeature(feature) ?? false;
+  bool hasPermission(String permission) => _capabilities?.hasPermission(permission) ?? false;
 
   AuthProvider() { _init(); }
 
@@ -86,6 +92,11 @@ class AuthProvider extends ChangeNotifier {
             totpEnabled: me['totp_enabled'] as bool? ?? false,
           );
         } catch (_) {}
+        // Fetch capabilities
+        try {
+          final caps = await api.getMyCapabilities();
+          _capabilities = Capabilities.fromJson(caps);
+        } catch (_) {}
       }
     } catch (_) {}
     _loading = false;
@@ -105,6 +116,10 @@ class AuthProvider extends ChangeNotifier {
         phone: me['phone'] as String?,
         totpEnabled: me['totp_enabled'] as bool? ?? false,
       );
+      try {
+        final caps = await api.getMyCapabilities();
+        _capabilities = Capabilities.fromJson(caps);
+      } catch (_) {}
       notifyListeners();
     } catch (_) {}
   }
@@ -142,6 +157,10 @@ class AuthProvider extends ChangeNotifier {
         phone: me['phone'] as String?,
         totpEnabled: me['totp_enabled'] as bool? ?? false,
       );
+      
+      final caps = await api.getMyCapabilities();
+      _capabilities = Capabilities.fromJson(caps);
+      
       notifyListeners();
     } catch (_) {}
     return null;
@@ -150,6 +169,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     await api.logout();
     _user = null;
+    _capabilities = null;
     notifyListeners();
   }
 }

@@ -30,6 +30,13 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
     final loggingIn = state.matchedLocation == '/login';
     if (!loggedIn && !loggingIn) return '/login';
     if (loggedIn && loggingIn) return '/home';
+
+    if (loggedIn) {
+      if (state.matchedLocation.startsWith('/leave') && !auth.hasFeature('leave_management')) return '/home';
+      if (state.matchedLocation.startsWith('/schedule') && !auth.hasFeature('shifts')) return '/home';
+      if (state.matchedLocation.startsWith('/home/remote') && !auth.hasFeature('remote_work')) return '/home';
+    }
+
     return null;
   },
   routes: [
