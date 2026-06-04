@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'services/auth_provider.dart';
@@ -10,7 +11,11 @@ import 'widgets/attenda_logo.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Init WiFi background service (must be before runApp)
+  // Must be called before startService() so the main isolate has a port open
+  // to receive events from the background task.
+  FlutterForegroundTask.initCommunicationPort();
+
+  // Init WiFi / foreground-service (starts the persistent Android service)
   await WifiAttendanceService().init();
 
   runApp(

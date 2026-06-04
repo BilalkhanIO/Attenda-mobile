@@ -13,6 +13,7 @@
         "equatable",
         "firebase_messaging",
         "flutter",
+        "flutter_foreground_task",
         "flutter_local_notifications",
         "flutter_secure_storage",
         "flutter_svg",
@@ -33,8 +34,7 @@
         "shared_preferences",
         "shimmer",
         "url_launcher",
-        "uuid",
-        "workmanager"
+        "uuid"
       ],
       "devDependencies": [
         "build_runner",
@@ -133,16 +133,6 @@
       "dependencies": [
         "crypto",
         "meta"
-      ]
-    },
-    {
-      "name": "workmanager",
-      "version": "0.9.0+3",
-      "dependencies": [
-        "flutter",
-        "workmanager_android",
-        "workmanager_apple",
-        "workmanager_platform_interface"
       ]
     },
     {
@@ -764,31 +754,6 @@
         "stream_channel",
         "string_scanner",
         "term_glyph"
-      ]
-    },
-    {
-      "name": "workmanager_apple",
-      "version": "0.9.1+2",
-      "dependencies": [
-        "flutter",
-        "workmanager_platform_interface"
-      ]
-    },
-    {
-      "name": "workmanager_android",
-      "version": "0.9.0+2",
-      "dependencies": [
-        "flutter",
-        "workmanager_platform_interface"
-      ]
-    },
-    {
-      "name": "workmanager_platform_interface",
-      "version": "0.9.1+1",
-      "dependencies": [
-        "flutter",
-        "meta",
-        "plugin_platform_interface"
       ]
     },
     {
@@ -1613,6 +1578,16 @@
       "name": "synchronized",
       "version": "3.4.0",
       "dependencies": []
+    },
+    {
+      "name": "flutter_foreground_task",
+      "version": "8.17.0",
+      "dependencies": [
+        "flutter",
+        "platform",
+        "plugin_platform_interface",
+        "shared_preferences"
+      ]
     }
   ],
   "configVersion": 1

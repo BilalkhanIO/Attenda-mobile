@@ -1,42 +1,56 @@
+// wifi_service.dart
+//
+// Owns all WiFi attendance state in the main (UI) isolate.
+//
+// The actual background polling is done by [AttendaTaskHandler] inside a
+// persistent Android Foreground Service (flutter_foreground_task). Events
+// bubble back here via [FlutterForegroundTask.addTaskDataCallback], so the
+// UI always stays in sync whether the event originated in the foreground or
+// background.
+//
+// Foreground cadence
+//   • onStart / resume / tab-switch → checkAndReport() immediately
+//   • while checked-in in foreground → Timer every 4 min (closes 15-min gap)
+//
+// Background cadence
+//   • flutter_foreground_task fires every 4 min (no WorkManager 15-min floor)
+
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
-import 'package:network_info_plus/network_info_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:workmanager/workmanager.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:network_info_plus/network_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+
 import '../services/api_service.dart';
+import 'foreground_service.dart'; // shared constants + startForegroundCallback
 
-const _heartbeatTask = 'com.attenda.heartbeat';
-// Android clamps periodic WorkManager tasks to a 15-minute minimum, so anything
-// shorter is silently rounded up. Keep this at the floor for the tightest cadence.
-const _heartbeatInterval = Duration(minutes: 15);
-
-const _queueBox = 'offline_queue';
-const _stateBox = 'ip_state';
-
-const _kCheckedInViaWifi = 'checkedInViaWifi';
-const _kLastKnownIp      = 'lastKnownIp';
-const _kLastKnownSsid    = 'lastKnownSsid';
-
+// ─── Offline-queue models ─────────────────────────────────────────────────────
 enum OfflineEventType { checkIn, ipMatch }
 
 class OfflineEvent {
   final OfflineEventType type;
-  final DateTime timestamp;
-  final String? payload;
-  final String? ssid;
+  final DateTime         timestamp;
+  final String?          payload;
+  final String?          ssid;
   OfflineEvent({required this.type, required this.timestamp, this.payload, this.ssid});
-  Map<String, dynamic> toJson() => {'type': type.name, 'timestamp': timestamp.toIso8601String(), 'payload': payload, 'ssid': ssid};
+  Map<String, dynamic> toJson() => {
+    'type':      type.name,
+    'timestamp': timestamp.toIso8601String(),
+    'payload':   payload,
+    'ssid':      ssid,
+  };
   factory OfflineEvent.fromJson(Map<String, dynamic> j) => OfflineEvent(
     type:      OfflineEventType.values.firstWhere((e) => e.name == j['type']),
     timestamp: DateTime.parse(j['timestamp'] as String),
     payload:   j['payload'] as String?,
-    ssid:      j['ssid'] as String?,
+    ssid:      j['ssid']    as String?,
   );
 }
 
+// ─── Service singleton ────────────────────────────────────────────────────────
 class WifiAttendanceService {
   static final WifiAttendanceService _instance = WifiAttendanceService._();
   factory WifiAttendanceService() => _instance;
@@ -45,109 +59,171 @@ class WifiAttendanceService {
   final _networkInfo  = NetworkInfo();
   final _connectivity = Connectivity();
 
+  // ── In-memory state (UI isolate) ──────────────────────────────────────────
   String? _lastKnownIp;
   String? _lastKnownSsid;
   bool    _checkedInViaWifi = false;
 
-  // ─── Live connection status (owned here, not in the UI) ─────────────
-  // These live in the singleton so they survive HomeScreen rebuilds (every
-  // tab switch recreates the screen). The grace deadline is set ONCE, when the
-  // device first leaves office WiFi, and is never bumped afterwards — so the
-  // countdown keeps running across navigation instead of restarting at 10:00.
+  /// Called with (status, [data]) — data carries extra info (e.g. gap minutes).
+  void Function(String status, [String? data])? onStatusChange;
+
+  // ── Grace / disconnect countdown (owned here so it survives tab-switch) ──
   static const graceWindow = Duration(minutes: 10);
   DateTime? disconnectDeadline;
   String?   disconnectSsid;
-  DateTime? lastHeartbeatAt; // time of the last accepted heartbeat
-  bool      vpnDetected = false;
+  DateTime? lastHeartbeatAt;
+  bool      vpnDetected       = false;
   bool      noNetworksConfigured = false;
   bool get heartbeatLost => disconnectDeadline != null;
 
-  // Called with (status, [data]) — data carries SSID for 'heartbeat_lost'
-  void Function(String status, [String? data])? onStatusChange;
+  // ── Foreground heartbeat timer ────────────────────────────────────────────
+  Timer?  _fgHeartbeatTimer;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
 
-  void _markDisconnected() {
-    disconnectSsid = _lastKnownSsid;
-    // Grace runs from the LAST accepted heartbeat (matching the server's
-    // heartbeat-expiry window), not from when we noticed the drop. Set once.
-    disconnectDeadline ??= (lastHeartbeatAt ?? DateTime.now()).add(graceWindow);
-    onStatusChange?.call('heartbeat_lost', disconnectSsid);
-  }
+  // ── Foreground service notification ID ───────────────────────────────────
+  static const _serviceId = 1001;
 
-  void _markReconnected({bool notify = false}) {
-    final wasLost = heartbeatLost;
-    disconnectDeadline = null;
-    disconnectSsid = null;
-    if (notify && wasLost) onStatusChange?.call('heartbeat_restored');
-  }
-
+  // ─────────────────────────────────────────────────────────────────────────
+  // init() — call once from main() before runApp()
+  // ─────────────────────────────────────────────────────────────────────────
   Future<void> init() async {
     await Hive.initFlutter();
-    if (!Hive.isBoxOpen(_queueBox)) await Hive.openBox(_queueBox);
-    if (!Hive.isBoxOpen(_stateBox)) await Hive.openBox(_stateBox);
+    if (!Hive.isBoxOpen(kQueueBox)) await Hive.openBox(kQueueBox);
+    if (!Hive.isBoxOpen(kStateBox)) await Hive.openBox(kStateBox);
     _restoreState();
 
-    // Reading the WiFi SSID/IP requires location permission on Android 8.1+.
-    // Without it getWifiName()/getWifiIP() return null and auto check-in never fires.
     await ensureLocationPermission();
+    await _requestNotificationPermission();
+    await _requestBatteryOptimisationExemption();
 
-    await Workmanager().initialize(_bgCallback);
-    await Workmanager().registerPeriodicTask(
-      _heartbeatTask, _heartbeatTask,
-      frequency: _heartbeatInterval,
-      existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
-      constraints: Constraints(networkType: NetworkType.connected),
+    // ── Configure flutter_foreground_task ────────────────────────────────
+    FlutterForegroundTask.init(
+      androidNotificationOptions: AndroidNotificationOptions(
+        channelId:          'attenda_wifi',
+        channelName:        'Attendance Tracking',
+        channelDescription: 'Monitors office WiFi for automatic check-in/out',
+        channelImportance:  NotificationChannelImportance.LOW,
+        priority:           NotificationPriority.LOW,
+      ),
+      iosNotificationOptions: const IOSNotificationOptions(
+        showNotification: false,
+        playSound:        false,
+      ),
+      foregroundTaskOptions: ForegroundTaskOptions(
+        // Fire every 4 minutes — well within the server's 10-min heartbeat window
+        eventAction:             ForegroundTaskEventAction.repeat(4 * 60 * 1000),
+        autoRunOnBoot:           true,
+        autoRunOnMyPackageReplaced: true,
+        allowWakeLock:           true,
+        allowWifiLock:           true,
+      ),
     );
 
-    _connectivity.onConnectivityChanged.listen(_onConnectivityChanged);
+    // ── Receive status events from the background task ───────────────────
+    FlutterForegroundTask.addTaskDataCallback(_onTaskData);
+
+    // ── Start (or keep) the foreground service ───────────────────────────
+    await _startService();
+
+    // ── React to connectivity changes in the foreground ──────────────────
+    _connectivitySub = _connectivity.onConnectivityChanged.listen(_onConnectivityChanged);
+
+    // ── Immediate foreground check ────────────────────────────────────────
     await checkAndReport();
     syncOfflineQueue();
   }
 
-  void _restoreState() {
-    if (!Hive.isBoxOpen(_stateBox)) return;
-    final box = Hive.box(_stateBox);
-    _checkedInViaWifi = box.get(_kCheckedInViaWifi, defaultValue: false) as bool;
-    _lastKnownIp      = box.get(_kLastKnownIp)  as String?;
-    _lastKnownSsid    = box.get(_kLastKnownSsid) as String?;
+  // ─────────────────────────────────────────────────────────────────────────
+  // Start / stop the foreground service
+  // ─────────────────────────────────────────────────────────────────────────
+  Future<void> _startService() async {
+    if (await FlutterForegroundTask.isRunningService) return; // already running
+    final result = await FlutterForegroundTask.startService(
+      serviceId:         _serviceId,
+      notificationTitle: 'Attenda',
+      notificationText:  'Monitoring office WiFi for attendance…',
+      callback:          startForegroundCallback,
+    );
+    debugPrint('[WiFi] FG service start → $result');
   }
 
-  Future<void> _saveState() async {
-    if (!Hive.isBoxOpen(_stateBox)) return;
-    final box = Hive.box(_stateBox);
-    await box.put(_kCheckedInViaWifi, _checkedInViaWifi);
-    await box.put(_kLastKnownIp,      _lastKnownIp);
-    await box.put(_kLastKnownSsid,    _lastKnownSsid);
-  }
-
-  /// Requests location permission (needed to read the WiFi SSID/IP).
-  /// Safe to call repeatedly — returns true once granted.
-  Future<bool> ensureLocationPermission() async {
-    try {
-      var status = await Permission.locationWhenInUse.status;
-      if (!status.isGranted) {
-        status = await Permission.locationWhenInUse.request();
-      }
-      return status.isGranted;
-    } catch (e) {
-      debugPrint('[WiFi] Location permission request failed: $e');
-      return false;
-    }
-  }
-
-  /// Call when the user checks out manually so we stop sending heartbeats and
-  /// the state stays consistent (otherwise heartbeats keep firing until the
-  /// backend rejects them with `not_checked_in`).
+  /// Tells the background task the user manually checked out.
   Future<void> onManualCheckOut() async {
     _checkedInViaWifi = false;
     lastHeartbeatAt   = null;
-    _markReconnected(); // clear any disconnect countdown
+    _stopFgHeartbeat();
+    _markReconnected();
     await _saveState();
+    // Inform the background task so it updates Hive + notification
+    FlutterForegroundTask.sendDataToTask('manual_checkout');
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Events from the background task → update UI state
+  // ─────────────────────────────────────────────────────────────────────────
+  void _onTaskData(Object raw) {
+    final msg = raw.toString();
+    debugPrint('[WiFi] Task → main: $msg');
+
+    if (msg == 'checked_in') {
+      _checkedInViaWifi    = true;
+      noNetworksConfigured = false;
+      _markReconnected();
+      _saveState();
+      _startFgHeartbeat();
+      onStatusChange?.call('checked_in');
+
+    } else if (msg.startsWith('re_entered:')) {
+      _checkedInViaWifi    = true;
+      noNetworksConfigured = false;
+      _markReconnected();
+      _saveState();
+      _startFgHeartbeat();
+      final gap = msg.split(':').last;
+      onStatusChange?.call('re_entered', gap);
+
+    } else if (msg == 'already_in') {
+      _checkedInViaWifi    = true;
+      noNetworksConfigured = false;
+      _markReconnected();
+      _saveState();
+      _startFgHeartbeat();
+
+    } else if (msg == 'heartbeat_accepted') {
+      lastHeartbeatAt = DateTime.now();
+      _markReconnected(notify: true);
+
+    } else if (msg.startsWith('heartbeat_lost:')) {
+      _markDisconnected();
+
+    } else if (msg == 'no_networks') {
+      noNetworksConfigured = true;
+      onStatusChange?.call('no_networks');
+
+    } else if (msg == 'vpn_detected') {
+      vpnDetected = true;
+      onStatusChange?.call('vpn_detected');
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Foreground check (immediate: tab-switch / resume / pull-to-refresh)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Throttle: don't fire more than once every 30 s (prevents tab-switch spam)
+  DateTime? _lastFgCheck;
+
   Future<void> checkAndReport() async {
+    final now = DateTime.now();
+    if (_lastFgCheck != null &&
+        now.difference(_lastFgCheck!) < const Duration(seconds: 30)) {
+      return;
+    }
+    _lastFgCheck = now;
+
     try {
-      final connectivity = await _connectivity.checkConnectivity();
-      if (connectivity.contains(ConnectivityResult.none)) {
+      final conn = await _connectivity.checkConnectivity();
+      if (conn.contains(ConnectivityResult.none)) {
         if (_checkedInViaWifi) _markDisconnected();
         return;
       }
@@ -160,146 +236,159 @@ class WifiAttendanceService {
       vpnDetected = false;
 
       final ip   = await _networkInfo.getWifiIP();
-      final ssid = (await _networkInfo.getWifiName().catchError((_) => null as String?))
+      var ssid = (await _networkInfo.getWifiName()
+              .catchError((_) => null as String?))
           ?.replaceAll('"', '');
+      if (ssid == '<unknown ssid>') ssid = null;
 
-      final hasNetwork = (ip != null && ip.isNotEmpty) || (ssid != null && ssid.isNotEmpty);
-      if (!hasNetwork) {
+      final hasNet = (ip != null && ip.isNotEmpty) || (ssid != null && ssid.isNotEmpty);
+      if (!hasNet) {
         if (_checkedInViaWifi) _markDisconnected();
         return;
       }
 
-      final networkChanged = ip != _lastKnownIp || ssid != _lastKnownSsid;
-      if (networkChanged) {
+      if (ip != _lastKnownIp || ssid != _lastKnownSsid) {
         _lastKnownIp   = ip;
         _lastKnownSsid = ssid;
         await _saveState();
       }
 
+      // Delegate to the background-compatible API calls
       if (_checkedInViaWifi) {
-        // Already checked in — keep the session alive with a heartbeat.
-        final action = await _sendHeartbeat(ip: ip, ssid: ssid);
-        switch (action) {
-          case 'heartbeat_accepted':
-            // Still on office WiFi — clear any pending disconnect countdown.
-            _markReconnected(notify: true);
-            break;
-          case 'not_on_office_network':
-            // Left the office network (moved to another WiFi) — start the
-            // grace countdown so the user can reconnect before auto-checkout.
-            _markDisconnected();
-            break;
-          case 'not_checked_in':
-            // The heartbeat-expiry job auto-checked us out during a WiFi gap.
-            // We're back on office WiFi now, so recover: the ip-event handler
-            // reopens the auto-closed record ('re_entered') or checks in fresh.
-            await _reportNetworkEvent(ip: ip, ssid: ssid);
-            break;
-        }
+        await _fgHeartbeat(ip: ip, ssid: ssid);
       } else {
-        // Not checked in yet — attempt an auto check-in. The backend is
-        // idempotent (returns `already_in` if we already are), so it's safe to
-        // call even when the network hasn't changed. This is what lets check-in
-        // recover after a restart or manual check-out on the same network.
-        await _reportNetworkEvent(ip: ip, ssid: ssid);
+        await _fgIpEvent(ip: ip, ssid: ssid);
       }
     } catch (e) {
       debugPrint('[WiFi] checkAndReport error: $e');
     }
   }
 
+  Future<void> _fgHeartbeat({String? ip, String? ssid}) async {
+    if ((ip == null || ip.isEmpty) && (ssid == null || ssid.isEmpty)) return;
+    try {
+      final result = await api.sendHeartbeat(ip ?? '', ssid: ssid);
+      final action = result['action'] as String?;
+      switch (action) {
+        case 'heartbeat_accepted':
+          lastHeartbeatAt = DateTime.now();
+          _markReconnected(notify: true);
+          break;
+        case 'not_on_office_network':
+          _markDisconnected();
+          break;
+        case 'not_checked_in':
+          _checkedInViaWifi = false;
+          await _saveState();
+          await _fgIpEvent(ip: ip, ssid: ssid);
+          break;
+      }
+    } catch (e) {
+      debugPrint('[WiFi] FG heartbeat failed: $e — background will retry');
+    }
+  }
+
+  Future<void> _fgIpEvent({String? ip, String? ssid}) async {
+    if ((ip == null || ip.isEmpty) && (ssid == null || ssid.isEmpty)) return;
+    try {
+      final result = await api.reportIpEvent(ip ?? '', ssid: ssid);
+      final action = result['action'] as String?;
+      switch (action) {
+        case 'checked_in':
+          _checkedInViaWifi    = true;
+          noNetworksConfigured = false;
+          await _saveState();
+          _markReconnected();
+          _startFgHeartbeat();
+          onStatusChange?.call('checked_in');
+          break;
+        case 're_entered':
+          _checkedInViaWifi    = true;
+          noNetworksConfigured = false;
+          await _saveState();
+          _markReconnected();
+          _startFgHeartbeat();
+          final gap = result['gap_mins'] as int? ?? 0;
+          onStatusChange?.call('re_entered', '$gap');
+          break;
+        case 'already_in':
+          _checkedInViaWifi    = true;
+          noNetworksConfigured = false;
+          await _saveState();
+          _markReconnected();
+          _startFgHeartbeat();
+          await _fgHeartbeat(ip: ip, ssid: ssid);
+          break;
+        case 'no_networks_configured':
+          noNetworksConfigured = true;
+          onStatusChange?.call('no_networks');
+          break;
+        case 'none':
+          if (_checkedInViaWifi) _markDisconnected();
+          break;
+      }
+    } catch (e) {
+      debugPrint('[WiFi] FG ip-event failed: $e — queuing');
+      _queueEvent(OfflineEvent(
+        type:      OfflineEventType.ipMatch,
+        timestamp: DateTime.now(),
+        payload:   ip,
+        ssid:      ssid,
+      ));
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Foreground heartbeat timer (keeps heartbeats < 10 min while app is open)
+  // ─────────────────────────────────────────────────────────────────────────
+  void _startFgHeartbeat() {
+    _fgHeartbeatTimer?.cancel();
+    _fgHeartbeatTimer = Timer.periodic(const Duration(minutes: 4), (_) {
+      if (_checkedInViaWifi) checkAndReport();
+    });
+  }
+
+  void _stopFgHeartbeat() {
+    _fgHeartbeatTimer?.cancel();
+    _fgHeartbeatTimer = null;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Connectivity listener
+  // ─────────────────────────────────────────────────────────────────────────
   void _onConnectivityChanged(List<ConnectivityResult> results) async {
     if (results.contains(ConnectivityResult.wifi)) {
-      // checkAndReport() clears the disconnect state (and fires
-      // 'heartbeat_restored') if we're back on the office network.
       await checkAndReport();
     } else {
       if (_checkedInViaWifi) _markDisconnected();
     }
   }
 
-  Future<String?> _sendHeartbeat({String? ip, String? ssid}) async {
-    if ((ip == null || ip.isEmpty) && (ssid == null || ssid.isEmpty)) return null;
-    try {
-      final result = await api.sendHeartbeat(ip ?? '', ssid: ssid);
-      final action = result['action'] as String?;
-      if (action == 'heartbeat_accepted') {
-        lastHeartbeatAt = DateTime.now();
-        debugPrint('[WiFi] Heartbeat accepted');
-      } else if (action == 'not_checked_in') {
-        _checkedInViaWifi = false;
-        await _saveState();
-      }
-      return action;
-    } catch (e) {
-      debugPrint('[WiFi] Heartbeat failed: $e — will retry next cycle');
-      return null;
-    }
+  // ─────────────────────────────────────────────────────────────────────────
+  // Grace / disconnect countdown helpers
+  // ─────────────────────────────────────────────────────────────────────────
+  void _markDisconnected() {
+    disconnectSsid = _lastKnownSsid;
+    disconnectDeadline ??= (lastHeartbeatAt ?? DateTime.now()).add(graceWindow);
+    onStatusChange?.call('heartbeat_lost', disconnectSsid);
   }
 
-  Future<void> _reportNetworkEvent({String? ip, String? ssid}) async {
-    if ((ip == null || ip.isEmpty) && (ssid == null || ssid.isEmpty)) return;
-    try {
-      final result = await api.reportIpEvent(ip ?? '', ssid: ssid);
-      final action = result['action'] as String?;
-      if (action == 'checked_in') {
-        _checkedInViaWifi = true;
-        noNetworksConfigured = false;
-        await _saveState();
-        _markReconnected();
-        onStatusChange?.call('checked_in');
-        debugPrint('[WiFi] Auto check-in — IP: $ip, SSID: $ssid');
-      } else if (action == 're_entered') {
-        _checkedInViaWifi = true;
-        noNetworksConfigured = false;
-        await _saveState();
-        _markReconnected();
-        final gapMins = result['gap_mins'] as int? ?? 0;
-        onStatusChange?.call('re_entered', '$gapMins');
-        debugPrint('[WiFi] Re-entry after auto-checkout — gap: ${gapMins}m');
-      } else if (action == 'already_in') {
-        _checkedInViaWifi = true;
-        noNetworksConfigured = false;
-        await _saveState();
-        _markReconnected();
-        // Send heartbeat immediately since we know we're checked in
-        await _sendHeartbeat(ip: ip, ssid: ssid);
-      } else if (action == 'no_networks_configured') {
-        noNetworksConfigured = true;
-        onStatusChange?.call('no_networks');
-      } else if (action == 'none') {
-        // On a network, but not a registered office one.
-        if (_checkedInViaWifi) _markDisconnected();
-      }
-    } catch (e) {
-      debugPrint('[WiFi] Network event failed: $e — queuing');
-      _queueEvent(OfflineEvent(
-        type: OfflineEventType.ipMatch,
-        timestamp: DateTime.now(),
-        payload: ip,
-        ssid: ssid,
-      ));
-    }
+  void _markReconnected({bool notify = false}) {
+    final wasLost = heartbeatLost;
+    disconnectDeadline = null;
+    disconnectSsid     = null;
+    if (notify && wasLost) onStatusChange?.call('heartbeat_restored');
   }
 
-  Future<bool> _isVpnActive() async {
-    try {
-      final result = await _connectivity.checkConnectivity();
-      return result.contains(ConnectivityResult.vpn);
-    } catch (_) { return false; }
-  }
-
-  void _queueEvent(OfflineEvent event) {
-    if (!Hive.isBoxOpen(_queueBox)) return;
-    Hive.box(_queueBox).add(jsonEncode(event.toJson()));
-  }
-
+  // ─────────────────────────────────────────────────────────────────────────
+  // Offline queue — sync queued events when connectivity is restored
+  // ─────────────────────────────────────────────────────────────────────────
   Future<void> syncOfflineQueue() async {
-    if (!Hive.isBoxOpen(_queueBox)) return;
-    final box = Hive.box(_queueBox);
+    if (!Hive.isBoxOpen(kQueueBox)) return;
+    final box  = Hive.box(kQueueBox);
     if (box.isEmpty) return;
-    final connectivity = await _connectivity.checkConnectivity();
-    if (connectivity.contains(ConnectivityResult.none)) return;
+    final conn = await _connectivity.checkConnectivity();
+    if (conn.contains(ConnectivityResult.none)) return;
 
     for (final key in box.keys.toList()) {
       try {
@@ -308,7 +397,8 @@ class WifiAttendanceService {
         final event = OfflineEvent.fromJson(jsonDecode(raw) as Map<String, dynamic>);
         if (event.type == OfflineEventType.checkIn) {
           await api.checkIn(type: 'manual');
-        } else if (event.type == OfflineEventType.ipMatch && (event.payload != null || event.ssid != null)) {
+        } else if (event.type == OfflineEventType.ipMatch &&
+            (event.payload != null || event.ssid != null)) {
           await api.reportIpEvent(event.payload ?? '', ssid: event.ssid);
         }
         await box.delete(key);
@@ -320,24 +410,74 @@ class WifiAttendanceService {
     }
   }
 
-  void dispose() {}
-}
-
-@pragma('vm:entry-point')
-void _bgCallback() {
-  Workmanager().executeTask((task, inputData) async {
-    if (task == _heartbeatTask) {
-      try {
-        await Hive.initFlutter();
-        if (!Hive.isBoxOpen('offline_queue')) await Hive.openBox('offline_queue');
-        if (!Hive.isBoxOpen('ip_state'))      await Hive.openBox('ip_state');
-        final service = WifiAttendanceService();
-        service._restoreState();
-        await service.checkAndReport();
-      } catch (e) {
-        debugPrint('[BG] Heartbeat task failed: $e');
-      }
+  // ─────────────────────────────────────────────────────────────────────────
+  // Permissions
+  // ─────────────────────────────────────────────────────────────────────────
+  Future<bool> ensureLocationPermission() async {
+    try {
+      var status = await Permission.locationWhenInUse.status;
+      if (!status.isGranted) status = await Permission.locationWhenInUse.request();
+      return status.isGranted;
+    } catch (e) {
+      debugPrint('[WiFi] Location permission error: $e');
+      return false;
     }
-    return Future.value(true);
-  });
+  }
+
+  Future<void> _requestBatteryOptimisationExemption() async {
+    try {
+      await FlutterForegroundTask.requestIgnoreBatteryOptimization();
+    } catch (_) {}
+  }
+
+  Future<void> _requestNotificationPermission() async {
+    try {
+      final permission = await FlutterForegroundTask.checkNotificationPermission();
+      if (permission != NotificationPermission.granted) {
+        await FlutterForegroundTask.requestNotificationPermission();
+      }
+    } catch (_) {}
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // State persistence (Hive)
+  // ─────────────────────────────────────────────────────────────────────────
+  void _restoreState() {
+    if (!Hive.isBoxOpen(kStateBox)) return;
+    final box = Hive.box(kStateBox);
+    _checkedInViaWifi = box.get(kCheckedInViaWifi, defaultValue: false) as bool;
+    _lastKnownIp      = box.get(kLastKnownIp)   as String?;
+    _lastKnownSsid    = box.get(kLastKnownSsid)  as String?;
+
+    // Restart the foreground heartbeat if we were checked in before restart
+    if (_checkedInViaWifi) _startFgHeartbeat();
+  }
+
+  Future<void> _saveState() async {
+    if (!Hive.isBoxOpen(kStateBox)) return;
+    final box = Hive.box(kStateBox);
+    await box.put(kCheckedInViaWifi, _checkedInViaWifi);
+    await box.put(kLastKnownIp,      _lastKnownIp);
+    await box.put(kLastKnownSsid,    _lastKnownSsid);
+  }
+
+  void _queueEvent(OfflineEvent event) {
+    if (!Hive.isBoxOpen(kQueueBox)) return;
+    Hive.box(kQueueBox).add(jsonEncode(event.toJson()));
+  }
+
+  Future<bool> _isVpnActive() async {
+    try {
+      return (await _connectivity.checkConnectivity())
+          .contains(ConnectivityResult.vpn);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void dispose() {
+    _stopFgHeartbeat();
+    _connectivitySub?.cancel();
+    FlutterForegroundTask.removeTaskDataCallback(_onTaskData);
+  }
 }

@@ -260,6 +260,12 @@
       "languageVersion": "3.0"
     },
     {
+      "name": "flutter_foreground_task",
+      "rootUri": "file:///home/kwikcoders/.pub-cache/hosted/pub.dev/flutter_foreground_task-8.17.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
       "name": "flutter_launcher_icons",
       "rootUri": "file:///home/kwikcoders/.pub-cache/hosted/pub.dev/flutter_launcher_icons-0.13.1",
       "packageUri": "lib/",
@@ -984,30 +990,6 @@
       "rootUri": "file:///home/kwikcoders/.pub-cache/hosted/pub.dev/win32-5.15.0",
       "packageUri": "lib/",
       "languageVersion": "3.8"
-    },
-    {
-      "name": "workmanager",
-      "rootUri": "file:///home/kwikcoders/.pub-cache/hosted/pub.dev/workmanager-0.9.0+3",
-      "packageUri": "lib/",
-      "languageVersion": "3.5"
-    },
-    {
-      "name": "workmanager_android",
-      "rootUri": "file:///home/kwikcoders/.pub-cache/hosted/pub.dev/workmanager_android-0.9.0+2",
-      "packageUri": "lib/",
-      "languageVersion": "3.5"
-    },
-    {
-      "name": "workmanager_apple",
-      "rootUri": "file:///home/kwikcoders/.pub-cache/hosted/pub.dev/workmanager_apple-0.9.1+2",
-      "packageUri": "lib/",
-      "languageVersion": "3.5"
-    },
-    {
-      "name": "workmanager_platform_interface",
-      "rootUri": "file:///home/kwikcoders/.pub-cache/hosted/pub.dev/workmanager_platform_interface-0.9.1+1",
-      "packageUri": "lib/",
-      "languageVersion": "3.5"
     },
     {
       "name": "xdg_directories",

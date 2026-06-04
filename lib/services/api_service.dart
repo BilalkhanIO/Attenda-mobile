@@ -147,7 +147,51 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
-  // ─── Late Arrival Notices ─────────────────────────
+  /// Returns shift breaks with live timing state (upcoming/imminent/active/overdue),
+  /// current attendance record, and pre-check-in late minutes.
+  Future<Map<String, dynamic>> getTodayStatus() async {
+    final res = await _dio.get('/attendance/today-status');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  /// Submit a generic attendance request: 'late_arrival' | 'leave' | 'early_departure'
+  Future<Map<String, dynamic>> submitAttendanceRequest({
+    required String type,   // 'late_arrival' | 'leave' | 'early_departure'
+    required String date,   // yyyy-MM-dd
+    required String reason,
+    String? expectedTime,   // HH:mm – for late_arrival
+    String? leaveType,      // e.g. 'annual', 'sick' – for leave
+    String? leaveStartTime, // HH:mm – for mid-shift leave
+    String? leaveEndTime,   // HH:mm – for mid-shift leave
+  }) async {
+    if (type == 'late_arrival') {
+      return submitLateNotice(
+        date: date,
+        expectedTime: expectedTime ?? '09:00',
+        reason: reason,
+      );
+    }
+    if (type == 'leave') {
+      final res = await _dio.post('/leave/requests', data: {
+        'leave_type': leaveType ?? 'annual',
+        'start_date': date,
+        'end_date':   date,
+        'reason':     reason,
+        if (leaveStartTime != null) 'leave_start_time': leaveStartTime,
+        if (leaveEndTime != null) 'leave_end_time': leaveEndTime,
+      });
+      return res.data['data'] as Map<String, dynamic>;
+    }
+    // early_departure — stored as a late notice with a special type tag until a
+    // dedicated endpoint exists.
+    final res = await _dio.post('/attendance/late-notice', data: {
+      'date':          date,
+      'expected_time': expectedTime ?? '17:00',
+      'reason':        '[Early Departure] $reason',
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> getLeaveAndNoticeCheck() async {
     final res = await _dio.get('/attendance/leave-check');
     return res.data['data'] as Map<String, dynamic>;

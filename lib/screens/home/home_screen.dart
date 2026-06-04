@@ -22,18 +22,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? _remoteSession;
   Map<String, dynamic>? _todayLeave;
   Map<String, dynamic>? _lateNotice;
-  bool _loading           = true;
-  bool _actionLoading     = false;
+  Map<String, dynamic>? _todayStatus; // from /attendance/today-status
+  bool _loading = true;
+  bool _actionLoading = false;
   Timer? _timer;
   Timer? _refreshTimer;
-  Duration _elapsed   = Duration.zero;
-  int _unreadNotifs   = 0;
+  Duration _elapsed = Duration.zero;
+  int _unreadNotifs = 0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _load();
+
+    _initialSync();
+
     _startTimer();
     _startAutoRefresh();
 
@@ -48,7 +51,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           _showSnack('✅ Auto checked in via office WiFi');
           break;
         case 're_entered':
-          _load();
+          _load(silent: true);
           final gap = int.tryParse(data ?? '0') ?? 0;
           _showSnack('✅ Returned to office — ${gap}m away logged as break');
           break;
@@ -63,10 +66,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           break;
       }
     };
+  }
 
-    // Reflect current connectivity as soon as we land on Home (the screen is
-    // recreated on every tab switch), without resetting any running countdown.
-    WifiAttendanceService().checkAndReport();
+  Future<void> _initialSync() async {
+    setState(() => _loading = true);
+    try {
+      await WifiAttendanceService().checkAndReport();
+    } catch (_) {}
+    if (mounted) await _load(silent: true);
+    if (mounted) setState(() => _loading = false);
   }
 
   @override
@@ -81,13 +89,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _startAutoRefresh(); // resume polling
-      _load(silent: true);
-      WifiAttendanceService().checkAndReport();
+      _startAutoRefresh();
+      _resumeSync();
       WifiAttendanceService().syncOfflineQueue();
     } else if (state == AppLifecycleState.paused) {
-      _refreshTimer?.cancel(); // stop polling the network while backgrounded
+      _refreshTimer?.cancel(); // stop UI polling while backgrounded
+      // Foreground heartbeat timer is stopped; background service keeps running
     }
+  }
+
+  Future<void> _resumeSync() async {
+    try {
+      await WifiAttendanceService().checkAndReport();
+    } catch (_) {}
+    if (mounted) await _load(silent: true);
   }
 
   void _showSnack(String msg, {bool isError = false}) {
@@ -112,31 +127,42 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         api.getMyAttendance(days: 1),
         api.getMyShifts(),
         api.getLeaveAndNoticeCheck().catchError((_) => <String, dynamic>{}),
+        api.getTodayStatus().catchError((_) => <String, dynamic>{}),
       ]);
 
-      final records   = results[0] as List;
-      final shifts    = results[1] as List;
+      final records = results[0] as List;
+      final shifts = results[1] as List;
       final leaveInfo = results[2] as Map<String, dynamic>;
+      final todayStatus = results[3] as Map<String, dynamic>;
 
-      final todayRecord = records.isNotEmpty ? records.first as Map<String, dynamic> : null;
+      final todayRecord =
+          records.isNotEmpty ? records.first as Map<String, dynamic> : null;
       final status = todayRecord?['status'] as String? ?? 'none';
 
       Map<String, dynamic>? remoteSession;
       if (status == 'remote') {
         try {
           final sessions = await api.getMyRemoteSessions();
-          remoteSession = sessions.isNotEmpty ? sessions.first as Map<String, dynamic> : null;
+          remoteSession = sessions.isNotEmpty
+              ? sessions.first as Map<String, dynamic>
+              : null;
         } catch (_) {}
       }
 
       if (mounted) {
         setState(() {
-          _todayRecord   = todayRecord;
-          _nextShift     = shifts.isNotEmpty ? shifts.first as Map<String, dynamic> : null;
+          _todayRecord = {
+            if (todayRecord != null) ...todayRecord,
+            if (todayStatus['attendance'] is Map)
+              ...(todayStatus['attendance'] as Map).cast<String, dynamic>(),
+          };
+          _nextShift =
+              shifts.isNotEmpty ? shifts.first as Map<String, dynamic> : null;
           _remoteSession = remoteSession;
-          _todayLeave    = leaveInfo['leave']       as Map<String, dynamic>?;
-          _lateNotice    = leaveInfo['late_notice'] as Map<String, dynamic>?;
-          _loading       = false;
+          _todayLeave = leaveInfo['leave'] as Map<String, dynamic>?;
+          _lateNotice = leaveInfo['late_notice'] as Map<String, dynamic>?;
+          _todayStatus = todayStatus.isNotEmpty ? todayStatus : null;
+          _loading = false;
         });
         _updateElapsed();
       }
@@ -164,10 +190,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _updateElapsed() {
-    final checkIn  = _todayRecord?['check_in_at']  as String?;
+    final checkIn = _todayRecord?['check_in_at'] as String?;
     final checkOut = _todayRecord?['check_out_at'] as String?;
     if (checkIn != null && checkOut == null) {
-      setState(() => _elapsed = DateTime.now().difference(DateTime.parse(checkIn)));
+      setState(
+          () => _elapsed = DateTime.now().difference(DateTime.parse(checkIn)));
     } else if (_autoCheckoutRisk) {
       setState(() {}); // keep the disconnect countdown ticking
     }
@@ -181,7 +208,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _pollForAutoCheckout() {
     if (_loading) return;
     final now = DateTime.now();
-    if (_lastExpiryPoll != null && now.difference(_lastExpiryPoll!) < const Duration(seconds: 10)) return;
+    if (_lastExpiryPoll != null &&
+        now.difference(_lastExpiryPoll!) < const Duration(seconds: 10)) return;
     _lastExpiryPoll = now;
     _load(silent: true);
   }
@@ -204,19 +232,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return '$m:$s';
   }
 
-  String get _status    => _todayRecord?['status'] as String? ?? 'none';
-  bool get _checkedIn   => _status == 'in' || _status == 'late';
-  bool get _checkedOut  => _status == 'out';
-  bool get _isRemote    => _status == 'remote';
+  DateTime? _parseLocal(dynamic value) {
+    if (value == null) return null;
+    try {
+      return DateTime.parse(value.toString()).toLocal();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _formatMinutesHours(int minutes) {
+    if (minutes < 60) return '${minutes}m';
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    return m == 0 ? '${h}h' : '${h}h ${m}m';
+  }
+
+  int get _livePreCheckinLateMins {
+    final shift = (_todayStatus?['shift'] as Map?)?.cast<String, dynamic>();
+    final start = _parseLocal(shift?['shift_start_utc']);
+    if (start == null || _checkedIn || _checkedOut) return 0;
+    final minutes = DateTime.now().difference(start).inMinutes;
+    return minutes > 0 ? minutes : 0;
+  }
+
+  String get _status => _todayRecord?['status'] as String? ?? 'none';
+  bool get _checkedIn => _status == 'in' || _status == 'late';
+  bool get _checkedOut => _status == 'out';
+  bool get _isRemote => _status == 'remote';
 
   // WiFi/connection state is owned by the singleton so it survives the
   // HomeScreen being recreated on every tab switch (the disconnect countdown
   // therefore keeps running instead of restarting).
   WifiAttendanceService get _wifi => WifiAttendanceService();
-  bool      get _heartbeatLost     => _wifi.heartbeatLost;
-  bool      get _vpnDetected       => _wifi.vpnDetected;
-  bool      get _noNetworksConfig  => _wifi.noNetworksConfigured;
-  String?   get _disconnectSsid    => _wifi.disconnectSsid;
+  bool get _heartbeatLost => _wifi.heartbeatLost;
+  bool get _vpnDetected => _wifi.vpnDetected;
+  bool get _noNetworksConfig => _wifi.noNetworksConfigured;
+  String? get _disconnectSsid => _wifi.disconnectSsid;
   DateTime? get _disconnectDeadline => _wifi.disconnectDeadline;
 
   // The disconnect/grace UI applies to anyone who was being WiFi-tracked
@@ -225,16 +277,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool get _autoCheckoutRisk => _heartbeatLost && _checkedIn;
   // True once the grace window has elapsed — the server is closing us out.
   bool get _graceExpired =>
-      _disconnectDeadline != null && !DateTime.now().isBefore(_disconnectDeadline!);
+      _disconnectDeadline != null &&
+      !DateTime.now().isBefore(_disconnectDeadline!);
 
-  bool get _isOnBreak => (_todayRecord?['break_records'] as List?)
-      ?.cast<Map<String, dynamic>>().any((b) => b['break_end'] == null) ?? false;
+  bool get _isOnBreak =>
+      (_todayRecord?['break_records'] as List?)
+          ?.cast<Map<String, dynamic>>()
+          .any((b) => b['break_end'] == null) ??
+      false;
 
   @override
   Widget build(BuildContext context) {
-    final user     = context.watch<AuthProvider>().user!;
-    final hour     = DateTime.now().hour;
-    final greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    final user = context.watch<AuthProvider>().user!;
+    final hour = DateTime.now().hour;
+    final greeting = hour < 12
+        ? 'Good morning'
+        : hour < 17
+            ? 'Good afternoon'
+            : 'Good evening';
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -254,49 +314,72 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // ─── Header ───────────────────────────────
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('$greeting,',
-                        style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.55))),
-                    Text(user.name.split(' ').first,
-                        style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white)),
-                  ]),
-                  Row(children: [
-                    // Notification bell
-                    GestureDetector(
-                      onTap: () async {
-                        await context.push('/home/notifications');
-                        _load(silent: true);
-                      },
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                          child: Container(
-                            width: 42, height: 42,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                            ),
-                            child: Stack(alignment: Alignment.center, children: [
-                              Icon(Icons.notifications_outlined, size: 20, color: Colors.white.withValues(alpha: 0.8)),
-                              if (_unreadNotifs > 0) Positioned(
-                                top: 8, right: 8,
-                                child: Container(
-                                  width: 8, height: 8,
-                                  decoration: const BoxDecoration(color: AppColors.primary600, shape: BoxShape.circle),
+                Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('$greeting,',
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    color:
+                                        Colors.white.withValues(alpha: 0.55))),
+                            Text(user.name.split(' ').first,
+                                style: const TextStyle(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white)),
+                          ]),
+                      Row(children: [
+                        // Notification bell
+                        GestureDetector(
+                          onTap: () async {
+                            await context.push('/home/notifications');
+                            _load(silent: true);
+                          },
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                              child: Container(
+                                width: 42,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.2)),
                                 ),
+                                child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      Icon(Icons.notifications_outlined,
+                                          size: 20,
+                                          color: Colors.white
+                                              .withValues(alpha: 0.8)),
+                                      if (_unreadNotifs > 0)
+                                        Positioned(
+                                          top: 8,
+                                          right: 8,
+                                          child: Container(
+                                            width: 8,
+                                            height: 8,
+                                            decoration: const BoxDecoration(
+                                                color: AppColors.primary600,
+                                                shape: BoxShape.circle),
+                                          ),
+                                        ),
+                                    ]),
                               ),
-                            ]),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    UserAvatar(name: user.name),
-                  ]),
-                ]),
+                        const SizedBox(width: 10),
+                        UserAvatar(name: user.name),
+                      ]),
+                    ]),
 
                 const SizedBox(height: 20),
 
@@ -305,23 +388,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   duration: const Duration(milliseconds: 280),
                   curve: Curves.easeOutCubic,
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    if (_vpnDetected)    _vpnBanner(),
+                    if (_vpnDetected) _vpnBanner(),
                     if (_noNetworksConfig && !_vpnDetected) _noNetworksBanner(),
-                    if (!_loading && _todayLeave != null &&
-                        _status != 'in' && _status != 'late' && _status != 'out')
+                    if (!_loading &&
+                        _todayLeave != null &&
+                        _status != 'in' &&
+                        _status != 'late' &&
+                        _status != 'out')
                       _leaveTodayBanner(),
-                    if (!_loading && _lateNotice != null &&
-                        _status != 'in' && _status != 'late' && _status != 'out')
+                    if (!_loading &&
+                        _lateNotice != null &&
+                        _status != 'in' &&
+                        _status != 'late' &&
+                        _status != 'out')
                       _lateNoticeBanner(),
+                    // ── Break alert banners (from today-status) ──
+                    if (!_loading && (_checkedIn)) ..._breakAlertBanners(),
+                    // ── Pre-check-in live late counter ───────────
+                    if (!_loading && !_checkedIn && !_checkedOut)
+                      _preCheckinLateBanner(),
                   ]),
                 ),
 
                 // ─── Status Card ──────────────────────────
                 _loading
-                    ? const SkeletonBox(width: double.infinity, height: 160, radius: 28)
+                    ? const SkeletonBox(
+                        width: double.infinity, height: 160, radius: 28)
                     : AnimatedSwitcher(
                         duration: const Duration(milliseconds: 300),
-                        switchInCurve:  Curves.easeOutCubic,
+                        switchInCurve: Curves.easeOutCubic,
                         switchOutCurve: Curves.easeInCubic,
                         transitionBuilder: (child, animation) => FadeTransition(
                           opacity: animation,
@@ -334,7 +429,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ),
                         ),
                         child: KeyedSubtree(
-                          key: ValueKey(_status + (_autoCheckoutRisk ? '_hl' : '')),
+                          key: ValueKey(
+                              _status + (_autoCheckoutRisk ? '_hl' : '')),
                           child: _buildStatusCard(),
                         ),
                       ),
@@ -364,22 +460,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
                 // ─── Date + WiFi status ───────────────────
                 GlassCard(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(children: [
-                    const Icon(Icons.calendar_today, size: 16, color: AppColors.primary600),
+                    const Icon(Icons.calendar_today,
+                        size: 16, color: AppColors.primary600),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         DateFormat('EEEE, d MMMM yyyy').format(DateTime.now()),
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white),
                       ),
                     ),
-                    Icon(Icons.wifi_rounded, size: 15,
-                        color: _noNetworksConfig ? Colors.white.withValues(alpha: 0.3) : AppColors.success500),
+                    Icon(Icons.wifi_rounded,
+                        size: 15,
+                        color: _noNetworksConfig
+                            ? Colors.white.withValues(alpha: 0.3)
+                            : AppColors.success500),
                     const SizedBox(width: 4),
                     Text(
-                      _noNetworksConfig ? 'Auto check-in off' : 'Auto check-in on',
-                      style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.45)),
+                      _noNetworksConfig
+                          ? 'Auto check-in off'
+                          : 'Auto check-in on',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.white.withValues(alpha: 0.45)),
                     ),
                   ]),
                 ),
@@ -394,23 +502,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // ─── Banner Widgets ────────────────────────────────────
 
   Widget _vpnBanner() => _glassBanner(
-    icon: Icons.vpn_lock,
-    text: 'VPN detected — auto check-in is disabled. Use QR scan instead.',
-    tint: AppColors.warning500,
-    action: TextButton(
-      onPressed: () => context.push('/attendance/qr'),
-      child: const Text('QR Scan', style: TextStyle(color: AppColors.warning500, fontWeight: FontWeight.w700)),
-    ),
-  );
+        icon: Icons.vpn_lock,
+        text: 'VPN detected — auto check-in is disabled. Use QR scan instead.',
+        tint: AppColors.warning500,
+        action: TextButton(
+          onPressed: () => context.push('/attendance/qr'),
+          child: const Text('QR Scan',
+              style: TextStyle(
+                  color: AppColors.warning500, fontWeight: FontWeight.w700)),
+        ),
+      );
 
   Widget _noNetworksBanner() => _glassBanner(
-    icon: Icons.wifi_off,
-    text: "Auto check-in is off — your admin hasn't added any office networks yet.",
-    tint: Colors.white,
-  );
+        icon: Icons.wifi_off,
+        text:
+            "Auto check-in is off — your admin hasn't added any office networks yet.",
+        tint: Colors.white,
+      );
 
   Widget _leaveTodayBanner() {
-    final leaveType = (_todayLeave?['leave_type'] as String? ?? 'leave').replaceAll('_', ' ');
+    final leaveType =
+        (_todayLeave?['leave_type'] as String? ?? 'leave').replaceAll('_', ' ');
     return _glassBanner(
       icon: Icons.beach_access,
       text: 'You have approved $leaveType today. No check-in required.',
@@ -419,9 +531,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _lateNoticeBanner() {
-    final expectedTime  = _lateNotice?['expected_time'] as String? ?? '';
-    final noticeStatus  = _lateNotice?['status'] as String? ?? 'pending';
-    final isAcked       = noticeStatus == 'acknowledged';
+    final expectedTime = _lateNotice?['expected_time'] as String? ?? '';
+    final noticeStatus = _lateNotice?['status'] as String? ?? 'pending';
+    final isAcked = noticeStatus == 'acknowledged';
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: GlassCard(
@@ -429,9 +541,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(children: [
           Icon(isAcked ? Icons.check_circle_outline : Icons.schedule,
-              color: isAcked ? AppColors.success500 : AppColors.warning500, size: 18),
+              color: isAcked ? AppColors.success500 : AppColors.warning500,
+              size: 18),
           const SizedBox(width: 10),
-          Expanded(child: Text(
+          Expanded(
+              child: Text(
             isAcked
                 ? 'Late notice acknowledged — expected by $expectedTime'
                 : 'Late arrival notice submitted — expected by $expectedTime',
@@ -453,14 +567,146 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 _showSnack('Could not cancel notice');
               }
             },
-            child: Icon(Icons.close, size: 16, color: Colors.white.withValues(alpha: 0.4)),
+            child: Icon(Icons.close,
+                size: 16, color: Colors.white.withValues(alpha: 0.4)),
           ),
         ]),
       ),
     );
   }
 
-  Widget _glassBanner({required IconData icon, required String text, required Color tint, Widget? action}) {
+  // ─── Break alert banners from today-status ─────────────────
+
+  List<Widget> _breakAlertBanners() {
+    final breaks = (_todayStatus?['shift']?['breaks'] as List?)
+            ?.cast<Map<String, dynamic>>() ??
+        [];
+    final banners = <Widget>[];
+    for (final b in breaks) {
+      final state = b['break_state'] as String? ?? 'upcoming';
+      final name = b['name'] as String? ?? 'Break';
+      final breakStart = _parseLocal(b['break_start_utc']);
+      final breakEnd = _parseLocal(b['break_end_utc']);
+      final mins = breakStart == null
+          ? ((b['mins_until_start'] as num?)?.toInt() ?? 0)
+          : breakStart.difference(DateTime.now()).inMinutes.clamp(0, 9999).toInt();
+      final overdue = breakEnd != null && DateTime.now().isAfter(breakEnd)
+          ? DateTime.now().difference(breakEnd).inMinutes
+          : ((b['overdue_minutes'] as num?)?.toInt() ?? 0);
+      final remaining = breakEnd == null
+          ? ((b['remaining_minutes'] as num?)?.toInt() ?? 0)
+          : breakEnd.difference(DateTime.now()).inMinutes.clamp(0, 9999).toInt();
+
+      if (state == 'imminent') {
+        banners.add(_glassBanner(
+          icon: Icons.timer_outlined,
+          text:
+              '$name starts in ${_formatMinutesHours(mins)} — wrap up your work',
+          tint: AppColors.primary600,
+        ));
+      } else if (state == 'active') {
+        banners.add(_glassBanner(
+          icon: Icons.free_breakfast,
+          text: '$name in progress — ${_formatMinutesHours(remaining)} remaining',
+          tint: AppColors.teal100,
+        ));
+      } else if (state == 'overdue') {
+        banners.add(Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: GlassCard(
+            tint: AppColors.danger500,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(children: [
+              const Icon(Icons.running_with_errors,
+                  color: AppColors.danger500, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text('$name overdue!',
+                        style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.danger500,
+                            fontWeight: FontWeight.w700)),
+                    Text(
+                        'You are ${_formatMinutesHours(overdue)} late returning from break',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.danger500.withValues(alpha: 0.8))),
+                  ])),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.danger500.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                      color: AppColors.danger500.withValues(alpha: 0.5)),
+                ),
+                child: Text('+${_formatMinutesHours(overdue)}',
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.danger500,
+                        fontFamily: 'monospace')),
+              ),
+            ]),
+          ),
+        ));
+      }
+    }
+    return banners;
+  }
+
+  // ─── Pre-check-in live late counter ────────────────────
+
+  Widget _preCheckinLateBanner() {
+    final lateMin = _livePreCheckinLateMins > 0
+        ? _livePreCheckinLateMins
+        : ((_todayStatus?['pre_checkin_late_minutes'] as num?)?.toInt() ?? 0);
+    if (lateMin <= 0) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlassCard(
+        tint: AppColors.warning500,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(children: [
+          const Icon(Icons.access_alarm, color: AppColors.warning500, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+              child: Text(
+            'You are currently ${_formatMinutesHours(lateMin)} late',
+            style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.warning500,
+                fontWeight: FontWeight.w600),
+          )),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.warning500.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                  color: AppColors.warning500.withValues(alpha: 0.5)),
+            ),
+            child: Text('+${_formatMinutesHours(lateMin)}',
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.warning500,
+                    fontFamily: 'monospace')),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _glassBanner(
+      {required IconData icon,
+      required String text,
+      required Color tint,
+      Widget? action}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: GlassCard(
@@ -469,121 +715,397 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         child: Row(children: [
           Icon(icon, color: tint, size: 18),
           const SizedBox(width: 10),
-          Expanded(child: Text(text, style: TextStyle(fontSize: 13, color: tint, fontWeight: FontWeight.w500))),
+          Expanded(
+              child: Text(text,
+                  style: TextStyle(
+                      fontSize: 13, color: tint, fontWeight: FontWeight.w500))),
           if (action != null) action,
         ]),
       ),
     );
   }
 
-  // ─── Late Notice Dialog ────────────────────────────────
+  Widget _timePickerTile(
+    BuildContext ctx, {
+    required String label,
+    required TimeOfDay value,
+    required ValueChanged<TimeOfDay> onPicked,
+  }) {
+    return GestureDetector(
+      onTap: () async {
+        final picked = await showTimePicker(
+          context: ctx,
+          initialTime: value,
+          builder: (c, child) => Theme(data: AppTheme.glass, child: child!),
+        );
+        if (picked != null) onPicked(picked);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        ),
+        child: Row(children: [
+          Text(label,
+              style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.white.withValues(alpha: 0.45),
+                  fontWeight: FontWeight.w700)),
+          const Spacer(),
+          Flexible(
+            child: Text(value.format(ctx),
+                textAlign: TextAlign.end,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white)),
+          ),
+        ]),
+      ),
+    );
+  }
 
-  Future<void> _showLateNoticeDialog() async {
-    final reasonCtrl = TextEditingController();
+  // ─── Attendance Request Dialog (Late Arrival / Leave / Early Departure) ───
+
+  Future<void> _showAttendanceRequestDialog() async {
+    String requestType = 'late_arrival';
+    String leaveType = 'annual';
+    DateTime selectedDate = DateTime.now();
     TimeOfDay selectedTime = TimeOfDay.now().replacing(
       hour: (TimeOfDay.now().hour + 1).clamp(0, 23),
       minute: 0,
     );
+    TimeOfDay selectedEndTime = TimeOfDay.now().replacing(
+      hour: (TimeOfDay.now().hour + 2).clamp(0, 23),
+      minute: 0,
+    );
+    final reasonCtrl = TextEditingController();
+
+    const typeOptions = [
+      {'value': 'late_arrival', 'label': 'Late Arrival'},
+      {'value': 'leave', 'label': 'Day Leave'},
+      {'value': 'mid_shift_leave', 'label': 'Mid-Shift Leave'},
+      {'value': 'early_departure', 'label': 'Early Departure'},
+    ];
+    const leaveOptions = [
+      {'value': 'annual', 'label': 'Annual'},
+      {'value': 'sick', 'label': 'Sick'},
+      {'value': 'unpaid', 'label': 'Unpaid'},
+      {'value': 'other', 'label': 'Other'},
+    ];
+
+    String fmtDate(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    String fmtDateDisplay(DateTime d) =>
+        DateFormat('EEE, d MMM yyyy').format(d);
 
     await showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlgState) => AlertDialog(
+        builder: (ctx, setDlg) => AlertDialog(
+          backgroundColor: AppColors.bgDark3,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: const Row(children: [
-            Icon(Icons.schedule, color: AppColors.warning500, size: 22),
+            Icon(Icons.assignment_outlined,
+                color: AppColors.primary600, size: 22),
             SizedBox(width: 8),
-            Text('Report Late Arrival'),
+            Flexible(
+                child: Text('Report / Request',
+                    style: TextStyle(color: Colors.white, fontSize: 16))),
           ]),
-          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Let your manager know you\'ll be arriving late.',
-                style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.55))),
-            const SizedBox(height: 16),
-            Text('Expected Arrival Time',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.8))),
-            const SizedBox(height: 6),
-            GestureDetector(
-              onTap: () async {
-                final picked = await showTimePicker(
-                  context: ctx,
-                  initialTime: selectedTime,
-                  builder: (c, child) => Theme(data: AppTheme.glass, child: child!),
-                );
-                if (picked != null) setDlgState(() => selectedTime = picked);
-              },
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                    ),
-                    child: Row(children: [
-                      const Icon(Icons.access_time, size: 18, color: AppColors.primary600),
-                      const SizedBox(width: 8),
-                      Text(selectedTime.format(ctx),
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white)),
-                      const Spacer(),
-                      Text('Tap to change', style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.4))),
-                    ]),
+          content: SingleChildScrollView(
+              child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Request type chips ──────────────────────
+              Text('Request Type',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white.withValues(alpha: 0.6))),
+              const SizedBox(height: 8),
+              Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: typeOptions.map((t) {
+                    final sel = requestType == t['value'];
+                    return GestureDetector(
+                      onTap: () => setDlg(() => requestType = t['value']!),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: sel
+                              ? AppColors.primary600.withValues(alpha: 0.25)
+                              : Colors.white.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: sel
+                                  ? AppColors.primary600
+                                  : Colors.white.withValues(alpha: 0.15)),
+                        ),
+                        child: Text(t['label']!,
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: sel
+                                    ? AppColors.primary600
+                                    : Colors.white.withValues(alpha: 0.7))),
+                      ),
+                    );
+                  }).toList()),
+              const SizedBox(height: 16),
+
+              // ── Date picker ──────────────────────────────
+              Text('Date',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white.withValues(alpha: 0.6))),
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: ctx,
+                    initialDate: selectedDate,
+                    firstDate: DateTime.now().subtract(const Duration(days: 7)),
+                    lastDate: DateTime.now().add(const Duration(days: 30)),
+                    builder: (c, child) =>
+                        Theme(data: AppTheme.glass, child: child!),
+                  );
+                  if (picked != null) setDlg(() => selectedDate = picked);
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border:
+                        Border.all(color: Colors.white.withValues(alpha: 0.2)),
                   ),
+                  child: Row(children: [
+                    const Icon(Icons.calendar_today,
+                        size: 15, color: AppColors.primary600),
+                    const SizedBox(width: 8),
+                    Text(fmtDateDisplay(selectedDate),
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white)),
+                    const Spacer(),
+                    Text('Change',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.white.withValues(alpha: 0.4))),
+                  ]),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text('Reason',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.8))),
-            const SizedBox(height: 6),
-            TextField(
-              controller: reasonCtrl,
-              maxLines: 3,
-              maxLength: 200,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'e.g. Medical appointment, traffic delay…',
-                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35)),
+              const SizedBox(height: 16),
+
+              // ── Leave sub-type (only for 'leave') ────────
+              if (requestType == 'leave' || requestType == 'mid_shift_leave')
+                ...(() {
+                  return [
+                    Text('Leave Type',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white.withValues(alpha: 0.6))),
+                    const SizedBox(height: 6),
+                    Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: leaveOptions.map((l) {
+                          final sel = leaveType == l['value'];
+                          return GestureDetector(
+                            onTap: () => setDlg(() => leaveType = l['value']!),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: sel
+                                    ? AppColors.teal700.withValues(alpha: 0.3)
+                                    : Colors.white.withValues(alpha: 0.06),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: sel
+                                        ? AppColors.teal100
+                                        : Colors.white.withValues(alpha: 0.15)),
+                              ),
+                              child: Text(l['label']!,
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: sel
+                                          ? AppColors.teal100
+                                          : Colors.white
+                                              .withValues(alpha: 0.6))),
+                            ),
+                          );
+                        }).toList()),
+                    const SizedBox(height: 16),
+                  ];
+                })(),
+
+              // ── Expected time (late/early only) ──────────
+              if (requestType != 'leave' && requestType != 'mid_shift_leave')
+                ...(() {
+                  final label = requestType == 'late_arrival'
+                      ? 'Expected Arrival Time'
+                      : 'Expected Departure Time';
+                  return [
+                    Text(label,
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white.withValues(alpha: 0.6))),
+                    const SizedBox(height: 6),
+                    GestureDetector(
+                      onTap: () async {
+                        final picked = await showTimePicker(
+                          context: ctx,
+                          initialTime: selectedTime,
+                          builder: (c, child) =>
+                              Theme(data: AppTheme.glass, child: child!),
+                        );
+                        if (picked != null) setDlg(() => selectedTime = picked);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 11),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.2)),
+                        ),
+                        child: Row(children: [
+                          const Icon(Icons.access_time,
+                              size: 15, color: AppColors.primary600),
+                          const SizedBox(width: 8),
+                          Text(selectedTime.format(ctx),
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white)),
+                          const Spacer(),
+                          Text('Tap to change',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white.withValues(alpha: 0.4))),
+                        ]),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ];
+                })(),
+
+              if (requestType == 'mid_shift_leave') ...[
+                Text('Leave Window',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white.withValues(alpha: 0.6))),
+                const SizedBox(height: 6),
+                Row(children: [
+                  Expanded(
+                    child: _timePickerTile(
+                      ctx,
+                      label: 'Start',
+                      value: selectedTime,
+                      onPicked: (picked) => setDlg(() => selectedTime = picked),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _timePickerTile(
+                      ctx,
+                      label: 'End',
+                      value: selectedEndTime,
+                      onPicked: (picked) => setDlg(() => selectedEndTime = picked),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 16),
+              ],
+
+              // ── Reason ───────────────────────────────────
+              Text('Reason',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white.withValues(alpha: 0.6))),
+              const SizedBox(height: 6),
+              TextField(
+                controller: reasonCtrl,
+                maxLines: 3,
+                maxLength: 200,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: 'Briefly describe the reason…',
+                  hintStyle: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.35),
+                      fontSize: 13),
+                ),
               ),
-            ),
-          ]),
+            ],
+          )),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('Cancel', style: TextStyle(color: Colors.white.withValues(alpha: 0.5))),
+              child: Text('Cancel',
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5))),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.warning500,
+                backgroundColor: AppColors.primary600,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
               ),
               onPressed: () async {
                 final reason = reasonCtrl.text.trim();
                 if (reason.length < 5) {
-                  _showSnack('Please enter a reason (at least 5 characters)');
+                  _showSnack('Please enter a reason (5+ chars)');
                   return;
                 }
                 try {
-                  final today = DateTime.now();
-                  final dateStr = '${today.year}-${today.month.toString().padLeft(2,'0')}-${today.day.toString().padLeft(2,'0')}';
                   final hh = selectedTime.hour.toString().padLeft(2, '0');
                   final mm = selectedTime.minute.toString().padLeft(2, '0');
-                  final notice = await api.submitLateNotice(
-                    date: dateStr,
-                    expectedTime: '$hh:$mm',
+                  final eh = selectedEndTime.hour.toString().padLeft(2, '0');
+                  final em = selectedEndTime.minute.toString().padLeft(2, '0');
+                  if (requestType == 'mid_shift_leave') {
+                    final startMins = selectedTime.hour * 60 + selectedTime.minute;
+                    final endMins = selectedEndTime.hour * 60 + selectedEndTime.minute;
+                    if (endMins <= startMins) {
+                      _showSnack('End time must be after start time');
+                      return;
+                    }
+                  }
+                  await api.submitAttendanceRequest(
+                    type: requestType == 'mid_shift_leave' ? 'leave' : requestType,
+                    date: fmtDate(selectedDate),
                     reason: reason,
+                    expectedTime: '$hh:$mm',
+                    leaveType: leaveType,
+                    leaveStartTime: requestType == 'mid_shift_leave' ? '$hh:$mm' : null,
+                    leaveEndTime: requestType == 'mid_shift_leave' ? '$eh:$em' : null,
                   );
                   if (!ctx.mounted) return;
                   Navigator.pop(ctx);
-                  setState(() => _lateNotice = notice);
-                  _showSnack('Late arrival notice submitted ✅');
+                  _showSnack('Request submitted ✅');
+                  _load(silent: true);
                 } catch (_) {
-                  _showSnack('Failed to submit notice. Try again.');
+                  _showSnack('Failed to submit. Try again.', isError: true);
                 }
               },
-              child: const Text('Submit Notice'),
+              child: const Text('Submit'),
             ),
           ],
         ),
@@ -592,13 +1114,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     reasonCtrl.dispose();
   }
 
+  /// Alias kept for the "Not checked in" card button.
+  Future<void> _showLateNoticeDialog() => _showAttendanceRequestDialog();
+
   // ─── Numeric parsing helpers ───────────────────────────
   // The backend sometimes serializes numeric fields as strings
   // (e.g. "8.5", "30"). Cast defensively instead of `as num?`.
-  static double? _asDouble(dynamic v) =>
-      v == null ? null : v is num ? v.toDouble() : double.tryParse(v.toString());
-  static int? _asInt(dynamic v) =>
-      v == null ? null : v is num ? v.toInt() : int.tryParse(v.toString());
+  static double? _asDouble(dynamic v) => v == null
+      ? null
+      : v is num
+          ? v.toDouble()
+          : double.tryParse(v.toString());
+  static int? _asInt(dynamic v) => v == null
+      ? null
+      : v is num
+          ? v.toInt()
+          : int.tryParse(v.toString());
 
   // ─── Break Info ────────────────────────────────────────
 
@@ -618,8 +1149,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     // Check for active break in break_records
     final breakRecords = (_todayRecord?['break_records'] as List?)
-        ?.cast<Map<String, dynamic>>() ?? [];
-    final activeBreak = breakRecords.where((b) => b['break_end'] == null).firstOrNull;
+            ?.cast<Map<String, dynamic>>() ??
+        [];
+    Map<String, dynamic>? activeBreak;
+    for (final b in breakRecords) {
+      if (b['break_end'] == null) {
+        activeBreak = b;
+        break;
+      }
+    }
     if (activeBreak != null) {
       final startedAt = DateTime.parse(activeBreak['break_start'] as String);
       final elapsed = DateTime.now().difference(startedAt);
@@ -636,25 +1174,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     // Check for upcoming breaks from shift schedule
     final shiftBreaks = (_nextShift?['shift']?['breaks'] as List?)
-        ?.cast<Map<String, dynamic>>() ?? [];
+            ?.cast<Map<String, dynamic>>() ??
+        [];
     for (final sb in shiftBreaks) {
-      final name        = sb['name'] as String? ?? 'Break';
-      final startTime   = sb['break_start_time'] as String?;
-      final endTime     = sb['break_end_time'] as String?;
+      final name = sb['name'] as String? ?? 'Break';
+      final startTime = sb['break_start_time'] as String?;
+      final endTime = sb['break_end_time'] as String?;
 
       // Prefer the wall-clock window (this is what the backend auto-starts on);
       // fall back to the relative `after_minutes` offset from check-in.
       late final DateTime breakStart;
       late final DateTime breakEnd;
-      if (startTime != null && startTime.contains(':') &&
-          endTime != null && endTime.contains(':')) {
+      if (startTime != null &&
+          startTime.contains(':') &&
+          endTime != null &&
+          endTime.contains(':')) {
         breakStart = _todayAt(startTime);
-        breakEnd   = _todayAt(endTime);
+        breakEnd = _todayAt(endTime);
       } else {
         final afterMins = _asInt(sb['after_minutes']) ?? 0;
         final breakMins = _asInt(sb['break_minutes']) ?? 15;
         breakStart = checkIn.add(Duration(minutes: afterMins));
-        breakEnd   = breakStart.add(Duration(minutes: breakMins));
+        breakEnd = breakStart.add(Duration(minutes: breakMins));
       }
 
       // Already past this break? Skip.
@@ -673,7 +1214,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         return {
           'icon': Icons.schedule,
           'color': AppColors.primary600,
-          'text': '$name in ${untilStart.inMinutes}m ${untilStart.inSeconds % 60}s',
+          'text':
+              '$name in ${untilStart.inMinutes}m ${untilStart.inSeconds % 60}s',
         };
       }
       // More than 10 min away — show next break time
@@ -689,23 +1231,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // ─── Disconnect (left office WiFi) Card ────────────────
 
   Widget _buildDisconnectCard() {
-    final ssid      = _disconnectSsid;
+    final ssid = _disconnectSsid;
     final countdown = _disconnectCountdown;
-    final expired   = _graceExpired;
+    final expired = _graceExpired;
     return GlassCard(
       tint: AppColors.warning500,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(Icons.wifi_off_rounded, size: 28, color: AppColors.warning500),
+          const Icon(Icons.wifi_off_rounded,
+              size: 28, color: AppColors.warning500),
           const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(expired ? 'Grace Period Ended' : 'Left Office WiFi',
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white)),
-            Text(
-              ssid != null && ssid.isNotEmpty ? 'No longer on "$ssid"' : 'WiFi connection lost',
-              style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.6)),
-            ),
-          ])),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(expired ? 'Grace Period Ended' : 'Left Office WiFi',
+                    style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white)),
+                Text(
+                  ssid != null && ssid.isNotEmpty
+                      ? 'No longer on "$ssid"'
+                      : 'WiFi connection lost',
+                  style: TextStyle(
+                      fontSize: 13, color: Colors.white.withValues(alpha: 0.6)),
+                ),
+              ])),
         ]),
         const SizedBox(height: 16),
         // Prominent grace countdown
@@ -715,20 +1267,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           decoration: BoxDecoration(
             color: AppColors.warning500.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.warning500.withValues(alpha: 0.3)),
+            border:
+                Border.all(color: AppColors.warning500.withValues(alpha: 0.3)),
           ),
           child: Column(children: [
             Text(
               expired ? '00:00' : (countdown.isNotEmpty ? countdown : '--:--'),
               style: const TextStyle(
-                fontSize: 34, fontWeight: FontWeight.w800,
-                color: Colors.white, fontFamily: 'monospace', letterSpacing: 1,
+                fontSize: 34,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+                fontFamily: 'monospace',
+                letterSpacing: 1,
               ),
             ),
             const SizedBox(height: 2),
             Text(
               expired ? 'checking you out…' : 'until auto check-out',
-              style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6)),
+              style: TextStyle(
+                  fontSize: 12, color: Colors.white.withValues(alpha: 0.6)),
             ),
           ]),
         ),
@@ -737,7 +1294,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           expired
               ? 'You\'ve been checked out. Reconnect to office WiFi and you\'ll be checked back in automatically.'
               : 'Reconnect to office WiFi to stay checked in. If you can\'t, scan the office QR code.',
-          style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.55)),
+          style: TextStyle(
+              fontSize: 12, color: Colors.white.withValues(alpha: 0.55)),
         ),
         const SizedBox(height: 12),
         AppButton(
@@ -763,33 +1321,37 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     Color iconColor;
 
     if (_vpnDetected) {
-      cardTint    = AppColors.warning500;
-      cardIcon    = Icons.vpn_lock;
-      iconColor   = AppColors.warning500;
+      cardTint = AppColors.warning500;
+      cardIcon = Icons.vpn_lock;
+      iconColor = AppColors.warning500;
       statusTitle = 'VPN Active';
-      statusSub   = 'Scan QR code to check in';
+      statusSub = 'Scan QR code to check in';
     } else if (_isRemote) {
-      cardTint    = AppColors.purple500;
-      cardIcon    = Icons.home_rounded;
-      iconColor   = AppColors.purple500;
+      cardTint = AppColors.purple500;
+      cardIcon = Icons.home_rounded;
+      iconColor = AppColors.purple500;
       statusTitle = 'Working Remotely 🏠';
       final sessionStatus = _remoteSession?['status'] as String? ?? 'pending';
-      statusSub   = sessionStatus == 'approved'
+      statusSub = sessionStatus == 'approved'
           ? 'Approved — AI will check in with you via WhatsApp'
           : sessionStatus == 'rejected'
               ? 'Rejected by manager — please contact HR'
               : 'Pending manager approval';
     } else if (_checkedOut) {
       // ── CheckedOut summary card ────────────────────────────
-      final checkInStr  = _todayRecord?['check_in_at']  as String?;
+      final checkInStr = _todayRecord?['check_in_at'] as String?;
       final checkOutStr = _todayRecord?['check_out_at'] as String?;
       final hoursWorked = _asDouble(_todayRecord?['hours_worked']);
-      final netHours    = _asDouble(_todayRecord?['net_hours_worked']);
-      final breakMins   = _asInt(_todayRecord?['break_minutes']) ?? 0;
-      final wasAutoOut  = (_todayRecord?['auto_checked_out'] as bool?) ?? false;
+      final netHours = _asDouble(_todayRecord?['net_hours_worked']);
+      final breakMins = _asInt(_todayRecord?['break_minutes']) ?? 0;
+      final wasAutoOut = (_todayRecord?['auto_checked_out'] as bool?) ?? false;
 
-      final checkInFmt  = checkInStr  != null ? DateFormat('hh:mm a').format(DateTime.parse(checkInStr).toLocal())  : '--:--';
-      final checkOutFmt = checkOutStr != null ? DateFormat('hh:mm a').format(DateTime.parse(checkOutStr).toLocal()) : '--:--';
+      final checkInFmt = checkInStr != null
+          ? DateFormat('hh:mm a').format(DateTime.parse(checkInStr).toLocal())
+          : '--:--';
+      final checkOutFmt = checkOutStr != null
+          ? DateFormat('hh:mm a').format(DateTime.parse(checkOutStr).toLocal())
+          : '--:--';
 
       String hoursLabel = '';
       if (netHours != null) {
@@ -802,31 +1364,45 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         tint: Colors.white,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.check_circle_outline, size: 28, color: Colors.white.withValues(alpha: 0.5)),
+            Icon(Icons.check_circle_outline,
+                size: 28, color: Colors.white.withValues(alpha: 0.5)),
             const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Work Day Complete',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white)),
-              if (wasAutoOut)
-                Text('Auto checked-out by system',
-                    style: TextStyle(fontSize: 12, color: AppColors.warning500.withValues(alpha: 0.9))),
-            ])),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  const Text('Work Day Complete',
+                      style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white)),
+                  if (wasAutoOut)
+                    Text('Auto checked-out by system',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color:
+                                AppColors.warning500.withValues(alpha: 0.9))),
+                ])),
             if (hoursLabel.isNotEmpty)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(hoursLabel,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white)),
               ),
           ]),
           const SizedBox(height: 12),
           Divider(color: Colors.white.withValues(alpha: 0.15), height: 1),
           const SizedBox(height: 12),
           Row(children: [
-            _infoChip(Icons.login,  'In',  checkInFmt),
+            _infoChip(Icons.login, 'In', checkInFmt),
             const SizedBox(width: 20),
             _infoChip(Icons.logout, 'Out', checkOutFmt),
             if (breakMins > 0) ...[
@@ -838,15 +1414,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
     } else if (_checkedIn) {
       // ── CheckedIn hero: ring layout ───────────────────────
-      final lateMins  = _asInt(_todayRecord?['late_minutes']) ?? 0;
-      final isLate    = _status == 'late' || lateMins > 0;
+      final lateMins = _asInt(_todayRecord?['late_minutes']) ?? 0;
+      final isLate = _status == 'late' || lateMins > 0;
       final hasNotice = _todayRecord?['late_notice_id'] != null;
-      final ringTint  = isLate ? AppColors.warning500 : const Color(0xFF34E0A1);
+      final ringTint = isLate ? AppColors.warning500 : const Color(0xFF34E0A1);
 
       final shiftStart = _getShiftStartMins();
-      final shiftEnd   = _getShiftEndMins();
-      final nowMins    = DateTime.now().hour * 60 + DateTime.now().minute;
-      final shiftPct   = ((nowMins - shiftStart) / (shiftEnd - shiftStart)).clamp(0.0, 1.0);
+      final shiftEnd = _getShiftEndMins();
+      final nowMins = DateTime.now().hour * 60 + DateTime.now().minute;
+      final shiftPct =
+          ((nowMins - shiftStart) / (shiftEnd - shiftStart)).clamp(0.0, 1.0);
 
       final checkInStr = _todayRecord?['check_in_at'] as String?;
       final checkInTime = checkInStr != null
@@ -868,38 +1445,48 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ),
             const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              // Status badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: ringTint.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: ringTint.withValues(alpha: 0.4)),
-                ),
-                child: Text(
-                  isLate ? 'Checked In · Late' : 'Checked In',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: ringTint),
-                ),
-              ),
-              const SizedBox(height: 6),
-              // Big elapsed timer
-              Text(
-                _elapsedDisplay,
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                  fontFamily: 'monospace',
-                ),
-              ),
-              const SizedBox(height: 2),
-              // "Working since HH:MM" subtitle
-              Text(
-                'Working since $checkInTime',
-                style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.55)),
-              ),
-            ])),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  // Status badge
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: ringTint.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(20),
+                      border:
+                          Border.all(color: ringTint.withValues(alpha: 0.4)),
+                    ),
+                    child: Text(
+                      isLate ? 'Checked In · Late' : 'Checked In',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: ringTint),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // Big elapsed timer
+                  Text(
+                    _elapsedDisplay,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  // "Working since HH:MM" subtitle
+                  Text(
+                    'Working since $checkInTime',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withValues(alpha: 0.55)),
+                  ),
+                ])),
           ]),
 
           // ── Divider + info chips ───────────────────────────
@@ -910,7 +1497,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               _infoChip(Icons.login, 'Checked in', checkInTime),
               if (checkInType != null)
-                _infoChip(Icons.wifi, 'Method', _formatCheckInType(checkInType)),
+                _infoChip(
+                    Icons.wifi, 'Method', _formatCheckInType(checkInType)),
             ]),
           ],
 
@@ -923,11 +1511,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               Divider(color: Colors.white.withValues(alpha: 0.12), height: 1),
               const SizedBox(height: 8),
               Row(children: [
-                Icon(breakInfo['icon'] as IconData, size: 14, color: breakInfo['color'] as Color),
+                Icon(breakInfo['icon'] as IconData,
+                    size: 14, color: breakInfo['color'] as Color),
                 const SizedBox(width: 6),
-                Expanded(child: Text(
+                Expanded(
+                    child: Text(
                   breakInfo['text'] as String,
-                  style: TextStyle(fontSize: 12, color: breakInfo['color'] as Color, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: breakInfo['color'] as Color,
+                      fontWeight: FontWeight.w600),
                 )),
               ]),
             ]);
@@ -937,8 +1530,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           if (lateMins > 0) ...[
             const SizedBox(height: 8),
             Text(
-              '$lateMins min late${hasNotice ? ' · pre-announced' : ''}',
-              style: TextStyle(fontSize: 12, color: AppColors.warning500.withValues(alpha: 0.9), fontWeight: FontWeight.w600),
+              '${_formatMinutesHours(lateMins)} late${hasNotice ? ' · pre-announced' : ''}',
+              style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.warning500.withValues(alpha: 0.9),
+                  fontWeight: FontWeight.w600),
             ),
           ],
 
@@ -947,14 +1543,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Row(children: [
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: _actionLoading ? null : () => context.push('/attendance/qr'),
+                onPressed: _actionLoading
+                    ? null
+                    : () => context.push('/attendance/qr'),
                 icon: const Icon(Icons.qr_code_scanner, size: 16),
                 label: const Text('Scan QR'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white,
                   side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
                   minimumSize: const Size(0, 42),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ),
@@ -965,53 +1564,58 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 icon: Icons.logout,
                 color: AppColors.danger500,
                 loading: _actionLoading,
-                onPressed: _actionLoading ? null : () async {
-                  final confirmed = await showConfirmDialog(
-                    context,
-                    title: 'Check Out?',
-                    message: 'Are you sure you want to check out?',
-                    confirmLabel: 'Check Out',
-                    isDanger: true,
-                  );
-                  if (confirmed == true) {
-                    setState(() => _actionLoading = true);
-                    try {
-                      await api.checkOut();
-                      await WifiAttendanceService().onManualCheckOut(); // stop WiFi tracking
-                      await _load();
-                      _showSnack('Checked out ✅');
-                    } catch (e) {
-                      _showSnack('Failed to check out', isError: true);
-                    } finally {
-                      if (mounted) setState(() => _actionLoading = false);
-                    }
-                  }
-                },
+                onPressed: _actionLoading
+                    ? null
+                    : () async {
+                        final confirmed = await showConfirmDialog(
+                          context,
+                          title: 'Check Out?',
+                          message: 'Are you sure you want to check out?',
+                          confirmLabel: 'Check Out',
+                          isDanger: true,
+                        );
+                        if (confirmed == true) {
+                          setState(() => _actionLoading = true);
+                          try {
+                            await api.checkOut();
+                            // Notifies both main isolate and background service
+                            await WifiAttendanceService().onManualCheckOut();
+                            await _load();
+                            _showSnack('Checked out ✅');
+                          } catch (e) {
+                            _showSnack('Failed to check out', isError: true);
+                          } finally {
+                            if (mounted) setState(() => _actionLoading = false);
+                          }
+                        }
+                      },
               ),
             ),
           ]),
         ]),
       );
     } else if (_status == 'leave') {
-      cardTint    = AppColors.primary600;
-      cardIcon    = Icons.beach_access;
-      iconColor   = AppColors.primary600;
+      cardTint = AppColors.primary600;
+      cardIcon = Icons.beach_access;
+      iconColor = AppColors.primary600;
       statusTitle = 'On Leave 📅';
-      statusSub   = 'Approved leave';
+      statusSub = 'Approved leave';
     } else if (_status == 'half_leave') {
-      final period   = (_todayLeave?['half_day_period'] as String?) ?? '';
+      final period = (_todayLeave?['half_day_period'] as String?) ?? '';
       final expected = period == 'morning' ? 'Afternoon' : 'Morning';
-      cardTint    = AppColors.teal700;
-      cardIcon    = Icons.calendar_today;
-      iconColor   = AppColors.teal100.withValues(alpha: 0.9);
+      cardTint = AppColors.teal700;
+      cardIcon = Icons.calendar_today;
+      iconColor = AppColors.teal100.withValues(alpha: 0.9);
       statusTitle = 'Half-Day Leave';
-      statusSub   = period.isNotEmpty ? '$expected half — you may still check in' : 'Approved half-day leave';
+      statusSub = period.isNotEmpty
+          ? '$expected half — you may still check in'
+          : 'Approved half-day leave';
     } else {
-      cardTint    = Colors.white;
-      cardIcon    = Icons.radio_button_unchecked;
-      iconColor   = Colors.white.withValues(alpha: 0.4);
+      cardTint = Colors.white;
+      cardIcon = Icons.radio_button_unchecked;
+      iconColor = Colors.white.withValues(alpha: 0.4);
       statusTitle = 'Not Checked In';
-      statusSub   = _noNetworksConfig
+      statusSub = _noNetworksConfig
           ? 'Scan QR code to check in — WiFi auto-detection not set up'
           : 'Connect to office WiFi for auto check-in, or scan QR code';
     }
@@ -1022,16 +1626,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         Row(children: [
           Icon(cardIcon, size: 28, color: iconColor),
           const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(statusTitle,
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white)),
-            Text(statusSub,
-                style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.6))),
-          ])),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(statusTitle,
+                    style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white)),
+                Text(statusSub,
+                    style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.white.withValues(alpha: 0.6))),
+              ])),
         ]),
 
         // Check-in actions
-        if (!_checkedIn && !_checkedOut && !_isRemote && _status != 'leave') ...[
+        if (!_checkedIn &&
+            !_checkedOut &&
+            !_isRemote &&
+            _status != 'leave') ...[
           const SizedBox(height: 16),
           AppButton(
             label: 'Scan QR Code',
@@ -1046,21 +1661,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               label: const Text('Report Late Arrival'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.warning500,
-                side: BorderSide(color: AppColors.warning500.withValues(alpha: 0.6)),
+                side: BorderSide(
+                    color: AppColors.warning500.withValues(alpha: 0.6)),
                 minimumSize: const Size(double.infinity, 42),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
               ),
             ),
         ],
 
         // Remote activity button
-        if (_isRemote && _remoteSession != null && _remoteSession!['status'] == 'approved') ...[
+        if (_isRemote &&
+            _remoteSession != null &&
+            _remoteSession!['status'] == 'approved') ...[
           const SizedBox(height: 12),
           AppButton(
             label: 'View My Activity',
             icon: Icons.chat_bubble_outline,
             outline: true,
-            onPressed: () => context.push('/home/remote/detail?id=${_remoteSession!['id']}'),
+            onPressed: () =>
+                context.push('/home/remote/detail?id=${_remoteSession!['id']}'),
           ),
         ],
       ]),
@@ -1069,20 +1689,29 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   String _formatCheckInType(String type) {
     switch (type) {
-      case 'auto_ip': return 'Auto (WiFi)';
-      case 'qr':      return 'QR Code';
-      case 'remote':  return 'Remote';
-      default:        return 'Manual';
+      case 'auto_ip':
+        return 'Auto (WiFi)';
+      case 'qr':
+        return 'QR Code';
+      case 'remote':
+        return 'Remote';
+      default:
+        return 'Manual';
     }
   }
 
   String _formatBreakType(String type) {
     switch (type) {
-      case 'lunch':   return 'Lunch Break';
-      case 'prayer':  return 'Prayer Break';
-      case 'short':   return 'Short Break';
-      case 'away':    return 'Away';
-      default:        return 'Break';
+      case 'lunch':
+        return 'Lunch Break';
+      case 'prayer':
+        return 'Prayer Break';
+      case 'short':
+        return 'Short Break';
+      case 'away':
+        return 'Away';
+      default:
+        return 'Break';
     }
   }
 
@@ -1090,10 +1719,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _showBreakTypeSheet() async {
     const types = [
-      {'type': 'short',  'label': 'Quick Break', 'icon': Icons.coffee},
-      {'type': 'lunch',  'label': 'Lunch',       'icon': Icons.lunch_dining},
-      {'type': 'prayer', 'label': 'Prayer',      'icon': Icons.self_improvement},
-      {'type': 'manual', 'label': 'Other',       'icon': Icons.more_horiz},
+      {'type': 'short', 'label': 'Quick Break', 'icon': Icons.coffee},
+      {'type': 'lunch', 'label': 'Lunch', 'icon': Icons.lunch_dining},
+      {'type': 'prayer', 'label': 'Prayer', 'icon': Icons.self_improvement},
+      {'type': 'manual', 'label': 'Other', 'icon': Icons.more_horiz},
     ];
 
     final chosen = await showModalBottomSheet<String>(
@@ -1106,7 +1735,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const SizedBox(height: 12),
           Container(
-            width: 36, height: 4,
+            width: 36,
+            height: 4,
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(2),
@@ -1114,14 +1744,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
           const SizedBox(height: 16),
           const Text('Start a Break',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white)),
           const SizedBox(height: 8),
           ...types.map((t) => ListTile(
-            leading: Icon(t['icon'] as IconData, color: AppColors.teal100, size: 22),
-            title: Text(t['label'] as String,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-            onTap: () => Navigator.pop(context, t['type'] as String),
-          )),
+                leading: Icon(t['icon'] as IconData,
+                    color: AppColors.teal100, size: 22),
+                title: Text(t['label'] as String,
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w600)),
+                onTap: () => Navigator.pop(context, t['type'] as String),
+              )),
           const SizedBox(height: 8),
         ]),
       ),
@@ -1210,8 +1845,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       Icon(icon, size: 14, color: Colors.white.withValues(alpha: 0.4)),
       const SizedBox(width: 4),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: TextStyle(fontSize: 10, color: Colors.white.withValues(alpha: 0.45))),
-        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+        Text(label,
+            style: TextStyle(
+                fontSize: 10, color: Colors.white.withValues(alpha: 0.45))),
+        Text(value,
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Colors.white)),
       ]),
     ]);
   }
@@ -1222,9 +1863,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final actions = [
       _QuickAction(
         icon: Icons.beach_access_outlined,
-        label: 'Request\nLeave',
+        label: 'Report /\nRequest',
         color: AppColors.primary600,
-        onTap: () => context.push('/leave/request'),
+        onTap: _showAttendanceRequestDialog,
       ),
       if (!_checkedIn && !_checkedOut && !_isRemote)
         _QuickAction(
@@ -1247,68 +1888,91 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
     ];
     return Row(
-      children: actions.map((a) => Expanded(child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: GestureDetector(
-          onTap: a.onTap,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [a.color.withValues(alpha: 0.22), a.color.withValues(alpha: 0.1)],
+      children: actions
+          .map((a) => Expanded(
+                  child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: GestureDetector(
+                  onTap: a.onTap,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 14, horizontal: 8),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              a.color.withValues(alpha: 0.22),
+                              a.color.withValues(alpha: 0.1)
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border:
+                              Border.all(color: a.color.withValues(alpha: 0.3)),
+                        ),
+                        child: Column(children: [
+                          Icon(a.icon, color: a.color, size: 24),
+                          const SizedBox(height: 6),
+                          Text(a.label,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: a.color,
+                                  height: 1.3)),
+                        ]),
+                      ),
+                    ),
                   ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: a.color.withValues(alpha: 0.3)),
                 ),
-                child: Column(children: [
-                  Icon(a.icon, color: a.color, size: 24),
-                  const SizedBox(height: 6),
-                  Text(a.label,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: a.color, height: 1.3)),
-                ]),
-              ),
-            ),
-          ),
-        ),
-      ))).toList(),
+              )))
+          .toList(),
     );
   }
 
   // ─── Shift Card ────────────────────────────────────────
 
   Widget _buildShiftCard() {
-    final shift     = (_nextShift!['shift'] as Map?)?.cast<String, dynamic>();
-    final dateStr   = _nextShift!['date'] as String?;
+    final shift = (_nextShift!['shift'] as Map?)?.cast<String, dynamic>();
+    final dateStr = _nextShift!['date'] as String?;
     final shiftName = shift?['name'] as String? ?? 'Shift';
     final startTime = shift?['start_time'] as String? ?? '--:--';
-    final endTime   = shift?['end_time']   as String? ?? '--:--';
-    final colorHex  = shift?['color'] as String? ?? '#f15153';
+    final endTime = shift?['end_time'] as String? ?? '--:--';
+    final colorHex = shift?['color'] as String? ?? '#f15153';
     final shiftColor = Color(int.parse(colorHex.replaceFirst('#', '0xFF')));
 
     return GlassCard(
       child: Row(children: [
         Container(
-          width: 4, height: 52,
-          decoration: BoxDecoration(color: shiftColor, borderRadius: BorderRadius.circular(2)),
+          width: 4,
+          height: 52,
+          decoration: BoxDecoration(
+              color: shiftColor, borderRadius: BorderRadius.circular(2)),
         ),
         const SizedBox(width: 14),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(shiftName,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+              style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white)),
           const SizedBox(height: 3),
           Text('$startTime – $endTime',
-              style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.55), fontFamily: 'monospace')),
+              style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.white.withValues(alpha: 0.55),
+                  fontFamily: 'monospace')),
         ])),
         if (dateStr != null)
           Text(DateFormat('EEE, d MMM').format(DateTime.parse(dateStr)),
-              style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.55))),
+              style: TextStyle(
+                  fontSize: 12, color: Colors.white.withValues(alpha: 0.55))),
       ]),
     );
   }
@@ -1319,7 +1983,11 @@ class _QuickAction {
   final String label;
   final Color color;
   final VoidCallback onTap;
-  const _QuickAction({required this.icon, required this.label, required this.color, required this.onTap});
+  const _QuickAction(
+      {required this.icon,
+      required this.label,
+      required this.color,
+      required this.onTap});
 }
 
 // ─── Shift Progress Ring ────────────────────────────────
@@ -1332,7 +2000,8 @@ class _ShiftRing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 100, height: 100,
+      width: 100,
+      height: 100,
       child: Stack(alignment: Alignment.center, children: [
         CustomPaint(
           size: const Size(100, 100),
