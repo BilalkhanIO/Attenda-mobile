@@ -209,7 +209,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_loading) return;
     final now = DateTime.now();
     if (_lastExpiryPoll != null &&
-        now.difference(_lastExpiryPoll!) < const Duration(seconds: 10)) return;
+        now.difference(_lastExpiryPoll!) < const Duration(seconds: 10)) {
+      return;
+    }
     _lastExpiryPoll = now;
     _load(silent: true);
   }
@@ -1344,7 +1346,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final hoursWorked = _asDouble(_todayRecord?['hours_worked']);
       final netHours = _asDouble(_todayRecord?['net_hours_worked']);
       final breakMins = _asInt(_todayRecord?['break_minutes']) ?? 0;
+      final overtimeHours = _asDouble(_todayRecord?['overtime_hours']) ?? 0;
+      final extraOfficeMins = _asInt(_todayRecord?['extra_office_minutes']) ?? 0;
       final wasAutoOut = (_todayRecord?['auto_checked_out'] as bool?) ?? false;
+      final shift = (_todayStatus?['shift'] as Map?)?.cast<String, dynamic>();
+      final canRequestOvertime = extraOfficeMins > 0 &&
+          shift?['overtime_enabled'] == true &&
+          shift?['overtime_requires_approval'] == true &&
+          _todayRecord?['id'] != null;
 
       final checkInFmt = checkInStr != null
           ? DateFormat('hh:mm a').format(DateTime.parse(checkInStr).toLocal())
@@ -1409,7 +1418,44 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               const SizedBox(width: 20),
               _infoChip(Icons.free_breakfast, 'Break', '${breakMins}m'),
             ],
+            if (overtimeHours > 0) ...[
+              const SizedBox(width: 20),
+              _infoChip(Icons.more_time, 'Overtime', '${overtimeHours.toStringAsFixed(1)}h'),
+            ],
+            if (extraOfficeMins > 0) ...[
+              const SizedBox(width: 20),
+              _infoChip(Icons.schedule, 'Extra', '${extraOfficeMins}m'),
+            ],
           ]),
+          if (canRequestOvertime) ...[
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: _actionLoading
+                  ? null
+                  : () async {
+                      setState(() => _actionLoading = true);
+                      try {
+                        await api.requestOvertime(
+                          attendanceId: _todayRecord!['id'] as String,
+                          reason: 'Worked ${extraOfficeMins}m after shift end',
+                        );
+                        _showSnack('Overtime request sent');
+                      } catch (_) {
+                        _showSnack('Could not request overtime', isError: true);
+                      } finally {
+                        if (mounted) setState(() => _actionLoading = false);
+                      }
+                    },
+              icon: const Icon(Icons.more_time, size: 18),
+              label: const Text('Request Overtime'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.teal100,
+                side: BorderSide(color: AppColors.teal100.withValues(alpha: 0.5)),
+                minimumSize: const Size(double.infinity, 46),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ],
         ]),
       );
     } else if (_checkedIn) {
@@ -1718,14 +1764,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // ─── Break request (ad-hoc) ────────────────────────────
 
   Future<void> _showBreakTypeSheet() async {
-    const types = [
-      {'type': 'short', 'label': 'Quick Break', 'icon': Icons.coffee},
-      {'type': 'lunch', 'label': 'Lunch', 'icon': Icons.lunch_dining},
-      {'type': 'prayer', 'label': 'Prayer', 'icon': Icons.self_improvement},
-      {'type': 'manual', 'label': 'Other', 'icon': Icons.more_horiz},
-    ];
+    final policyBreaks = (_todayStatus?['shift']?['breaks'] as List?)
+            ?.whereType<Map>()
+            .map((b) => b.cast<String, dynamic>())
+            .toList() ??
+        const <Map<String, dynamic>>[];
+    final List<Map<String, dynamic>> types = policyBreaks.isNotEmpty
+        ? policyBreaks
+            .map<Map<String, dynamic>>((b) => {
+                  'id': b['id'],
+                  'type': b['name'] ?? 'break',
+                  'label': b['name'] ?? 'Break',
+                  'subtitle':
+                      "${b['break_minutes'] ?? 0}m${b['allowed_count_per_shift'] != null ? " x ${b['allowed_count_per_shift']}" : ''}",
+                  'icon': Icons.coffee,
+                })
+            .toList()
+        : [
+            {'type': 'short', 'label': 'Quick Break', 'icon': Icons.coffee},
+            {'type': 'lunch', 'label': 'Lunch', 'icon': Icons.lunch_dining},
+            {'type': 'prayer', 'label': 'Prayer', 'icon': Icons.self_improvement},
+            {'type': 'manual', 'label': 'Other', 'icon': Icons.more_horiz},
+          ];
 
-    final chosen = await showModalBottomSheet<String>(
+    final chosen = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       backgroundColor: AppColors.bgDark3,
       shape: const RoundedRectangleBorder(
@@ -1755,7 +1817,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 title: Text(t['label'] as String,
                     style: const TextStyle(
                         color: Colors.white, fontWeight: FontWeight.w600)),
-                onTap: () => Navigator.pop(context, t['type'] as String),
+                subtitle: t['subtitle'] != null
+                    ? Text(t['subtitle'] as String,
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.45), fontSize: 12))
+                    : null,
+                onTap: () => Navigator.pop(context, t),
               )),
           const SizedBox(height: 8),
         ]),
@@ -1765,7 +1831,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (chosen == null || !mounted) return;
     setState(() => _actionLoading = true);
     try {
-      await api.startBreak(breakType: chosen);
+      await api.startBreak(
+        breakType: chosen['type'] as String? ?? 'manual',
+        shiftBreakId: chosen['id'] as String?,
+      );
       await _load();
       _showSnack('Break started ☕');
     } catch (_) {

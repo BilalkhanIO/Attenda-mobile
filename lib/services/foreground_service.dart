@@ -26,10 +26,10 @@ const kBaseUrl = String.fromEnvironment(
   defaultValue: 'https://attenda-api-production.up.railway.app/api/v1',
 );
 const kCheckedInViaWifi = 'checkedInViaWifi';
-const kLastKnownIp      = 'lastKnownIp';
-const kLastKnownSsid    = 'lastKnownSsid';
-const kStateBox         = 'ip_state';
-const kQueueBox         = 'offline_queue';
+const kLastKnownIp = 'lastKnownIp';
+const kLastKnownSsid = 'lastKnownSsid';
+const kStateBox = 'ip_state';
+const kQueueBox = 'offline_queue';
 
 // ─── Entry point (must be top-level + vm:entry-point) ────────────────────────
 @pragma('vm:entry-point')
@@ -39,7 +39,7 @@ void startForegroundCallback() {
 
 // ─── Task Handler ─────────────────────────────────────────────────────────────
 class AttendaTaskHandler extends TaskHandler {
-  final _storage     = const FlutterSecureStorage();
+  final _storage = const FlutterSecureStorage();
   final _networkInfo = NetworkInfo();
   final _connectivity = Connectivity();
 
@@ -58,7 +58,7 @@ class AttendaTaskHandler extends TaskHandler {
   }
 
   @override
-  Future<void> onDestroy(DateTime timestamp) async {
+  Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
     debugPrint('[FG] Service destroyed');
   }
 
@@ -105,10 +105,10 @@ class AttendaTaskHandler extends TaskHandler {
       }
 
       // 3. WiFi details
-      final ip   = await _networkInfo.getWifiIP();
-      var ssid = (await _networkInfo.getWifiName()
-              .catchError((_) => null as String?))
-          ?.replaceAll('"', '');
+      final ip = await _networkInfo.getWifiIP();
+      var ssid =
+          (await _networkInfo.getWifiName().catchError((_) => null as String?))
+              ?.replaceAll('"', '');
       if (ssid == '<unknown ssid>') ssid = null;
 
       final hasWifi =
@@ -124,8 +124,8 @@ class AttendaTaskHandler extends TaskHandler {
 
       // 4. Read persisted state
       await _initHive();
-      final box            = Hive.box(kStateBox);
-      final checkedIn      = box.get(kCheckedInViaWifi, defaultValue: false) as bool;
+      final box = Hive.box(kStateBox);
+      final checkedIn = box.get(kCheckedInViaWifi, defaultValue: false) as bool;
 
       // 5. Heartbeat if already checked in, ip-event to (re)check-in otherwise
       final dio = _buildDio(token);
@@ -159,7 +159,7 @@ class AttendaTaskHandler extends TaskHandler {
         case 'heartbeat_accepted':
           await _updateNotification(
             title: 'Attenda - Checked In',
-            text:  'Office WiFi · Last ping ${_hhmm()}',
+            text: 'Office WiFi · Last ping ${_hhmm()}',
           );
           FlutterForegroundTask.sendDataToMain('heartbeat_accepted');
           break;
@@ -169,7 +169,7 @@ class AttendaTaskHandler extends TaskHandler {
           FlutterForegroundTask.sendDataToMain('heartbeat_lost:${ssid ?? ''}');
           await _updateNotification(
             title: 'Attenda - Left Office WiFi',
-            text:  'Reconnect within 10 minutes to stay checked in',
+            text: 'Reconnect within 10 minutes to stay checked in',
           );
           break;
 
@@ -181,7 +181,8 @@ class AttendaTaskHandler extends TaskHandler {
       }
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
-        await _tryRefreshAndRetry(ip: ip, ssid: ssid, box: box, wasSending: 'heartbeat');
+        await _tryRefreshAndRetry(
+            ip: ip, ssid: ssid, box: box, wasSending: 'heartbeat');
       } else {
         debugPrint('[FG] Heartbeat network error: $e');
       }
@@ -198,7 +199,7 @@ class AttendaTaskHandler extends TaskHandler {
   }) async {
     try {
       final res = await dio.post('/attendance/ip-event', data: {
-        'ip':    ip,
+        'ip': ip,
         'event': 'match',
         if (ssid != null && ssid.isNotEmpty) 'ssid': ssid,
       });
@@ -208,23 +209,23 @@ class AttendaTaskHandler extends TaskHandler {
       switch (action) {
         case 'checked_in':
           await box.put(kCheckedInViaWifi, true);
-          await box.put(kLastKnownIp,      ip);
-          await box.put(kLastKnownSsid,    ssid);
+          await box.put(kLastKnownIp, ip);
+          await box.put(kLastKnownSsid, ssid);
           await _updateNotification(
             title: 'Attenda - Checked In',
-            text:  'Auto check-in at ${_hhmm()} via office WiFi',
+            text: 'Auto check-in at ${_hhmm()} via office WiFi',
           );
           FlutterForegroundTask.sendDataToMain('checked_in');
           break;
 
         case 're_entered':
           await box.put(kCheckedInViaWifi, true);
-          await box.put(kLastKnownIp,      ip);
-          await box.put(kLastKnownSsid,    ssid);
+          await box.put(kLastKnownIp, ip);
+          await box.put(kLastKnownSsid, ssid);
           final gap = res.data['data']['gap_mins'] as int? ?? 0;
           await _updateNotification(
             title: 'Attenda - Back at Office',
-            text:  'Re-entered · ${gap}m away logged as break',
+            text: 'Re-entered · ${gap}m away logged as break',
           );
           FlutterForegroundTask.sendDataToMain('re_entered:$gap');
           break;
@@ -233,7 +234,7 @@ class AttendaTaskHandler extends TaskHandler {
           await box.put(kCheckedInViaWifi, true);
           await _updateNotification(
             title: 'Attenda - Checked In',
-            text:  'Office WiFi · Last ping ${_hhmm()}',
+            text: 'Office WiFi · Last ping ${_hhmm()}',
           );
           FlutterForegroundTask.sendDataToMain('already_in');
           break;
@@ -241,7 +242,7 @@ class AttendaTaskHandler extends TaskHandler {
         case 'no_networks_configured':
           await _updateNotification(
             title: 'Attenda',
-            text:  'Auto check-in off — no office networks set up',
+            text: 'Auto check-in off — no office networks set up',
           );
           FlutterForegroundTask.sendDataToMain('no_networks');
           break;
@@ -250,13 +251,14 @@ class AttendaTaskHandler extends TaskHandler {
           // On WiFi, but not a registered office network — stay quiet
           await _updateNotification(
             title: 'Attenda',
-            text:  'Not on office WiFi',
+            text: 'Not on office WiFi',
           );
           break;
       }
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
-        await _tryRefreshAndRetry(ip: ip, ssid: ssid, box: box, wasSending: 'ip_event');
+        await _tryRefreshAndRetry(
+            ip: ip, ssid: ssid, box: box, wasSending: 'ip_event');
       } else {
         debugPrint('[FG] IP-event network error: $e — queuing');
         await _queueEvent(ip: ip, ssid: ssid);
@@ -311,7 +313,7 @@ class AttendaTaskHandler extends TaskHandler {
       await box.put(kCheckedInViaWifi, false);
       await _updateNotification(
         title: 'Attenda',
-        text:  'Checked out',
+        text: 'Checked out',
       );
     } catch (e) {
       debugPrint('[FG] Manual checkout state update failed: $e');
@@ -324,10 +326,10 @@ class AttendaTaskHandler extends TaskHandler {
     try {
       if (!Hive.isBoxOpen(kQueueBox)) await Hive.openBox(kQueueBox);
       await Hive.box(kQueueBox).add(jsonEncode({
-        'type':      'ipMatch',
+        'type': 'ipMatch',
         'timestamp': DateTime.now().toIso8601String(),
-        'payload':   ip,
-        'ssid':      ssid,
+        'payload': ip,
+        'ssid': ssid,
       }));
     } catch (_) {}
   }
@@ -349,18 +351,18 @@ class AttendaTaskHandler extends TaskHandler {
   }
 
   Dio _buildDio(String token) => Dio(BaseOptions(
-        baseUrl:        kBaseUrl,
+        baseUrl: kBaseUrl,
         connectTimeout: const Duration(seconds: 15),
         receiveTimeout: const Duration(seconds: 15),
         headers: {
-          'Content-Type':  'application/json',
+          'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
       ));
 
   String _hhmm() {
     final n = DateTime.now();
-    return '${n.hour.toString().padLeft(2,'0')}:${n.minute.toString().padLeft(2,'0')}';
+    return '${n.hour.toString().padLeft(2, '0')}:${n.minute.toString().padLeft(2, '0')}';
   }
 
   Future<void> _updateNotification({
@@ -370,7 +372,7 @@ class AttendaTaskHandler extends TaskHandler {
     try {
       await FlutterForegroundTask.updateService(
         notificationTitle: title,
-        notificationText:  text,
+        notificationText: text,
       );
     } catch (_) {}
   }

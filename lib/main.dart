@@ -5,8 +5,8 @@ import 'package:provider/provider.dart';
 import 'services/auth_provider.dart';
 import 'services/wifi_service.dart';
 import 'router.dart';
+import 'screens/splash_screen.dart';
 import 'utils/theme.dart';
-import 'widgets/attenda_logo.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,21 +43,7 @@ class _AttendaAppState extends State<AttendaApp> {
       return MaterialApp(
         theme: AppTheme.glass,
         debugShowCheckedModeBanner: false,
-        home: Scaffold(
-          body: Container(
-            decoration: const BoxDecoration(gradient: AppGradients.mesh),
-            child: const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  AttendaLogo(iconSize: 52, variant: AttendaLogoVariant.dark),
-                  SizedBox(height: 32),
-                  CircularProgressIndicator(color: AppColors.primary600),
-                ],
-              ),
-            ),
-          ),
-        ),
+        home: const SplashScreen(),
       );
     }
 

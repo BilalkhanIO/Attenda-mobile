@@ -110,8 +110,11 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> startBreak({String breakType = 'manual'}) async {
-    final res = await _dio.post('/attendance/break/start', data: {'break_type': breakType});
+  Future<Map<String, dynamic>> startBreak({String breakType = 'manual', String? shiftBreakId}) async {
+    final res = await _dio.post('/attendance/break/start', data: {
+      'break_type': breakType,
+      if (shiftBreakId != null) 'shift_break_id': shiftBreakId,
+    });
     return res.data['data'] as Map<String, dynamic>;
   }
 
@@ -135,11 +138,13 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> reportIpEvent(String ip, {String? ssid}) async {
+  Future<Map<String, dynamic>> reportIpEvent(String ip, {String? ssid, bool? countAwayAsBreak, String? awayShiftBreakId}) async {
     final res = await _dio.post('/attendance/ip-event', data: {
       'ip':    ip,
       'event': 'match',
       if (ssid != null && ssid.isNotEmpty) 'ssid': ssid,
+      if (countAwayAsBreak != null) 'count_away_as_break': countAwayAsBreak,
+      if (awayShiftBreakId != null) 'away_shift_break_id': awayShiftBreakId,
     });
     return res.data['data'] as Map<String, dynamic>;
   }
@@ -260,6 +265,27 @@ class ApiService {
   // ─── Shifts ───────────────────────────────────────
   Future<List<dynamic>> getMyShifts() async {
     final res = await _dio.get('/shifts/assignments/me');
+    return res.data['data'] as List;
+  }
+
+  Future<Map<String, dynamic>> getShiftAssignmentDetail(String assignmentId) async {
+    final res = await _dio.get('/shifts/assignments/$assignmentId/detail');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> requestOvertime({
+    required String attendanceId,
+    String? reason,
+  }) async {
+    final res = await _dio.post('/overtime/requests', data: {
+      'attendance_id': attendanceId,
+      if (reason != null && reason.isNotEmpty) 'reason': reason,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> getMyOvertimeRequests() async {
+    final res = await _dio.get('/overtime/requests/me');
     return res.data['data'] as List;
   }
 
