@@ -118,8 +118,9 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> endBreak() async {
-    final res = await _dio.post('/attendance/break/end');
+  Future<Map<String, dynamic>> endBreak({bool wifiConnected = false}) async {
+    final res = await _dio.post('/attendance/break/end',
+        data: {'wifi_connected': wifiConnected});
     return res.data['data'] as Map<String, dynamic>;
   }
 

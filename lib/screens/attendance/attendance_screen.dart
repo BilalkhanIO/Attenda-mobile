@@ -436,10 +436,118 @@ class _RecordTile extends StatelessWidget {
                 _glassDetailRow('Override',
                     r['override_reason'] as String? ?? 'Overridden by manager',
                     highlight: true),
+              // ── Break history ────────────────────────────────────────────
+              Builder(builder: (_) {
+                final breaks = (r['break_records'] as List?)
+                        ?.cast<Map<String, dynamic>>() ??
+                    [];
+                if (breaks.isEmpty) return const SizedBox.shrink();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 14),
+                    const Divider(color: AppColors.glass12),
+                    const SizedBox(height: 10),
+                    const Text('Breaks',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white)),
+                    const SizedBox(height: 8),
+                    ...breaks.map((b) => _breakHistoryRow(b)),
+                  ],
+                );
+              }),
               const SizedBox(height: 6),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _breakHistoryRow(Map<String, dynamic> b) {
+    final name     = (b['break_type'] as String? ?? 'Break')
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+        .join(' ');
+    final start    = b['break_start'] != null
+        ? DateFormat('hh:mm a').format(DateTime.parse(b['break_start'] as String).toLocal())
+        : '—';
+    final end      = b['break_end'] != null
+        ? DateFormat('hh:mm a').format(DateTime.parse(b['break_end'] as String).toLocal())
+        : 'Ongoing';
+    final duration = _asInt(b['duration_mins']);
+    final late     = _asInt(b['late_return_minutes']) ?? 0;
+    final isPaid   = (b['is_paid'] as bool?) ?? false;
+    final autoEnded = (b['auto_ended'] as bool?) ?? false;
+    final wifiBack  = (b['wifi_on_at_end'] as bool?) ?? false;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: GlassCard(
+        tint: late > 0 ? AppColors.danger500 : null,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(
+              late > 0 ? Icons.running_with_errors : Icons.free_breakfast_outlined,
+              size: 14,
+              color: late > 0 ? AppColors.danger500 : AppColors.teal100,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(name,
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: late > 0 ? AppColors.danger500 : Colors.white)),
+            ),
+            if (isPaid)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.teal100.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text('Paid',
+                    style: TextStyle(fontSize: 10, color: AppColors.teal100, fontWeight: FontWeight.w600)),
+              ),
+          ]),
+          const SizedBox(height: 4),
+          Row(children: [
+            Text('$start → $end',
+                style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6))),
+            if (duration != null) ...[
+              const SizedBox(width: 6),
+              Text('· ${duration}m',
+                  style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5))),
+            ],
+          ]),
+          if (late > 0) ...[
+            const SizedBox(height: 4),
+            Row(children: [
+              Icon(Icons.warning_amber_rounded, size: 12, color: AppColors.danger500.withValues(alpha: 0.8)),
+              const SizedBox(width: 4),
+              Text('${late}m late returning',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.danger500.withValues(alpha: 0.9))),
+              if (!wifiBack) ...[
+                const SizedBox(width: 4),
+                Text('· off WiFi',
+                    style: TextStyle(fontSize: 11, color: AppColors.danger500.withValues(alpha: 0.6))),
+              ],
+            ]),
+          ],
+          if (autoEnded) ...[
+            const SizedBox(height: 2),
+            Text('Auto-closed at checkout',
+                style: TextStyle(fontSize: 10, color: Colors.white.withValues(alpha: 0.35))),
+          ],
+        ]),
       ),
     );
   }
