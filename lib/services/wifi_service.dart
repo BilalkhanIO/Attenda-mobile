@@ -395,6 +395,11 @@ class WifiAttendanceService {
         final raw = box.get(key) as String?;
         if (raw == null) continue;
         final event = OfflineEvent.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+        // Skip and discard events older than 2 hours — replaying stale check-ins creates wrong records
+        if (DateTime.now().difference(event.timestamp) > const Duration(hours: 2)) {
+          await box.delete(key);
+          continue;
+        }
         if (event.type == OfflineEventType.checkIn) {
           await api.checkIn(type: 'manual');
         } else if (event.type == OfflineEventType.ipMatch &&

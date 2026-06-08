@@ -124,11 +124,6 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> getBreakStatus() async {
-    final res = await _dio.get('/attendance/break/status');
-    return res.data['data'] as Map<String, dynamic>;
-  }
-
   Future<List<dynamic>> getMyRemoteSessions() async {
     final res = await _dio.get('/attendance/remote/sessions/me');
     return res.data['data'] as List;
@@ -357,7 +352,7 @@ class ApiService {
   }
 
   Future<void> verify2fa(String code) async {
-    await _dio.post('/auth/2fa/verify', data: {'token': code});
+    await _dio.post('/auth/2fa/verify', data: {'code': code});
   }
 
   Future<void> disable2fa(String code) async {

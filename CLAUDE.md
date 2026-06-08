@@ -58,7 +58,7 @@ JWT tokens (`access_token`, `refresh_token`) are persisted in `flutter_secure_st
 `WifiAttendanceService` is a singleton initialized in `main()` **before** `runApp`. It:
 - Registers a `Workmanager` periodic background task (`com.attenda.ipPoll`, every 5 minutes) to detect office WiFi even when the app is backgrounded
 - Listens to `connectivity_plus` for foreground WiFi connect/disconnect events
-- Implements a **5-minute grace period** timer: when the device leaves WiFi, it waits 5 minutes before triggering auto check-out (in case of brief network drops)
+- Implements a **10-minute grace period** timer: when the device leaves WiFi, it waits 10 minutes before triggering auto check-out (in case of brief network drops)
 - Queues failed events in a **Hive box** (`offline_queue`) and replays them on next connectivity restore
 - Blocks auto check-in if a VPN is detected
 

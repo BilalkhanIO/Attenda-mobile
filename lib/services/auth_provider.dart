@@ -124,12 +124,12 @@ class AuthProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  // Returns null on success, or the temp_token string if 2FA is required.
+  // Returns null on success, or the partial_token string if 2FA is required.
   Future<String?> login(String email, String password) async {
     final data = await api.login(email, password);
 
     if (data['requires_2fa'] == true) {
-      return data['temp_token'] as String?;
+      return data['partial_token'] as String?;
     }
 
     await _storage.write(key: 'access_token',  value: data['access_token'] as String);
