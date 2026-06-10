@@ -82,6 +82,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           final gap = int.tryParse(data ?? '0') ?? 0;
           _showSnack('✅ Returned to office — ${gap}m away logged as break');
           break;
+        case 're_entered_forgiven':
+          _load(silent: true);
+          _showSnack('✅ Reconnected — brief signal drop, no break logged');
+          break;
         case 'heartbeat_restored':
           // Capture overdue state BEFORE reload wipes it, then show after.
           final welcomeMsg = _overdueBreakWelcomeBack();

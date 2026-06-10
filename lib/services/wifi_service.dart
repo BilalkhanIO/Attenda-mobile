@@ -68,7 +68,8 @@ class WifiAttendanceService {
   void Function(String status, [String? data])? onStatusChange;
 
   // ── Grace / disconnect countdown (owned here so it survives tab-switch) ──
-  static const graceWindow = Duration(minutes: 10);
+  // Server-driven: updated from each heartbeat ack (org heartbeat_grace_mins).
+  Duration graceWindow = const Duration(minutes: 20);
   DateTime? disconnectDeadline;
   String?   disconnectSsid;
   DateTime? lastHeartbeatAt;
@@ -110,7 +111,8 @@ class WifiAttendanceService {
         playSound:        false,
       ),
       foregroundTaskOptions: ForegroundTaskOptions(
-        // Fire every 4 minutes — well within the server's 10-min heartbeat window
+        // Fire every 4 minutes — well within the server's heartbeat grace
+        // window (org-configurable, 20 min default)
         eventAction:             ForegroundTaskEventAction.repeat(4 * 60 * 1000),
         autoRunOnBoot:           true,
         autoRunOnMyPackageReplaced: true,
@@ -174,7 +176,7 @@ class WifiAttendanceService {
       _startFgHeartbeat();
       onStatusChange?.call('checked_in');
 
-    } else if (msg.startsWith('re_entered:')) {
+    } else if (msg.startsWith('re_entered:') || msg.startsWith('re_entered_forgiven:')) {
       _checkedInViaWifi    = true;
       noNetworksConfigured = false;
       vpnDetected          = false;
@@ -182,7 +184,8 @@ class WifiAttendanceService {
       _saveState();
       _startFgHeartbeat();
       final gap = msg.split(':').last;
-      onStatusChange?.call('re_entered', gap);
+      onStatusChange?.call(
+          msg.startsWith('re_entered_forgiven:') ? 're_entered_forgiven' : 're_entered', gap);
 
     } else if (msg == 'already_in') {
       _checkedInViaWifi    = true;
@@ -276,6 +279,10 @@ class WifiAttendanceService {
       switch (action) {
         case 'heartbeat_accepted':
           lastHeartbeatAt = DateTime.now();
+          final graceMins = result['grace_mins'] as int?;
+          if (graceMins != null && graceMins > 0) {
+            graceWindow = Duration(minutes: graceMins);
+          }
           _markReconnected(notify: true);
           break;
         case 'not_on_office_network':
@@ -313,7 +320,8 @@ class WifiAttendanceService {
           _markReconnected();
           _startFgHeartbeat();
           final gap = result['gap_mins'] as int? ?? 0;
-          onStatusChange?.call('re_entered', '$gap');
+          final forgiven = result['forgiven'] as bool? ?? false;
+          onStatusChange?.call(forgiven ? 're_entered_forgiven' : 're_entered', '$gap');
           break;
         case 'already_in':
           _checkedInViaWifi    = true;
@@ -399,8 +407,10 @@ class WifiAttendanceService {
         final raw = box.get(key) as String?;
         if (raw == null) continue;
         final event = OfflineEvent.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-        // Skip and discard events older than 2 hours — replaying stale check-ins creates wrong records
-        if (DateTime.now().difference(event.timestamp) > const Duration(hours: 2)) {
+        // Skip and discard events older than a full shift — replaying stale
+        // check-ins across days creates wrong records, but same-day events
+        // must survive long offline stretches (e.g. doze + poor signal).
+        if (DateTime.now().difference(event.timestamp) > const Duration(hours: 12)) {
           await box.delete(key);
           continue;
         }

@@ -52,10 +52,13 @@
             </intent-filter>
         </activity>
 
-        <!-- ── flutter_foreground_task persistent service ─ -->
+        <!-- ── flutter_foreground_task persistent service ─
+             Type must be "location" only: the dataSync type carries a hard
+             6-hour timeout on Android 15+ which would kill presence tracking
+             mid-shift. WiFi-based workplace presence is location-typed work. -->
         <service
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
-            android:foregroundServiceType="dataSync|location"
+            android:foregroundServiceType="location"
             android:stopWithTask="false"
             android:exported="false"/>
 
