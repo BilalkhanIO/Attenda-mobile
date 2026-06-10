@@ -106,8 +106,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
                         final shift    = (a['shift'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
                         final date     = DateTime.parse(a['date'] as String);
                         final isToday  = groupName == 'Today';
-                        final colorHex = shift['color'] as String? ?? '#00C896';
-                        final c        = Color(int.parse(colorHex.replaceFirst('#', '0xFF')));
+                        final c = parseHexColor(shift['color'] as String?,
+                            fallback: const Color(0xFF00C896));
 
                         items.add(Padding(
                           padding: const EdgeInsets.only(bottom: 8),

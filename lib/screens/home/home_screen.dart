@@ -2549,8 +2549,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final shiftName = shift?['name'] as String? ?? 'Shift';
     final startTime = shift?['start_time'] as String? ?? '--:--';
     final endTime = shift?['end_time'] as String? ?? '--:--';
-    final colorHex = shift?['color'] as String? ?? '#f15153';
-    final shiftColor = Color(int.parse(colorHex.replaceFirst('#', '0xFF')));
+    final shiftColor = parseHexColor(shift?['color'] as String?,
+        fallback: const Color(0xFFF15153));
 
     return GlassCard(
       child: Row(children: [

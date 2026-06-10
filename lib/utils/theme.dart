@@ -116,6 +116,16 @@ class AppGradients {
   );
 }
 
+/// Parses a server-provided "#RRGGBB" hex string. Malformed values fall back
+/// instead of throwing a FormatException mid-build.
+Color parseHexColor(String? hex, {Color fallback = AppColors.primary600}) {
+  if (hex == null) return fallback;
+  final cleaned = hex.replaceFirst('#', '');
+  if (cleaned.length != 6) return fallback;
+  final value = int.tryParse(cleaned, radix: 16);
+  return value == null ? fallback : Color(0xFF000000 | value);
+}
+
 // ─── Status Colors ────────────────────────────────────
 class StatusColors {
   static Color bg(String status) {

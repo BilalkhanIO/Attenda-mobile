@@ -1,7 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:attenda/models/capabilities.dart';
 import 'package:attenda/services/auth_provider.dart';
+import 'package:attenda/utils/theme.dart';
 
 void main() {
   group('AuthUser role helpers', () {
@@ -59,6 +61,21 @@ void main() {
       final caps = Capabilities.fromJson({});
       expect(caps.hasFeature('anything'), isFalse);
       expect(caps.hasPermission('anything'), isFalse);
+    });
+  });
+
+  group('parseHexColor', () {
+    test('parses #RRGGBB strings', () {
+      expect(parseHexColor('#00C896'), const Color(0xFF00C896));
+      expect(parseHexColor('00C896'), const Color(0xFF00C896));
+    });
+
+    test('falls back on malformed input', () {
+      const fallback = Color(0xFFF15153);
+      expect(parseHexColor(null, fallback: fallback), fallback);
+      expect(parseHexColor('', fallback: fallback), fallback);
+      expect(parseHexColor('#GGGGGG', fallback: fallback), fallback);
+      expect(parseHexColor('red', fallback: fallback), fallback);
     });
   });
 }
