@@ -346,6 +346,16 @@ class ApiService {
   }
 
   // ─── 2FA ──────────────────────────────────────────
+  /// Completes a 2FA login challenge. Returns the same payload as /auth/login
+  /// on success: {access_token, refresh_token, user}.
+  Future<Map<String, dynamic>> authenticate2fa(String partialToken, String code) async {
+    final res = await _dio.post('/auth/2fa/authenticate', data: {
+      'partial_token': partialToken,
+      'code': code,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> setup2fa() async {
     final res = await _dio.post('/auth/2fa/setup');
     return res.data['data'] as Map<String, dynamic>;

@@ -41,8 +41,9 @@ dart run build_runner watch --delete-conflicting-outputs
 ### Routing (`lib/router.dart`)
 `buildRouter(AuthProvider auth)` returns a `GoRouter` configured with:
 - `refreshListenable: auth` — router re-evaluates on every `notifyListeners()` call from auth
-- A `redirect` guard: unauthenticated requests go to `/login`; authenticated users on `/login` go to `/home`
-- A `ShellRoute` wrapping all five tabs via `AppShell` (bottom nav). Two routes — `/attendance/qr` and `/leave/request` — use `parentNavigatorKey: _rootKey` so they render full-screen above the shell.
+- A `redirect` guard: unauthenticated requests go to `/login` (or `/2fa` during a pending 2FA challenge); authenticated users on `/login` or `/2fa` go to `/home`
+- `/2fa` (TwoFactorScreen) completes a 2FA-challenged login: `AuthProvider.login()` returns the `partial_token` from the backend, LoginScreen passes it via GoRouter `extra`, and the screen calls `AuthProvider.complete2faLogin()` → `POST /auth/2fa/authenticate`
+- A `ShellRoute` wrapping all five tabs via `AppShell` (bottom nav). Overlay routes (`/attendance/qr`, `/leave/request`, profile settings screens) use `parentNavigatorKey: _rootKey` so they render full-screen above the shell.
 
 ### API Layer (`lib/services/api_service.dart`)
 Single `ApiService` singleton exposed as the top-level `api` constant. All HTTP calls go through a single `Dio` instance with two interceptors:
@@ -54,13 +55,14 @@ The base URL is resolved at compile time via `String.fromEnvironment('API_URL')`
 ### Auth (`lib/services/auth_provider.dart`)
 JWT tokens (`access_token`, `refresh_token`) are persisted in `flutter_secure_storage`. On app start, `_init()` reads and decodes the access token; if valid and non-expired, the user is restored without a network call. `AuthUser` exposes role helpers (`isManager`, `isHRAdmin`, `isSuperAdmin`).
 
-### WiFi Auto Check-in (`lib/services/wifi_service.dart`)
+### WiFi Auto Check-in (`lib/services/wifi_service.dart` + `lib/services/foreground_service.dart`)
 `WifiAttendanceService` is a singleton initialized in `main()` **before** `runApp`. It:
-- Registers a `Workmanager` periodic background task (`com.attenda.ipPoll`, every 5 minutes) to detect office WiFi even when the app is backgrounded
-- Listens to `connectivity_plus` for foreground WiFi connect/disconnect events
-- Implements a **10-minute grace period** timer: when the device leaves WiFi, it waits 10 minutes before triggering auto check-out (in case of brief network drops)
-- Queues failed events in a **Hive box** (`offline_queue`) and replays them on next connectivity restore
-- Blocks auto check-in if a VPN is detected
+- Runs a persistent Android foreground service (`flutter_foreground_task`) whose `AttendaTaskHandler` (separate isolate, `foreground_service.dart`) fires every **4 minutes** to detect office WiFi even when the app is backgrounded or killed; events bubble back to the UI isolate via `FlutterForegroundTask.sendDataToMain`
+- Listens to `connectivity_plus` for foreground WiFi connect/disconnect events, and runs an immediate check on resume/tab-switch (throttled to once per 30 s)
+- Calls `POST /attendance/ip-event` (`event: 'match'`) to check in and `POST /attendance/heartbeat` every 4 min to stay within the server's 10-minute heartbeat window
+- Implements a **10-minute grace period**: when heartbeats are lost, the server auto-checks-out after 10 minutes; the client tracks `disconnectDeadline` to drive countdown UI
+- Queues failed events in a **Hive box** (`offline_queue`) and replays them on next connectivity restore (events older than 2 h are discarded)
+- Blocks auto check-in if a VPN is detected; the flag clears on the next successful check-in/heartbeat
 
 ### Theming (`lib/utils/theme.dart`)
 All design tokens live in `AppColors` (Tailwind-style naming, e.g. `primary600`, `gray200`). `StatusColors` maps attendance status strings (`'in'`, `'late'`, `'absent'`, `'remote'`, `'leave'`) to background color, foreground color, display label, and icon. `AppTheme.light` is the single `ThemeData` used throughout.

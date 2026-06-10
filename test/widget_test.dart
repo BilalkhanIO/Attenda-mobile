@@ -1,30 +1,81 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:shimmer/main.dart';
+import 'package:attenda/models/capabilities.dart';
+import 'package:attenda/services/auth_provider.dart';
+import 'package:attenda/utils/theme.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  group('AuthUser role helpers', () {
+    AuthUser userWithRole(String role) => AuthUser(
+          id: 'u1',
+          orgId: 'o1',
+          role: role,
+          name: 'Test User',
+          email: 'test@example.com',
+        );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    test('employee has no elevated roles', () {
+      final u = userWithRole('employee');
+      expect(u.isManager, isFalse);
+      expect(u.isHRAdmin, isFalse);
+      expect(u.isSuperAdmin, isFalse);
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    test('manager is manager but not HR admin', () {
+      final u = userWithRole('manager');
+      expect(u.isManager, isTrue);
+      expect(u.isHRAdmin, isFalse);
+      expect(u.isSuperAdmin, isFalse);
+    });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    test('hr_admin is manager and HR admin but not super admin', () {
+      final u = userWithRole('hr_admin');
+      expect(u.isManager, isTrue);
+      expect(u.isHRAdmin, isTrue);
+      expect(u.isSuperAdmin, isFalse);
+    });
+
+    test('super_admin has all role helpers', () {
+      final u = userWithRole('super_admin');
+      expect(u.isManager, isTrue);
+      expect(u.isHRAdmin, isTrue);
+      expect(u.isSuperAdmin, isTrue);
+    });
+  });
+
+  group('Capabilities', () {
+    test('parses features and permissions from JSON', () {
+      final caps = Capabilities.fromJson({
+        'features': {'leave_management': true, 'shifts': false},
+        'permissions': ['attendance.view', 'leave.request'],
+      });
+      expect(caps.hasFeature('leave_management'), isTrue);
+      expect(caps.hasFeature('shifts'), isFalse);
+      expect(caps.hasFeature('unknown_feature'), isFalse);
+      expect(caps.hasPermission('attendance.view'), isTrue);
+      expect(caps.hasPermission('payroll.manage'), isFalse);
+    });
+
+    test('tolerates missing keys', () {
+      final caps = Capabilities.fromJson({});
+      expect(caps.hasFeature('anything'), isFalse);
+      expect(caps.hasPermission('anything'), isFalse);
+    });
+  });
+
+  group('parseHexColor', () {
+    test('parses #RRGGBB strings', () {
+      expect(parseHexColor('#00C896'), const Color(0xFF00C896));
+      expect(parseHexColor('00C896'), const Color(0xFF00C896));
+    });
+
+    test('falls back on malformed input', () {
+      const fallback = Color(0xFFF15153);
+      expect(parseHexColor(null, fallback: fallback), fallback);
+      expect(parseHexColor('', fallback: fallback), fallback);
+      expect(parseHexColor('#GGGGGG', fallback: fallback), fallback);
+      expect(parseHexColor('red', fallback: fallback), fallback);
+    });
   });
 }
