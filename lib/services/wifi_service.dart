@@ -168,6 +168,7 @@ class WifiAttendanceService {
     if (msg == 'checked_in') {
       _checkedInViaWifi    = true;
       noNetworksConfigured = false;
+      vpnDetected          = false;
       _markReconnected();
       _saveState();
       _startFgHeartbeat();
@@ -176,6 +177,7 @@ class WifiAttendanceService {
     } else if (msg.startsWith('re_entered:')) {
       _checkedInViaWifi    = true;
       noNetworksConfigured = false;
+      vpnDetected          = false;
       _markReconnected();
       _saveState();
       _startFgHeartbeat();
@@ -185,12 +187,14 @@ class WifiAttendanceService {
     } else if (msg == 'already_in') {
       _checkedInViaWifi    = true;
       noNetworksConfigured = false;
+      vpnDetected          = false;
       _markReconnected();
       _saveState();
       _startFgHeartbeat();
 
     } else if (msg == 'heartbeat_accepted') {
       lastHeartbeatAt = DateTime.now();
+      vpnDetected     = false;
       _markReconnected(notify: true);
 
     } else if (msg.startsWith('heartbeat_lost:')) {

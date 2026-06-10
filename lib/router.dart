@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_provider.dart';
 import '../screens/auth/login_screen.dart';
+import '../screens/auth/two_factor_screen.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/attendance/attendance_screen.dart';
 import '../screens/attendance/qr_scanner_screen.dart';
@@ -27,9 +28,9 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
   initialLocation: '/home',
   redirect: (context, state) {
     final loggedIn = auth.isAuthenticated;
-    final loggingIn = state.matchedLocation == '/login';
-    if (!loggedIn && !loggingIn) return '/login';
-    if (loggedIn && loggingIn) return '/home';
+    final onAuthRoute = state.matchedLocation == '/login' || state.matchedLocation == '/2fa';
+    if (!loggedIn && !onAuthRoute) return '/login';
+    if (loggedIn && onAuthRoute) return '/home';
 
     if (loggedIn) {
       if (state.matchedLocation.startsWith('/leave') && !auth.hasFeature('leave_management')) return '/home';
@@ -41,6 +42,11 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
   },
   routes: [
     GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+    GoRoute(
+      path: '/2fa',
+      redirect: (_, state) => state.extra is String ? null : '/login',
+      builder: (_, state) => TwoFactorScreen(partialToken: state.extra as String),
+    ),
 
     ShellRoute(
       navigatorKey: _shellKey,

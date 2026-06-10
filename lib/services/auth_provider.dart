@@ -132,6 +132,17 @@ class AuthProvider extends ChangeNotifier {
       return data['partial_token'] as String?;
     }
 
+    await _handleAuthSuccess(data);
+    return null;
+  }
+
+  /// Completes a 2FA-challenged login using the partial token from [login].
+  Future<void> complete2faLogin(String partialToken, String code) async {
+    final data = await api.authenticate2fa(partialToken, code);
+    await _handleAuthSuccess(data);
+  }
+
+  Future<void> _handleAuthSuccess(Map<String, dynamic> data) async {
     await _storage.write(key: 'access_token',  value: data['access_token'] as String);
     await _storage.write(key: 'refresh_token', value: data['refresh_token'] as String);
 
@@ -157,13 +168,12 @@ class AuthProvider extends ChangeNotifier {
         phone: me['phone'] as String?,
         totpEnabled: me['totp_enabled'] as bool? ?? false,
       );
-      
+
       final caps = await api.getMyCapabilities();
       _capabilities = Capabilities.fromJson(caps);
-      
+
       notifyListeners();
     } catch (_) {}
-    return null;
   }
 
   Future<void> logout() async {
