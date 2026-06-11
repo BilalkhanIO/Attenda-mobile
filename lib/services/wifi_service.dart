@@ -20,7 +20,7 @@ import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -147,6 +147,12 @@ class WifiAttendanceService {
       callback:          startForegroundCallback,
     );
     debugPrint('[WiFi] FG service start → $result');
+  }
+
+  /// Public hook for the reliability screen: (re)start the service if needed.
+  Future<bool> ensureServiceRunning() async {
+    await _startService();
+    return FlutterForegroundTask.isRunningService;
   }
 
   /// Tells the background task the user manually checked out.
