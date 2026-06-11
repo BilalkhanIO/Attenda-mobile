@@ -34,6 +34,12 @@ class ApiService {
               final res = await Dio().post('$_baseUrl/auth/refresh', data: {'refresh_token': refresh});
               final newToken = res.data['data']['access_token'] as String;
               await _storage.write(key: 'access_token', value: newToken);
+              // Rotation: store the successor refresh token — reusing the old
+              // one would revoke the whole token family on the server.
+              final rotated = res.data['data']['refresh_token'] as String?;
+              if (rotated != null) {
+                await _storage.write(key: 'refresh_token', value: rotated);
+              }
               error.requestOptions.headers['Authorization'] = 'Bearer $newToken';
               final retry = await dio.fetch(error.requestOptions);
               return handler.resolve(retry);
