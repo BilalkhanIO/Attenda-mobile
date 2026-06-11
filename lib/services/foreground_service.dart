@@ -223,11 +223,17 @@ class AttendaTaskHandler extends TaskHandler {
           await box.put(kLastKnownIp, ip);
           await box.put(kLastKnownSsid, ssid);
           final gap = res.data['data']['gap_mins'] as int? ?? 0;
+          // Short same-network gaps (screen off / Doze) are forgiven by the
+          // server: no break is logged and the day continues uninterrupted.
+          final forgiven = res.data['data']['forgiven'] as bool? ?? false;
           await _updateNotification(
-            title: 'Attenda - Back at Office',
-            text: 'Re-entered · ${gap}m away logged as break',
+            title: forgiven ? 'Attenda - Still Checked In' : 'Attenda - Back at Office',
+            text: forgiven
+                ? 'Brief signal drop (${gap}m) — no break logged'
+                : 'Re-entered · ${gap}m away logged as break',
           );
-          FlutterForegroundTask.sendDataToMain('re_entered:$gap');
+          FlutterForegroundTask.sendDataToMain(
+              forgiven ? 're_entered_forgiven:$gap' : 're_entered:$gap');
           break;
 
         case 'already_in':
