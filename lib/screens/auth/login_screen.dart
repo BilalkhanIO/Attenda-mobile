@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_provider.dart';
+import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
@@ -43,19 +44,17 @@ class _LoginScreenState extends State<LoginScreen> {
         context.go('/home');
       }
     } catch (e) {
-      setState(() { _error = _parseError(e.toString()); });
+      final failure = ApiFailure.fromError(e);
+      setState(() {
+        // Login-specific copy for bad credentials; everything else uses the
+        // failure's own message.
+        _error = failure is UnauthorizedFailure
+            ? 'Invalid email or password'
+            : failure.userMessage;
+      });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
-  }
-
-  String _parseError(String raw) {
-    if (raw.contains('401')) return 'Invalid email or password';
-    if (raw.contains('423')) return 'Account locked. Try again in 30 minutes.';
-    if (raw.contains('SocketException') || raw.contains('Connection')) {
-      return 'Cannot connect to server. Check your network.';
-    }
-    return 'Something went wrong. Please try again.';
   }
 
   @override
