@@ -183,7 +183,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ? (jsonDecode(recordJson) as Map<String, dynamic>)
           : null;
       setState(() {
-        if (_todayStatus == null) _todayStatus = cachedStatus;
+        _todayStatus ??= cachedStatus;
         if (_todayRecord == null && cachedRecord != null && cachedRecord.isNotEmpty) {
           _todayRecord = cachedRecord;
         }
@@ -347,7 +347,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final shift = (_todayStatus?['shift'] as Map?)?.cast<String, dynamic>();
     final start = _parseLocal(shift?['shift_start_utc']);
     if (start == null || _checkedIn || _checkedOut) return 0;
-    final minutes = DateTime.now().difference(start).inMinutes;
+    // Use server-corrected _now (not device DateTime.now()) so this matches the
+    // break countdowns and the server's pre_checkin_late_minutes under clock skew.
+    final minutes = _now.difference(start).inMinutes;
     return minutes > 0 ? minutes : 0;
   }
 
@@ -1961,7 +1963,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       final shiftStart = _getShiftStartMins();
       final shiftEnd = _getShiftEndMins();
-      final nowMins = DateTime.now().hour * 60 + DateTime.now().minute;
+      // Server-corrected _now keeps the progress ring in sync with the elapsed
+      // timer and break countdowns (which all use _now) under device clock skew.
+      final nowMins = _now.hour * 60 + _now.minute;
       final shiftPct =
           ((nowMins - shiftStart) / (shiftEnd - shiftStart)).clamp(0.0, 1.0);
 
@@ -2273,9 +2277,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             .map<Map<String, dynamic>>((b) {
               final state     = b['break_state'] as String? ?? 'upcoming';
               final breakEnd  = _parseLocal(b['break_end_utc']);
-              final minsLeft  = breakEnd != null
-                  ? breakEnd.difference(_now).inMinutes
-                  : null;
+              final minsLeft  = breakEnd?.difference(_now).inMinutes;
 
               // State badge shown as suffix in the subtitle
               String badge = '';
