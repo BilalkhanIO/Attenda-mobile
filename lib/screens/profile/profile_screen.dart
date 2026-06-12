@@ -131,6 +131,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               context.push('/profile/settings/notifications')),
                       _settingsRow(Icons.shield_outlined, 'Security & 2FA',
                           () => context.push('/profile/settings/security')),
+                      _settingsRow(Icons.track_changes_outlined, 'Tracking Reliability',
+                          () => context.push('/profile/settings/reliability')),
                       _settingsRow(Icons.palette_outlined, 'Appearance',
                           () => context.push('/profile/settings/appearance')),
 

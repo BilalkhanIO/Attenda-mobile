@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../services/api_failure.dart';
 import '../../services/auth_provider.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
@@ -40,8 +41,8 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
       if (mounted) context.go('/home');
     } catch (e) {
       if (!mounted) return;
-      final raw = e.toString();
-      if (raw.contains('429')) {
+      final failure = ApiFailure.fromError(e);
+      if (failure is RateLimitedFailure) {
         // Attempt limit reached — the partial token is burned; restart login.
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Too many failed attempts. Please sign in again.'),
@@ -50,11 +51,14 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
         return;
       }
       setState(() {
-        _error = raw.contains('401') && raw.toLowerCase().contains('token')
-            ? 'Your session expired. Please sign in again.'
-            : raw.contains('401')
-                ? 'Invalid code. Please try again.'
-                : 'Something went wrong. Please try again.';
+        _error = switch (failure) {
+          // Expired/invalid partial token vs a wrong code — the server tags
+          // the former with code INVALID_TOKEN.
+          UnauthorizedFailure(serverCode: 'INVALID_TOKEN') =>
+            'Your session expired. Please sign in again.',
+          UnauthorizedFailure() => 'Invalid code. Please try again.',
+          _ => failure.userMessage,
+        };
       });
     } finally {
       if (mounted) setState(() => _loading = false);

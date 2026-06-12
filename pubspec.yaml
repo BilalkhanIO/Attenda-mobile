@@ -63,8 +63,8 @@ dependencies:
   flutter_foreground_task: ^9.0.0
 
   # Offline queue
-  hive: ^2.2.3
-  hive_flutter: ^1.1.0
+  hive_ce: ^2.19.0
+  hive_ce_flutter: ^2.0.0
 
 dev_dependencies:
   flutter_test:
