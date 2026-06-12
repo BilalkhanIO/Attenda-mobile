@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/auth_provider.dart';
+import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
 import '../../services/wifi_service.dart';
 import '../../utils/theme.dart';
@@ -33,6 +35,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Duration _elapsed = Duration.zero;
   int _unreadNotifs = 0;
 
+  // Offline indicator — fed by connectivity_plus, shown as a thin banner.
+  StreamSubscription<List<ConnectivityResult>>? _connSub;
+  bool _offline = false;
+
   // Auto-started break acknowledgement + deferred reminder state.
   final Set<String> _acknowledgedAutoBreaks = {};
   List<Map<String, dynamic>> _deferredReminders = [];
@@ -55,6 +61,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     _startTimer();
     _startAutoRefresh();
+
+    // Offline banner: connectivity_plus reports [none] when fully offline.
+    Connectivity().checkConnectivity().then((results) {
+      final offline = results.every((r) => r == ConnectivityResult.none);
+      if (mounted && offline != _offline) setState(() => _offline = offline);
+    }).catchError((_) {});
+    _connSub = Connectivity().onConnectivityChanged.listen((results) {
+      final offline = results.every((r) => r == ConnectivityResult.none);
+      if (mounted && offline != _offline) setState(() => _offline = offline);
+    });
 
     // The service owns the connection state; the callback only refreshes the
     // UI and runs side effects (snack / data reload). Reading state via getters
@@ -123,6 +139,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _timer?.cancel();
     _refreshTimer?.cancel();
     _flashTimer?.cancel();
+    _connSub?.cancel();
     WifiAttendanceService().onStatusChange = null;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -526,6 +543,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   duration: const Duration(milliseconds: 280),
                   curve: Curves.easeOutCubic,
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    if (_offline) _offlineBanner(),
                     if (_vpnDetected) _vpnBanner(),
                     if (_noNetworksConfig && !_vpnDetected) _noNetworksBanner(),
                     if (!_loading &&
@@ -677,6 +695,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget _offlineBanner() => _glassBanner(
+        icon: Icons.cloud_off_rounded,
+        text: "You're offline — showing the last synced data.",
+        tint: AppColors.warning500,
+      );
+
   Widget _vpnBanner() => _glassBanner(
         icon: Icons.vpn_lock,
         text: 'VPN detected — auto check-in is disabled. Use QR scan instead.',
@@ -737,10 +761,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               if (id == null) return;
               try {
                 await api.cancelLateNotice(id);
+                if (!mounted) return;
                 setState(() => _lateNotice = null);
                 _showSnack('Late notice cancelled');
-              } catch (_) {
-                _showSnack('Could not cancel notice');
+              } catch (e) {
+                _showSnack(ApiFailure.fromError(e).userMessage, isError: true);
               }
             },
             child: Icon(Icons.close,
@@ -818,8 +843,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _showSnack(
           'Reminder set — you\'ll be notified in ${reminderMins}m to take ${b['name'] ?? 'your break'}');
       await _load(silent: true);
-    } catch (_) {
-      _showSnack('Could not defer break', isError: true);
+    } catch (e) {
+      _showSnack(ApiFailure.fromError(e).userMessage, isError: true);
     } finally {
       if (mounted) setState(() => _actionLoading = false);
     }
@@ -1602,8 +1627,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   Navigator.pop(ctx);
                   _showSnack('Request submitted ✅');
                   _load(silent: true);
-                } catch (_) {
-                  _showSnack('Failed to submit. Try again.', isError: true);
+                } catch (e) {
+                  _showSnack(ApiFailure.fromError(e).userMessage,
+                      isError: true);
                 }
               },
               child: const Text('Submit'),
@@ -1940,8 +1966,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           reason: 'Worked ${extraOfficeMins}m after shift end',
                         );
                         _showSnack('Overtime request sent');
-                      } catch (_) {
-                        _showSnack('Could not request overtime', isError: true);
+                      } catch (e) {
+                        _showSnack(ApiFailure.fromError(e).userMessage,
+                            isError: true);
                       } finally {
                         if (mounted) setState(() => _actionLoading = false);
                       }
@@ -2131,7 +2158,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             await _load();
                             _showSnack('Checked out ✅');
                           } catch (e) {
-                            _showSnack('Failed to check out', isError: true);
+                            _showSnack(ApiFailure.fromError(e).userMessage,
+                                isError: true);
                           } finally {
                             if (mounted) setState(() => _actionLoading = false);
                           }
@@ -2374,8 +2402,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
       await _load();
       _showSnack('Break started ☕');
-    } catch (_) {
-      _showSnack('Could not start break', isError: true);
+    } catch (e) {
+      _showSnack(ApiFailure.fromError(e).userMessage, isError: true);
     } finally {
       if (mounted) setState(() => _actionLoading = false);
     }
@@ -2391,8 +2419,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       await api.endBreak(wifiConnected: wifiConnected);
       await _load();
       _showSnack('Break ended — welcome back!');
-    } catch (_) {
-      _showSnack('Could not end break', isError: true);
+    } catch (e) {
+      _showSnack(ApiFailure.fromError(e).userMessage, isError: true);
     } finally {
       if (mounted) setState(() => _actionLoading = false);
     }

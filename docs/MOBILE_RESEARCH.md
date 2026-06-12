@@ -128,12 +128,13 @@ not a port.
 ## Ranked implementation roadmap (impact × effort)
 
 ### Tier 1 — days
-1. **hive → hive_ce** swap (imports + pubspec; verify with `flutter test` in CI). Unmaintained
-   storage under the offline queue is the biggest latent risk.
-2. **Sealed failure mapping** for Dio in one place; kill the string-matching in login/2FA screens.
-3. **Reliability-check screen** using existing deps (battery-optimization status + request,
-   notification & location permission states, service-running check, last-heartbeat timestamp).
-4. **CI workflow** (analyze + test) — prerequisite for everything else.
+1. ✅ **hive → hive_ce** swap (imports + pubspec; verify with `flutter test` in CI). Unmaintained
+   storage under the offline queue is the biggest latent risk. *(done)*
+2. ✅ **Sealed failure mapping** for Dio in one place; kill the string-matching in login/2FA screens.
+   *(done — 2026-06-12: sweep extended to ALL screens; no raw `e.toString()` snackbars remain)*
+3. ✅ **Reliability-check screen** using existing deps (battery-optimization status + request,
+   notification & location permission states, service-running check, last-heartbeat timestamp). *(done)*
+4. ✅ **CI workflow** (analyze + test) — prerequisite for everything else. *(done)*
 
 ### Tier 2 — 2–6 weeks
 5. **FCM wiring** (needs Firebase project from owner) → device-token endpoint → presence-challenge
@@ -149,7 +150,22 @@ not a port.
    Listenable bridge.
 10. Widget/golden test suite; integration tests for check-in flows.
 11. Certificate pinning + root detection + obfuscation flags.
-12. Quick-action UX pass (running-late shortcut, offline banner, shift acknowledgment) per §4.
+12. ◐ Quick-action UX pass (running-late shortcut, offline banner, shift acknowledgment) per §4.
+    *(2026-06-12: offline banner shipped on home; running-late shortcut was already one tap from
+    the not-checked-in card; shift acknowledgment still pending)*
+
+### Completed flows (2026-06-12 audit pass)
+- **Shift swap creation** — swap-request bottom sheet on Schedule (pick own assignment +
+  colleague's assignment via `GET /shifts/schedule`; employees without `shifts.view` get a
+  graceful fallback note since the API requires `target_assign_id`).
+- **Overtime request** — attendance history detail sheet offers "Request Overtime" for records
+  with unclaimed `extra_office_minutes`; shows existing request status (from
+  `GET /overtime/requests/me`).
+- **Edit profile personal details** — DOB, gender, address, city, country, emergency contact
+  wired to `PUT /users/me`, prefilled from `GET /users/me`.
+- **Bug sweep** — setState-after-dispose / missing-mounted guards across screens; pagination
+  setState-during-build fix in notifications; swap-tile "With:" showed own name when user was the
+  target; half-day "½ working days" plural.
 
 ### Tier 4 — strategic
 13. iOS product decision (geofence + deliberate punch model, per ATTENDANCE_RESEARCH.md).

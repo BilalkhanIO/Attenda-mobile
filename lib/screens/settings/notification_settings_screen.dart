@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
@@ -50,8 +51,12 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
     setState(() { _prefs[key] = val; _saving = true; });
     try {
       await api.updateNotificationPrefs(Map.from(_prefs).cast<String, bool>());
-    } catch (_) {
-      if (mounted) setState(() => _prefs[key] = !val); // revert
+    } catch (e) {
+      if (mounted) {
+        setState(() => _prefs[key] = !val); // revert
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(ApiFailure.fromError(e).userMessage)));
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

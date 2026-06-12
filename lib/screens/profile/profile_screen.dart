@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/auth_provider.dart';
+import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
@@ -28,11 +29,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _load();
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -51,6 +47,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             : Future.value([]),
       ]);
 
+      if (!mounted) return;
       setState(() {
         _profile = results[0] as Map<String, dynamic>;
         _payslips = (results[1] as List).cast<Map<String, dynamic>>();
@@ -59,9 +56,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _loading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = e.toString();
+        _error = ApiFailure.fromError(e).userMessage;
       });
     }
   }
@@ -305,10 +303,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                           if (context.mounted) {
                                                             ScaffoldMessenger
                                                                     .of(context)
-                                                                .showSnackBar(
-                                                                    SnackBar(
-                                                                        content:
-                                                                            Text('Download failed: $e')));
+                                                                .showSnackBar(SnackBar(
+                                                                    content: Text(
+                                                                        ApiFailure.fromError(e)
+                                                                            .userMessage)));
                                                           }
                                                         }
                                                       },

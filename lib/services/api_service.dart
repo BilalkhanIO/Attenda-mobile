@@ -296,6 +296,15 @@ class ApiService {
     return res.data['data'] as List;
   }
 
+  /// Org-wide assignments for the 7-day window starting [weekStart]
+  /// (yyyy-MM-dd). Requires shifts.view — employees without it get a 403.
+  Future<List<dynamic>> getOrgSchedule({String? weekStart}) async {
+    final res = await _dio.get('/shifts/schedule', queryParameters: {
+      if (weekStart != null) 'week_start': weekStart,
+    });
+    return res.data['data'] as List;
+  }
+
   Future<Map<String, dynamic>> requestSwap(Map<String, dynamic> data) async {
     final res = await _dio.post('/shifts/swaps', data: data);
     return res.data['data'] as Map<String, dynamic>;

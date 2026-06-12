@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
@@ -27,12 +28,15 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
     setState(() => _loading = true);
     try {
       final [reqs, bals] = await Future.wait([api.getMyLeaveRequests(), api.getMyLeaveBalance()]);
+      if (!mounted) return;
       setState(() {
         _requests = reqs.cast<Map<String, dynamic>>();
         _balances = bals.cast<Map<String, dynamic>>();
         _loading  = false;
       });
-    } catch (_) { setState(() => _loading = false); }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
@@ -207,8 +211,15 @@ class _LeaveRequestTile extends StatelessWidget {
                 confirmLabel: 'Cancel Request',
               );
               if (ok == true) {
-                await api.cancelLeave(request['id'] as String);
-                onCancel?.call();
+                try {
+                  await api.cancelLeave(request['id'] as String);
+                  onCancel?.call();
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(ApiFailure.fromError(e).userMessage)));
+                  }
+                }
               }
             },
           ),
