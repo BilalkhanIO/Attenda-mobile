@@ -1,7 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_provider.dart';
 import '../../utils/theme.dart';
@@ -16,8 +18,25 @@ class EditProfileScreen extends StatefulWidget {
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
+  final _addressCtrl = TextEditingController();
+  final _cityCtrl = TextEditingController();
+  final _countryCtrl = TextEditingController();
+  final _emergencyNameCtrl = TextEditingController();
+  final _emergencyPhoneCtrl = TextEditingController();
+  DateTime? _dob;
+  String _gender = ''; // '' = prefer not to say
   bool _loading = false;
+  // Personal details are only written back once they've been prefilled from
+  // the server, so a failed GET /users/me can't silently wipe stored values.
+  bool _detailsLoaded = false;
   String? _error;
+
+  static const _genderOptions = [
+    ('', 'Prefer not to say'),
+    ('male', 'Male'),
+    ('female', 'Female'),
+    ('other', 'Other'),
+  ];
 
   @override
   void initState() {
@@ -25,13 +44,57 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final user = context.read<AuthProvider>().user!;
     _nameCtrl.text = user.name;
     _phoneCtrl.text = user.phone ?? '';
+    _loadDetails();
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
+    _addressCtrl.dispose();
+    _cityCtrl.dispose();
+    _countryCtrl.dispose();
+    _emergencyNameCtrl.dispose();
+    _emergencyPhoneCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadDetails() async {
+    try {
+      final me = await api.getMe();
+      if (!mounted) return;
+      setState(() {
+        _nameCtrl.text = me['name'] as String? ?? _nameCtrl.text;
+        _phoneCtrl.text = me['phone'] as String? ?? _phoneCtrl.text;
+        _addressCtrl.text = me['address'] as String? ?? '';
+        _cityCtrl.text = me['city'] as String? ?? '';
+        _countryCtrl.text = me['country'] as String? ?? '';
+        _emergencyNameCtrl.text = me['emergency_contact_name'] as String? ?? '';
+        _emergencyPhoneCtrl.text = me['emergency_contact_phone'] as String? ?? '';
+        final dobStr = me['date_of_birth'] as String?;
+        _dob = dobStr != null ? DateTime.tryParse(dobStr) : null;
+        final gender = me['gender'] as String? ?? '';
+        _gender = _genderOptions.any((o) => o.$1 == gender) ? gender : '';
+        _detailsLoaded = true;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error =
+            'Couldn\'t load your saved details — ${ApiFailure.fromError(e).userMessage}');
+      }
+    }
+  }
+
+  Future<void> _pickDob() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dob ?? DateTime(now.year - 25),
+      firstDate: DateTime(now.year - 100),
+      lastDate: now,
+      builder: (ctx, child) => Theme(data: AppTheme.glass, child: child!),
+    );
+    if (picked != null && mounted) setState(() => _dob = picked);
   }
 
   Future<void> _save() async {
@@ -46,13 +109,26 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _error = null;
     });
     try {
-      await api.updateProfile(
-          name: name, phone: phone.isNotEmpty ? phone : null);
+      final data = <String, dynamic>{
+        'name': name,
+        'phone': phone.isNotEmpty ? phone : null,
+        if (_detailsLoaded) ...{
+          'date_of_birth':
+              _dob != null ? DateFormat('yyyy-MM-dd').format(_dob!) : null,
+          'gender': _gender,
+          'address': _addressCtrl.text.trim(),
+          'city': _cityCtrl.text.trim(),
+          'country': _countryCtrl.text.trim(),
+          'emergency_contact_name': _emergencyNameCtrl.text.trim(),
+          'emergency_contact_phone': _emergencyPhoneCtrl.text.trim(),
+        },
+      };
+      await api.updateMe(data);
       if (!mounted) return;
       await context.read<AuthProvider>().refreshUser();
       if (mounted) context.pop();
     } catch (e) {
-      setState(() => _error = 'Failed to save. Please try again.');
+      if (mounted) setState(() => _error = ApiFailure.fromError(e).userMessage);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -122,6 +198,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ]),
               ),
             ],
+
+            _sectionLabel('BASICS'),
+            const SizedBox(height: 10),
             GlassCard(
               padding: const EdgeInsets.all(20),
               child: Column(children: [
@@ -148,6 +227,113 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
               ]),
             ),
+
+            const SizedBox(height: 24),
+            _sectionLabel('PERSONAL DETAILS'),
+            const SizedBox(height: 10),
+            GlassCard(
+              padding: const EdgeInsets.all(20),
+              child: Column(children: [
+                // Date of birth
+                GestureDetector(
+                  onTap: _pickDob,
+                  child: AbsorbPointer(
+                    child: TextFormField(
+                      key: ValueKey('dob-${_dob?.toIso8601String() ?? ''}'),
+                      initialValue: _dob != null
+                          ? DateFormat('d MMMM yyyy').format(_dob!)
+                          : '',
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Date of Birth',
+                        hintText: 'Select date',
+                        prefixIcon: Icon(Icons.cake_outlined,
+                            size: 18,
+                            color: Colors.white.withValues(alpha: 0.4)),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  key: ValueKey('gender-$_gender'),
+                  initialValue: _gender,
+                  isExpanded: true,
+                  dropdownColor: AppColors.bgDark3,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: InputDecoration(
+                    labelText: 'Gender',
+                    prefixIcon: Icon(Icons.wc_outlined,
+                        size: 18, color: Colors.white.withValues(alpha: 0.4)),
+                  ),
+                  items: _genderOptions
+                      .map((o) => DropdownMenuItem<String>(
+                            value: o.$1,
+                            child: Text(o.$2),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setState(() => _gender = v ?? ''),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _addressCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Address',
+                    prefixIcon: Icon(Icons.home_outlined,
+                        size: 18, color: Colors.white.withValues(alpha: 0.4)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _cityCtrl,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(labelText: 'City'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _countryCtrl,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(labelText: 'Country'),
+                    ),
+                  ),
+                ]),
+              ]),
+            ),
+
+            const SizedBox(height: 24),
+            _sectionLabel('EMERGENCY CONTACT'),
+            const SizedBox(height: 10),
+            GlassCard(
+              padding: const EdgeInsets.all(20),
+              child: Column(children: [
+                TextFormField(
+                  controller: _emergencyNameCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Contact Name',
+                    prefixIcon: Icon(Icons.contact_emergency_outlined,
+                        size: 18, color: Colors.white.withValues(alpha: 0.4)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _emergencyPhoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Contact Phone',
+                    prefixIcon: Icon(Icons.phone_in_talk_outlined,
+                        size: 18, color: Colors.white.withValues(alpha: 0.4)),
+                  ),
+                ),
+              ]),
+            ),
+
             const SizedBox(height: 24),
             AppButton(
                 label: 'Save Changes', loading: _loading, onPressed: _save),
@@ -156,4 +342,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ),
     );
   }
+
+  Widget _sectionLabel(String text) => Text(text,
+      style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.0,
+          color: Color(0x66FFFFFF)));
 }

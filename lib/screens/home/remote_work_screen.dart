@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
@@ -26,7 +27,7 @@ class _RemoteWorkScreenState extends State<RemoteWorkScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed: ${e.toString().replaceAll('Exception: ', '')}')));
+            SnackBar(content: Text(ApiFailure.fromError(e).userMessage)));
       }
     } finally {
       if (mounted) setState(() => _loading = false);

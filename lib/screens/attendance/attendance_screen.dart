@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
@@ -26,6 +27,9 @@ class AttendanceScreen extends StatefulWidget {
 
 class _AttendanceScreenState extends State<AttendanceScreen> {
   List<Map<String, dynamic>> _records = [];
+  // Existing overtime requests keyed by attendance_id, so records show their
+  // request status instead of offering a duplicate "Request overtime" action.
+  Map<String, Map<String, dynamic>> _overtimeByAttendance = {};
   bool _loading = true;
   DateTime _selectedMonth = DateTime.now();
 
@@ -40,13 +44,51 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     try {
       // 186 days ≈ 6 months, matching the 6-entry month selector below so older
       // months aren't shown empty for lack of fetched data.
-      final data = await api.getMyAttendance(days: 186);
+      final results = await Future.wait([
+        api.getMyAttendance(days: 186),
+        // Overtime is optional server-side; ignore failures quietly.
+        api.getMyOvertimeRequests().catchError((_) => <dynamic>[]),
+      ]);
+      if (!mounted) return;
+      final overtime = <String, Map<String, dynamic>>{};
+      for (final raw in results[1]) {
+        final req = (raw as Map).cast<String, dynamic>();
+        final attendanceId = req['attendance_id'] as String?;
+        if (attendanceId != null) overtime[attendanceId] = req;
+      }
       setState(() {
-        _records = data.cast<Map<String, dynamic>>();
+        _records = results[0].cast<Map<String, dynamic>>();
+        _overtimeByAttendance = overtime;
         _loading = false;
       });
     } catch (_) {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _requestOvertime(Map<String, dynamic> record) async {
+    final extra = _asInt(record['extra_office_minutes']) ?? 0;
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Request Overtime',
+      message:
+          'Ask your manager to approve ${extra}m of extra office time as paid overtime?',
+      confirmLabel: 'Request',
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await api.requestOvertime(
+        attendanceId: record['id'] as String,
+        reason: 'Worked ${extra}m beyond shift end',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Overtime request sent for approval')));
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ApiFailure.fromError(e).userMessage)));
     }
   }
 
@@ -203,7 +245,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               else
                 ..._monthRecords.map((r) => Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: _RecordTile(record: r),
+                      child: _RecordTile(
+                        record: r,
+                        overtimeRequest: _overtimeByAttendance[r['id']],
+                        onRequestOvertime: () => _requestOvertime(r),
+                      ),
                     )),
             ],
           ),
@@ -257,7 +303,10 @@ class _StatChip extends StatelessWidget {
 
 class _RecordTile extends StatelessWidget {
   final Map<String, dynamic> record;
-  const _RecordTile({required this.record});
+  final Map<String, dynamic>? overtimeRequest;
+  final VoidCallback? onRequestOvertime;
+  const _RecordTile(
+      {required this.record, this.overtimeRequest, this.onRequestOvertime});
 
   @override
   Widget build(BuildContext context) {
@@ -421,6 +470,35 @@ class _RecordTile extends StatelessWidget {
                 return extra > 0
                     ? _glassDetailRow('Extra Office Time', '$extra min')
                     : const SizedBox.shrink();
+              }),
+              // ── Overtime request status / action ───────────────────────
+              Builder(builder: (_) {
+                final extra = _asInt(r['extra_office_minutes']) ?? 0;
+                final ot = _asDouble(r['overtime_hours']) ?? 0;
+                if (extra <= 0 || ot > 0 || r['id'] == null) {
+                  return const SizedBox.shrink();
+                }
+                final req = overtimeRequest;
+                if (req != null && req['status'] != 'rejected') {
+                  final status = (req['status'] as String? ?? 'pending');
+                  return _glassDetailRow('Overtime Request',
+                      status[0].toUpperCase() + status.substring(1),
+                      highlight: status == 'pending');
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: AppButton(
+                    label: 'Request Overtime (${extra}m)',
+                    icon: Icons.more_time,
+                    outline: true,
+                    onPressed: onRequestOvertime == null
+                        ? null
+                        : () {
+                            Navigator.pop(context);
+                            onRequestOvertime!();
+                          },
+                  ),
+                );
               }),
               _glassDetailRow(
                   'Type',

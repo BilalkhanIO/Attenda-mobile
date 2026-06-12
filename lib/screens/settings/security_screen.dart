@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_provider.dart';
 import '../../utils/theme.dart';
@@ -47,8 +48,12 @@ class _SecurityScreenState extends State<SecurityScreen> {
       _currentCtrl.clear(); _newCtrl.clear(); _confirmCtrl.clear();
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password changed ✅')));
     } catch (e) {
-      setState(() => _pwError = e.toString().contains('401') || e.toString().contains('403')
-          ? 'Current password is incorrect' : 'Failed to change password. Try again.');
+      if (!mounted) return;
+      final failure = ApiFailure.fromError(e);
+      setState(() => _pwError =
+          failure is UnauthorizedFailure || failure is ForbiddenFailure
+              ? 'Current password is incorrect'
+              : failure.userMessage);
     } finally {
       if (mounted) setState(() => _savingPw = false);
     }
@@ -58,9 +63,13 @@ class _SecurityScreenState extends State<SecurityScreen> {
     setState(() => _saving2fa = true);
     try {
       final data = await api.setup2fa();
+      if (!mounted) return;
       setState(() { _setupSecret = data['secret'] as String?; });
-    } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not start 2FA setup')));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(ApiFailure.fromError(e).userMessage)));
+      }
     } finally {
       if (mounted) setState(() => _saving2fa = false);
     }

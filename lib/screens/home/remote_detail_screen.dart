@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
@@ -26,7 +27,12 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
       final session = await api.getRemoteSessionLogs(widget.sessionId);
       if (mounted) setState(() { _session = session; _loading = false; });
     } catch (e) {
-      if (mounted) setState(() { _loading = false; _error = e.toString(); });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = ApiFailure.fromError(e).userMessage;
+        });
+      }
     }
   }
 
@@ -41,9 +47,14 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
               ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   const Icon(Icons.error_outline, size: 40, color: AppColors.danger500),
                   const SizedBox(height: 12),
-                  Text('Failed to load activity', style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(_error ?? 'Failed to load activity',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
+                  ),
                   const SizedBox(height: 12),
-                  AppButton(label: 'Retry', onPressed: _load),
+                  AppButton(label: 'Retry', onPressed: _load, fullWidth: false),
                 ]))
               : _buildContent(),
     );

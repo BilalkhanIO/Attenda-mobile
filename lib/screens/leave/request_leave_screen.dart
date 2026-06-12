@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
@@ -57,14 +58,16 @@ class _RequestLeaveScreenState extends State<RequestLeaveScreen> {
         context.pop();
       }
     } catch (e) {
-      _snack('Failed: ${e.toString().replaceAll('Exception: ', '')}');
+      _snack(ApiFailure.fromError(e).userMessage);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  void _snack(String msg) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
 
   Future<void> _pickDate(bool isStart) async {
     final picked = await showDatePicker(
@@ -209,7 +212,7 @@ class _RequestLeaveScreenState extends State<RequestLeaveScreen> {
                   ]),
                   if (_workingDays > 0) ...[
                     const SizedBox(height: 8),
-                    Text('${_isHalfDay ? '½' : _workingDays.toInt()} working day${_workingDays != 1 ? 's' : ''}',
+                    Text('${_isHalfDay ? '½' : _workingDays.toInt()} working day${!_isHalfDay && _workingDays != 1 ? 's' : ''}',
                         style: const TextStyle(fontSize: 13, color: AppColors.primary600, fontWeight: FontWeight.w600)),
                   ],
                   const SizedBox(height: 20),

@@ -29,6 +29,7 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() {
       _themeIdx   = prefs.getInt('appearance_theme')   ?? 0;
       _densityIdx = prefs.getInt('appearance_density') ?? 1;

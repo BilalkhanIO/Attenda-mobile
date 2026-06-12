@@ -51,6 +51,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       final page = reset ? 1 : _page;
       final data = await api.getNotifications(page: page, limit: _limit);
       final newItems = List<Map<String, dynamic>>.from(data['items'] as List);
+      if (!mounted) return;
       setState(() {
         _total       = data['total'] as int;
         _unreadCount = data['unread_count'] as int;
@@ -65,7 +66,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         _loadingMore = false;
       });
     } catch (_) {
-      setState(() { _loading = false; _loadingMore = false; });
+      if (mounted) setState(() { _loading = false; _loadingMore = false; });
     }
   }
 
@@ -158,7 +159,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     itemCount: _items.length + (_total > _items.length ? 1 : 0),
                     itemBuilder: (context, index) {
                       if (index == _items.length) {
-                        _load();
+                        // Defer: _load() calls setState, which is illegal
+                        // synchronously inside a build/itemBuilder pass.
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) _load();
+                        });
                         return const Padding(
                           padding: EdgeInsets.all(16),
                           child: Center(child: CircularProgressIndicator(color: AppColors.primary600)),

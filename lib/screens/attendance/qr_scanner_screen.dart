@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
 import '../../services/wifi_service.dart';
 import '../../utils/theme.dart';
@@ -55,17 +56,19 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
 
     try {
       final result = await api.checkIn(type: 'qr', qrCode: code);
+      if (!mounted) return;
       final action = result['action'] as String?;
 
       if (action == 'checkout_prompt') {
         // Already checked in — offer checkout
         setState(() => _processing = false);
-        if (!mounted) return;
         final confirmed = await _showCheckoutConfirmation(result['record'] as Map<String, dynamic>? ?? {});
+        if (!mounted) return;
         if (confirmed == true) {
           setState(() => _processing = true);
           await api.checkOut();
           await WifiAttendanceService().onManualCheckOut(); // stop WiFi tracking
+          if (!mounted) return;
           setState(() { _done = true; _message = 'Checked Out!'; _isCheckout = true; });
           await Future.delayed(const Duration(seconds: 2));
           if (mounted) context.pop();
@@ -78,13 +81,16 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
         if (mounted) context.pop();
       }
     } catch (e) {
-      final err = e.toString();
+      if (!mounted) return;
+      final failure = ApiFailure.fromError(e);
       setState(() {
         _error      = true;
         _processing = false;
-        _message    = err.contains('expired') ? 'QR code has expired' :
-                      err.contains('invalid')  ? 'Invalid QR code' :
-                      'Scan failed. Try again.';
+        // Validation errors carry the server's copy ("QR code expired",
+        // "Invalid QR code"); other failures use the standard message.
+        _message = failure is ValidationFailure
+            ? (failure.serverMessage ?? 'Invalid QR code')
+            : failure.userMessage;
       });
       await Future.delayed(const Duration(seconds: 2));
       if (mounted) setState(() { _error = false; _message = ''; });
