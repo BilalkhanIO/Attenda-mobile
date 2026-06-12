@@ -19,8 +19,8 @@
         "flutter_svg",
         "go_router",
         "google_fonts",
-        "hive",
-        "hive_flutter",
+        "hive_ce",
+        "hive_ce_flutter",
         "http",
         "intl",
         "jwt_decoder",
@@ -115,24 +115,6 @@
         "stream_channel",
         "test_api",
         "vector_math"
-      ]
-    },
-    {
-      "name": "hive_flutter",
-      "version": "1.1.0",
-      "dependencies": [
-        "flutter",
-        "hive",
-        "path",
-        "path_provider"
-      ]
-    },
-    {
-      "name": "hive",
-      "version": "2.2.3",
-      "dependencies": [
-        "crypto",
-        "meta"
       ]
     },
     {
@@ -1588,6 +1570,34 @@
       "name": "synchronized",
       "version": "3.4.0",
       "dependencies": []
+    },
+    {
+      "name": "hive_ce",
+      "version": "2.19.3",
+      "dependencies": [
+        "crypto",
+        "isolate_channel",
+        "json_annotation",
+        "meta",
+        "web"
+      ]
+    },
+    {
+      "name": "isolate_channel",
+      "version": "0.6.1",
+      "dependencies": [
+        "meta"
+      ]
+    },
+    {
+      "name": "hive_ce_flutter",
+      "version": "2.3.4",
+      "dependencies": [
+        "flutter",
+        "hive_ce",
+        "path",
+        "path_provider"
+      ]
     }
   ],
   "configVersion": 1

@@ -374,16 +374,16 @@
       "languageVersion": "3.4"
     },
     {
-      "name": "hive",
-      "rootUri": "file:///home/kwikcoders/.pub-cache/hosted/pub.dev/hive-2.2.3",
+      "name": "hive_ce",
+      "rootUri": "file:///home/kwikcoders/.pub-cache/hosted/pub.dev/hive_ce-2.19.3",
       "packageUri": "lib/",
-      "languageVersion": "2.12"
+      "languageVersion": "3.4"
     },
     {
-      "name": "hive_flutter",
-      "rootUri": "file:///home/kwikcoders/.pub-cache/hosted/pub.dev/hive_flutter-1.1.0",
+      "name": "hive_ce_flutter",
+      "rootUri": "file:///home/kwikcoders/.pub-cache/hosted/pub.dev/hive_ce_flutter-2.3.4",
       "packageUri": "lib/",
-      "languageVersion": "2.12"
+      "languageVersion": "3.4"
     },
     {
       "name": "hooks",
@@ -426,6 +426,12 @@
       "rootUri": "file:///home/kwikcoders/.pub-cache/hosted/pub.dev/io-1.0.5",
       "packageUri": "lib/",
       "languageVersion": "3.4"
+    },
+    {
+      "name": "isolate_channel",
+      "rootUri": "file:///home/kwikcoders/.pub-cache/hosted/pub.dev/isolate_channel-0.6.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
     },
     {
       "name": "jni",

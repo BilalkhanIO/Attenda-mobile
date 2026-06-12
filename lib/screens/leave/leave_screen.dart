@@ -136,6 +136,15 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
   );
 }
 
+// The backend serializes `leave_type` either as an embedded object
+// (`{name: ...}`) or as a bare string. Branch on the runtime type — a plain
+// `as Map?` cast throws on a String before the `??` fallback can catch it.
+String _leaveTypeName(dynamic lt) {
+  if (lt is Map) return lt['name'] as String? ?? 'Leave';
+  if (lt is String) return lt;
+  return 'Leave';
+}
+
 class _LeaveRequestTile extends StatelessWidget {
   final Map<String, dynamic> request;
   final VoidCallback? onCancel;
@@ -144,9 +153,7 @@ class _LeaveRequestTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = request['status'] as String? ?? 'pending';
-    final leaveType = (request['leave_type'] as Map?)?['name'] as String?
-        ?? request['leave_type'] as String?
-        ?? 'Leave';
+    final leaveType = _leaveTypeName(request['leave_type']);
     final start  = DateTime.parse(request['start_date'] as String);
     final end    = DateTime.parse(request['end_date']   as String);
     final days   = (request['working_days'] as num?)?.toDouble() ?? 0.0;
@@ -303,9 +310,7 @@ class _BalanceTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final leaveType = (balance['leave_type'] as Map?)?['name'] as String?
-        ?? balance['leave_type'] as String?
-        ?? 'Leave';
+    final leaveType = _leaveTypeName(balance['leave_type']);
     final entitled  = (balance['entitled_days'] as num?)?.toDouble()  ?? 0.0;
     final used      = (balance['used_days']      as num?)?.toDouble()  ?? 0.0;
     final remaining = (balance['remaining_days'] as num?)?.toDouble()

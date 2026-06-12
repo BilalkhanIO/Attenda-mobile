@@ -199,10 +199,10 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(children: [
-                    const Icon(Icons.phone_android, size: 16, color: AppColors.primary600),
-                    const SizedBox(width: 8),
-                    const Text('Using Samsung, Xiaomi, Huawei or OnePlus?',
+                  const Row(children: [
+                    Icon(Icons.phone_android, size: 16, color: AppColors.primary600),
+                    SizedBox(width: 8),
+                    Text('Using Samsung, Xiaomi, Huawei or OnePlus?',
                         style: TextStyle(
                             color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
                   ]),
