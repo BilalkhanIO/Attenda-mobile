@@ -1,7 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:provider/provider.dart';
 import '../utils/theme.dart';
+import '../services/theme_controller.dart';
 
 // ─── Glass Card ───────────────────────────────────────
 class GlassCard extends StatelessWidget {
@@ -161,10 +163,11 @@ class UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeController = context.watch<ThemeController>();
     return Container(
       width: size, height: size,
       decoration: BoxDecoration(
-        gradient: imageUrl == null ? AppGradients.aurora : null,
+        gradient: imageUrl == null ? themeController.primaryGradient : null,
         color: imageUrl != null ? Colors.transparent : null,
         borderRadius: BorderRadius.circular(size / 2),
         border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 2),
@@ -196,7 +199,10 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeController = context.watch<ThemeController>();
+    final themePrimary = Theme.of(context).colorScheme.primary;
     final customColor = color;
+    
     final buttonChild = loading
         ? const SizedBox(width: 18, height: 18,
             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -211,8 +217,8 @@ class AppButton extends StatelessWidget {
         child: OutlinedButton(
           onPressed: loading ? null : onPressed,
           style: OutlinedButton.styleFrom(
-            foregroundColor: customColor ?? AppColors.primary,
-            side: BorderSide(color: (customColor ?? AppColors.primary).withValues(alpha: 0.6)),
+            foregroundColor: customColor ?? themePrimary,
+            side: BorderSide(color: (customColor ?? themePrimary).withValues(alpha: 0.6)),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
           child: buttonChild,
@@ -223,7 +229,7 @@ class AppButton extends StatelessWidget {
     // Gradient primary button with glow
     final gradient = customColor != null
         ? LinearGradient(colors: [customColor, customColor])
-        : AppGradients.primaryBtn;
+        : themeController.primaryGradient;
 
     return SizedBox(
       width: fullWidth ? double.infinity : null, height: 50,
@@ -234,7 +240,7 @@ class AppButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           boxShadow: onPressed != null && !loading ? [
             BoxShadow(
-              color: (customColor ?? AppColors.primary).withValues(alpha: 0.35),
+              color: (customColor ?? themeController.palette.primary).withValues(alpha: 0.35),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),

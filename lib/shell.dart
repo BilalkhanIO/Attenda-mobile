@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'services/auth_provider.dart';
+import 'services/theme_controller.dart';
 import 'utils/theme.dart';
 
 class AppShell extends StatelessWidget {
@@ -53,7 +54,10 @@ class _AuroraNavDock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeController = context.watch<ThemeController>();
+    final palette = themeController.palette;
     final bottom = MediaQuery.of(context).padding.bottom;
+    
     return Padding(
       // Floating dock — 12px margin from screen edges
       padding: EdgeInsets.fromLTRB(16, 0, 16, (bottom > 0 ? bottom : 12)),
@@ -95,11 +99,11 @@ class _AuroraNavDock extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                             decoration: active
                                 ? BoxDecoration(
-                                    gradient: AppGradients.aurora,
+                                    gradient: themeController.primaryGradient,
                                     borderRadius: BorderRadius.circular(20),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: AppColors.primary.withValues(alpha: 0.4),
+                                        color: palette.primary.withValues(alpha: 0.4),
                                         blurRadius: 12,
                                         offset: const Offset(0, 3),
                                       ),
@@ -118,7 +122,7 @@ class _AuroraNavDock extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: active ? FontWeight.w800 : FontWeight.w500,
-                              color: active ? AppColors.primary : Colors.white.withValues(alpha: 0.4),
+                              color: active ? palette.primary : Colors.white.withValues(alpha: 0.4),
                             ),
                             child: Text(tab.label),
                           ),

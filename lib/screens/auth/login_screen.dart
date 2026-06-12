@@ -71,7 +71,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 56),
 
                 // Logo
-                const AttendaLogo(iconSize: 48, variant: AttendaLogoVariant.dark),
+                const Center(
+                  child: AttendaLogo(
+                    iconSize: 64, 
+                    showWordmark: false, 
+                    variant: AttendaLogoVariant.dark,
+                  ),
+                ),
 
                 const SizedBox(height: 52),
 

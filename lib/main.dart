@@ -4,9 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'services/auth_provider.dart';
 import 'services/wifi_service.dart';
+import 'services/theme_controller.dart';
 import 'router.dart';
 import 'screens/splash_screen.dart';
-import 'utils/theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,8 +19,11 @@ void main() async {
   await WifiAttendanceService().init();
 
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => AuthProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeController()),
+      ],
       child: const AttendaApp(),
     ),
   );
@@ -38,10 +41,11 @@ class _AttendaAppState extends State<AttendaApp> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final themeController = context.watch<ThemeController>();
 
     if (auth.isLoading) {
       return MaterialApp(
-        theme: AppTheme.glass,
+        theme: themeController.themeData,
         debugShowCheckedModeBanner: false,
         home: const SplashScreen(),
       );
@@ -51,7 +55,7 @@ class _AttendaAppState extends State<AttendaApp> {
 
     return MaterialApp.router(
       title: 'Attenda',
-      theme: AppTheme.glass,
+      theme: themeController.themeData,
       debugShowCheckedModeBanner: false,
       routerConfig: _router!,
     );

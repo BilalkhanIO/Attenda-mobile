@@ -59,7 +59,9 @@ class _SplashScreenState extends State<SplashScreen>
               );
             },
             child: const AttendaLogo(
-                iconSize: 80, variant: AttendaLogoVariant.dark),
+                iconSize: 80, 
+                showWordmark: false,
+                variant: AttendaLogoVariant.dark),
           ),
         ),
       ),

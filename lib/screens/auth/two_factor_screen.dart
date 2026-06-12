@@ -77,7 +77,13 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 56),
-                const AttendaLogo(iconSize: 48, variant: AttendaLogoVariant.dark),
+                const Center(
+                  child: AttendaLogo(
+                    iconSize: 64, 
+                    showWordmark: false, 
+                    variant: AttendaLogoVariant.dark,
+                  ),
+                ),
                 const SizedBox(height: 52),
                 const Text('Two-factor authentication',
                     style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white)),

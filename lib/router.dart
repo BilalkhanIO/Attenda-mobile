@@ -10,6 +10,8 @@ import '../screens/leave/leave_screen.dart';
 import '../screens/leave/request_leave_screen.dart';
 import '../screens/schedule/schedule_screen.dart';
 import '../screens/profile/profile_screen.dart';
+import '../screens/profile/payslips_screen.dart';
+import '../screens/profile/performance_screen.dart';
 import '../screens/home/remote_work_screen.dart';
 import '../screens/home/remote_detail_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
@@ -87,6 +89,8 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
           builder: (_, __) => const ProfileScreen(),
           routes: [
             GoRoute(path: 'edit', parentNavigatorKey: _rootKey, builder: (_, __) => const EditProfileScreen()),
+            GoRoute(path: 'payslips', parentNavigatorKey: _rootKey, builder: (_, __) => const PayslipsScreen()),
+            GoRoute(path: 'performance', parentNavigatorKey: _rootKey, builder: (_, __) => const PerformanceScreen()),
             GoRoute(path: 'settings/notifications', parentNavigatorKey: _rootKey, builder: (_, __) => const NotificationSettingsScreen()),
             GoRoute(path: 'settings/security', parentNavigatorKey: _rootKey, builder: (_, __) => const SecurityScreen()),
             GoRoute(path: 'settings/appearance', parentNavigatorKey: _rootKey, builder: (_, __) => const AppearanceScreen()),
