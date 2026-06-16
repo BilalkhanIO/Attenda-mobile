@@ -30,8 +30,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
       final results = await Future.wait([api.getMyShifts(), api.getSwapRequests()]);
       if (!mounted) return;
       setState(() {
-        _shifts = (results[0] as List).cast<Map<String, dynamic>>();
-        _swaps  = (results[1] as List).cast<Map<String, dynamic>>();
+        _shifts = results[0].cast<Map<String, dynamic>>();
+        _swaps  = results[1].cast<Map<String, dynamic>>();
         _loading = false;
       });
     } catch (_) {
@@ -402,7 +402,7 @@ class _SwapRequestSheetState extends State<_SwapRequestSheet> {
     required String hint,
   }) {
     return DropdownButtonFormField<String>(
-      value: value,
+      initialValue: value,
       isExpanded: true,
       dropdownColor: AppColors.bgDark3,
       style: const TextStyle(color: Colors.white, fontSize: 13),

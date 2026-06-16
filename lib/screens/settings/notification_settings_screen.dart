@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
-import '../../utils/theme.dart';
 import '../../widgets/common.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
