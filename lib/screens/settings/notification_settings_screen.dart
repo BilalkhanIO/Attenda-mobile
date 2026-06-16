@@ -64,6 +64,8 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
 
   @override
   Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
@@ -94,14 +96,14 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
               const SizedBox(width: 14),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('Notifications', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
-                if (_saving) Text('Saving…', style: TextStyle(fontSize: 12, color: AppColors.primary.withValues(alpha: 0.8))),
+                if (_saving) Text('Saving…', style: TextStyle(fontSize: 12, color: primary.withValues(alpha: 0.8))),
               ]),
             ]),
             const SizedBox(height: 8),
             Text('Choose which notifications you receive.', style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.5))),
             const SizedBox(height: 20),
             if (_loading)
-              const Center(child: CircularProgressIndicator(color: AppColors.primary))
+              Center(child: CircularProgressIndicator(color: primary))
             else
               Expanded(
                 child: ListView(
@@ -116,11 +118,11 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                           Container(
                             width: 40, height: 40,
                             decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.15),
+                              color: primary.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                              border: Border.all(color: primary.withValues(alpha: 0.3)),
                             ),
-                            child: Icon(icon, color: AppColors.primary, size: 18),
+                            child: Icon(icon, color: primary, size: 18),
                           ),
                           const SizedBox(width: 14),
                           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -130,8 +132,8 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                           Switch(
                             value: _prefs[key] ?? true,
                             onChanged: (v) => _toggle(key, v),
-                            activeThumbColor: AppColors.primary,
-                            activeTrackColor: AppColors.primary.withValues(alpha: 0.3),
+                            activeThumbColor: primary,
+                            activeTrackColor: primary.withValues(alpha: 0.3),
                           ),
                         ]),
                       ),

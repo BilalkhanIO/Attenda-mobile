@@ -125,20 +125,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             const Text('Notifications'),
             if (_unreadCount > 0)
               Text('$_unreadCount unread',
-                  style: const TextStyle(fontSize: 11, color: AppColors.primary600, fontWeight: FontWeight.w500)),
+                  style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w500)),
           ],
         ),
         actions: [
           if (_unreadCount > 0)
             TextButton(
               onPressed: _markAllRead,
-              child: const Text('Mark all read',
-                  style: TextStyle(fontSize: 12, color: AppColors.primary600)),
+              child: Text('Mark all read',
+                  style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary)),
             ),
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary600))
+          ? Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
           : _items.isEmpty
               ? Center(
                   child: Column(
@@ -151,7 +151,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ),
                 )
               : RefreshIndicator(
-                  color: AppColors.primary600,
+                  color: Theme.of(context).colorScheme.primary,
                   backgroundColor: AppColors.bgDark3,
                   onRefresh: () => _load(reset: true),
                   child: ListView.builder(
@@ -164,9 +164,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         WidgetsBinding.instance.addPostFrameCallback((_) {
                           if (mounted) _load();
                         });
-                        return const Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Center(child: CircularProgressIndicator(color: AppColors.primary600)),
+                        return Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary)),
                         );
                       }
                       return _NotifTile(
@@ -205,6 +205,8 @@ class _NotifTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isUnread = notif['read_at'] == null;
 
+    final primary = Theme.of(context).colorScheme.primary;
+
     return Dismissible(
       key: Key(notif['id'] as String),
       direction: DismissDirection.endToStart,
@@ -223,7 +225,7 @@ class _NotifTile extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: GlassCard(
-          tint: isUnread ? AppColors.primary600 : null,
+          tint: isUnread ? primary : null,
           onTap: isUnread ? onMarkRead : null,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -236,11 +238,11 @@ class _NotifTile extends StatelessWidget {
                     width: 40, height: 40,
                     decoration: BoxDecoration(
                       color: isUnread
-                          ? AppColors.primary600.withValues(alpha: 0.2)
+                          ? primary.withValues(alpha: 0.2)
                           : Colors.white.withValues(alpha: 0.08),
                       shape: BoxShape.circle,
                       border: isUnread
-                          ? Border.all(color: AppColors.primary600.withValues(alpha: 0.4))
+                          ? Border.all(color: primary.withValues(alpha: 0.4))
                           : null,
                     ),
                     child: Center(child: Text(icon, style: const TextStyle(fontSize: 18))),
@@ -274,7 +276,7 @@ class _NotifTile extends StatelessWidget {
                         const SizedBox(width: 8),
                         Container(
                           width: 6, height: 6,
-                          decoration: const BoxDecoration(color: AppColors.primary600, shape: BoxShape.circle),
+                          decoration: BoxDecoration(color: primary, shape: BoxShape.circle),
                         ),
                       ],
                     ]),
@@ -284,9 +286,9 @@ class _NotifTile extends StatelessWidget {
               if (isUnread)
                 GestureDetector(
                   onTap: onMarkRead,
-                  child: const Padding(
-                    padding: EdgeInsets.only(left: 8, top: 2),
-                    child: Icon(Icons.done_rounded, size: 16, color: AppColors.primary600),
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 8, top: 2),
+                    child: Icon(Icons.done_rounded, size: 16, color: primary),
                   ),
                 ),
             ],

@@ -125,11 +125,11 @@ class _RequestLeaveScreenState extends State<RequestLeaveScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               decoration: BoxDecoration(
                                 color: _type == t
-                                    ? AppColors.primary600
+                                    ? Theme.of(context).colorScheme.primary
                                     : Colors.white.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                  color: _type == t ? AppColors.primary600 : Colors.white.withValues(alpha: 0.2),
+                                  color: _type == t ? Theme.of(context).colorScheme.primary : Colors.white.withValues(alpha: 0.2),
                                 ),
                               ),
                               child: Text(
@@ -160,7 +160,7 @@ class _RequestLeaveScreenState extends State<RequestLeaveScreen> {
                       Switch(
                         value: _isHalfDay,
                         onChanged: (v) => setState(() => _isHalfDay = v),
-                        activeThumbColor: AppColors.primary600,
+                        activeThumbColor: Theme.of(context).colorScheme.primary,
                       ),
                     ]),
                   ),
@@ -178,11 +178,11 @@ class _RequestLeaveScreenState extends State<RequestLeaveScreen> {
                               padding: const EdgeInsets.symmetric(vertical: 10),
                               decoration: BoxDecoration(
                                 color: _halfPeriod == val
-                                    ? AppColors.primary600
+                                    ? Theme.of(context).colorScheme.primary
                                     : Colors.white.withValues(alpha: 0.08),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: _halfPeriod == val ? AppColors.primary600 : Colors.white.withValues(alpha: 0.2),
+                                  color: _halfPeriod == val ? Theme.of(context).colorScheme.primary : Colors.white.withValues(alpha: 0.2),
                                 ),
                               ),
                               child: Center(
@@ -213,7 +213,7 @@ class _RequestLeaveScreenState extends State<RequestLeaveScreen> {
                   if (_workingDays > 0) ...[
                     const SizedBox(height: 8),
                     Text('${_isHalfDay ? '½' : _workingDays.toInt()} working day${!_isHalfDay && _workingDays != 1 ? 's' : ''}',
-                        style: const TextStyle(fontSize: 13, color: AppColors.primary600, fontWeight: FontWeight.w600)),
+                        style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600)),
                   ],
                   const SizedBox(height: 20),
 

@@ -47,65 +47,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text('Profile'),
-        centerTitle: true,
+        title: const Text('My Profile'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => context.push('/profile/settings'),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Profile Card
-            _buildProfileCard(user, themeController),
+            // Profile Card (Header)
+            _buildProfileHeader(user, themeController),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
             
             // Professional Section
             if (hasPayroll || hasPerformance) ...[
-              const _SectionLabel('PROFESSIONAL'),
+              const SectionHeader(title: 'Professional'),
               const SizedBox(height: 12),
-              if (hasPayroll)
-                _menuRow(Icons.receipt_long_outlined, 'Payslips', 
-                    () => context.push('/profile/payslips')),
-              if (hasPerformance)
-                _menuRow(Icons.trending_up_rounded, 'Performance', 
-                    () => context.push('/profile/performance')),
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 1.5,
+                children: [
+                  if (hasPayroll)
+                    _professionalCard(
+                      context,
+                      icon: Icons.receipt_long_outlined,
+                      label: 'Payslips',
+                      onTap: () => context.push('/profile/payslips'),
+                    ),
+                  if (hasPerformance)
+                    _professionalCard(
+                      context,
+                      icon: Icons.trending_up_rounded,
+                      label: 'Performance',
+                      onTap: () => context.push('/profile/performance'),
+                    ),
+                ],
+              ),
               const SizedBox(height: 24),
             ],
 
-            // Account Settings
-            const _SectionLabel('ACCOUNT SETTINGS'),
+            // Employment Details
+            const SectionHeader(title: 'Employment'),
             const SizedBox(height: 12),
-            _menuRow(Icons.person_outline, 'Edit Profile',
-                () => context.push('/profile/edit')),
-            _menuRow(Icons.notifications_outlined, 'Notifications',
-                () => context.push('/profile/settings/notifications')),
-            _menuRow(Icons.shield_outlined, 'Security & 2FA',
-                () => context.push('/profile/settings/security')),
-            _menuRow(Icons.track_changes_outlined, 'Tracking Reliability',
-                () => context.push('/profile/settings/reliability')),
-            _menuRow(Icons.palette_outlined, 'Appearance',
-                () => context.push('/profile/settings/appearance')),
+            GlassCard(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: [
+                  _infoRow(Icons.badge_outlined, 'Employee ID', _profile?['employee_id'] ?? '—'),
+                  _infoRow(Icons.business_outlined, 'Department', _profile?['department'] ?? 'General'),
+                  _infoRow(Icons.calendar_month_outlined, 'Joined', _profile?['joined_date'] != null
+                      ? DateFormat('d MMMM yyyy').format(DateTime.parse(_profile!['joined_date']))
+                      : '—'),
+                ],
+              ),
+            ),
 
             const SizedBox(height: 32),
             
+            // Edit Profile Button (Quick Action)
             AppButton(
-              label: 'Sign Out',
+              label: 'Edit Profile Info',
               outline: true,
-              color: AppColors.danger500,
-              icon: Icons.logout,
-              onPressed: () async {
-                final ok = await showConfirmDialog(
-                  context,
-                  title: 'Sign Out',
-                  message: 'Are you sure you want to sign out?',
-                  isDanger: true,
-                  confirmLabel: 'Sign Out',
-                );
-                if (ok == true && context.mounted) {
-                  await context.read<AuthProvider>().logout();
-                }
-              },
+              icon: Icons.edit_outlined,
+              onPressed: () => context.push('/profile/edit'),
             ),
           ],
         ),
@@ -113,113 +126,108 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _menuRow(IconData icon, String label, VoidCallback onTap) {
+  Widget _infoRow(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: GlassCard(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        onTap: onTap,
-        child: Row(children: [
-          GradientIcon(icon: icon, size: 20),
-          const SizedBox(width: 14),
-          Expanded(
-              child: Text(label,
-                  style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white))),
-          Icon(Icons.chevron_right,
-              color: Colors.white.withValues(alpha: 0.25), size: 18),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildProfileCard(AuthUser user, ThemeController themeController) {
-    return GlassCard(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-      child: Column(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      child: Row(
         children: [
-          Row(
+          Icon(icon, size: 18, color: Colors.white.withValues(alpha: 0.3)),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: themeController.primaryGradient,
-                ),
-                child: UserAvatar(
-                  name: user.name,
-                  imageUrl: _profile?['avatar_url'] as String?,
-                  size: 72,
-                ),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(user.name,
-                        style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white)),
-                    const SizedBox(height: 4),
-                    Text(
-                      (_profile?['job_title'] ?? user.role.replaceAll('_', ' ')).toUpperCase(),
-                      style: const TextStyle(
-                          fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5, color: AppColors.primary),
-                    ),
-                    if (_profile?['department'] != null)
-                      Text(
-                        _profile!['department'],
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.white.withValues(alpha: 0.4)),
-                      ),
-                  ],
-                ),
-              ),
+              Text(label, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.4))),
+              Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
             ],
           ),
-          if (_profile != null) ...[
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(child: _statItem('Employee ID', _profile?['employee_id'] ?? '—')),
-                Container(width: 1, height: 24, color: Colors.white.withValues(alpha: 0.1)),
-                Expanded(child: _statItem('Joined', _profile?['joined_date'] != null 
-                    ? DateFormat('MMM yyyy').format(DateTime.parse(_profile!['joined_date']))
-                    : '—')),
-              ],
-            ),
-          ],
         ],
       ),
     );
   }
 
-  Widget _statItem(String label, String value) {
-    return Column(
-      children: [
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.4))),
-        const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
-      ],
+  Widget _professionalCard(BuildContext context, {required IconData icon, required String label, required VoidCallback onTap}) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return GlassCard(
+      onTap: onTap,
+      padding: EdgeInsets.zero,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            GradientIcon(
+              icon: icon,
+              size: 28,
+              gradient: primary == AppColors.primary
+                  ? AppGradients.aurora
+                  : LinearGradient(colors: [primary, primary.withValues(alpha: 0.8)]),
+            ),
+            const SizedBox(height: 8),
+            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+          ],
+        ),
+      ),
     );
   }
-}
 
-class _SectionLabel extends StatelessWidget {
-  final String label;
-  const _SectionLabel(this.label);
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(label,
-        style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.0,
-            color: Color(0x66FFFFFF)));
+  Widget _buildProfileHeader(AuthUser user, ThemeController themeController) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return Column(
+      children: [
+        const SizedBox(height: 12),
+        Stack(
+          alignment: Alignment.bottomRight,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: themeController.primaryGradient,
+                boxShadow: [
+                  BoxShadow(
+                    color: primary.withValues(alpha: 0.25),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: UserAvatar(
+                name: user.name,
+                imageUrl: _profile?['avatar_url'] as String?,
+                size: 96,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: const BoxDecoration(
+                color: AppColors.bgDark3,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.camera_alt_outlined, size: 16, color: Colors.white.withValues(alpha: 0.8)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Text(user.name,
+            style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: Colors.white)),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: primary.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: primary.withValues(alpha: 0.3)),
+          ),
+          child: Text(
+            (_profile?['job_title'] ?? user.role.replaceAll('_', ' ')).toUpperCase(),
+            style: TextStyle(
+                fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.0, color: primary),
+          ),
+        ),
+      ],
+    );
   }
 }

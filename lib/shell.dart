@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'services/auth_provider.dart';
 import 'services/theme_controller.dart';
 import 'utils/theme.dart';
+import 'widgets/common.dart';
 
 class AppShell extends StatelessWidget {
   final Widget child;
@@ -68,14 +69,14 @@ class _AuroraNavDock extends StatelessWidget {
           child: Container(
             height: 72,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.10),
+              color: Colors.white.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.18), width: 1),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.20), width: 1.2),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.25),
-                  blurRadius: 30,
-                  offset: const Offset(0, 10),
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 40,
+                  offset: const Offset(0, 12),
                 ),
               ],
             ),
@@ -87,41 +88,45 @@ class _AuroraNavDock extends StatelessWidget {
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () => context.go(tab.path),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOutCubic,
+                    child: Container(
+                      color: Colors.transparent, // Ensure full hit area
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeOutCubic,
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                            decoration: active
-                                ? BoxDecoration(
-                                    gradient: themeController.primaryGradient,
-                                    borderRadius: BorderRadius.circular(20),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: palette.primary.withValues(alpha: 0.4),
-                                        blurRadius: 12,
-                                        offset: const Offset(0, 3),
-                                      ),
-                                    ],
-                                  )
-                                : null,
-                            child: Icon(
-                              active ? tab.activeIcon : tab.icon,
-                              color: active ? Colors.white : Colors.white.withValues(alpha: 0.45),
-                              size: 22,
+                          AnimatedScale(
+                            scale: active ? 1.0 : 0.85,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOutBack,
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 300),
+                              transitionBuilder: (Widget child, Animation<double> animation) {
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: ScaleTransition(scale: animation, child: child),
+                                );
+                              },
+                              child: active
+                                  ? GradientIcon(
+                                      key: const ValueKey('active'),
+                                      icon: tab.activeIcon,
+                                      size: 28,
+                                      gradient: themeController.primaryGradient,
+                                    )
+                                  : Icon(
+                                      tab.icon,
+                                      key: const ValueKey('inactive'),
+                                      color: Colors.white.withValues(alpha: 0.45),
+                                      size: 24,
+                                    ),
                             ),
                           ),
-                          const SizedBox(height: 3),
+                          const SizedBox(height: 4),
                           AnimatedDefaultTextStyle(
-                            duration: const Duration(milliseconds: 250),
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOutCubic,
                             style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: active ? FontWeight.w800 : FontWeight.w500,
+                              fontSize: 11,
+                              fontWeight: active ? FontWeight.w800 : FontWeight.w600,
                               color: active ? palette.primary : Colors.white.withValues(alpha: 0.4),
                             ),
                             child: Text(tab.label),

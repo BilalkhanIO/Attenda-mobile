@@ -59,7 +59,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
         centerTitle: true,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary600))
+          ? Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
           : _error != null
               ? Center(
                   child: Column(
@@ -198,7 +198,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                                           completion >= 100
                                               ? AppColors.success500
                                               : completion >= 50
-                                                  ? AppColors.primary600
+                                                  ? Theme.of(context).colorScheme.primary
                                                   : AppColors.warning500,
                                         ),
                                       ),

@@ -54,7 +54,7 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
         centerTitle: true,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary600))
+          ? Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
           : _error != null
               ? Center(
                   child: Column(
@@ -149,7 +149,7 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
                                             }
                                           }
                                         },
-                                        child: const Icon(Icons.download_outlined, size: 18, color: AppColors.primary600),
+                                        child: Icon(Icons.download_outlined, size: 18, color: Theme.of(context).colorScheme.primary),
                                       ),
                                   ]),
                             ]),

@@ -135,8 +135,8 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
                 Center(
                   child: TextButton(
                     onPressed: () => context.go('/login'),
-                    child: const Text('Back to sign in',
-                        style: TextStyle(color: AppColors.primary600, fontWeight: FontWeight.w600)),
+                    child: Text('Back to sign in',
+                        style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600)),
                   ),
                 ),
               ],
