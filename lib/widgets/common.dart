@@ -312,28 +312,44 @@ class KpiChip extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-  final Color bg;
-  const KpiChip({super.key, required this.label, required this.value, required this.color, required this.bg});
+  final bool compact;
+
+  const KpiChip({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.color,
+    this.compact = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: EdgeInsets.symmetric(
+              horizontal: compact ? 8 : 12, vertical: compact ? 8 : 12),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: color.withValues(alpha: 0.3)),
+            color: color.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.28), width: 1.0),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: color)),
+              Text(value,
+                  style: TextStyle(
+                      fontSize: compact ? 18 : 22,
+                      fontWeight: FontWeight.w800,
+                      color: color)),
               const SizedBox(height: 2),
-              Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: color.withValues(alpha: 0.8))),
+              Text(label,
+                  style: TextStyle(
+                      fontSize: compact ? 9 : 10,
+                      fontWeight: FontWeight.w600,
+                      color: color.withValues(alpha: 0.75))),
             ],
           ),
         ),
@@ -386,18 +402,62 @@ class EmptyStateWidget extends StatelessWidget {
 }
 
 // ─── Glass Info Row ───────────────────────────────────
-Widget glassDetailRow(String label, String value, {bool highlight = false}) {
+Widget glassDetailRow(String label, String value, {bool highlight = false, Color? highlightColor}) {
   return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 7),
-    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Text(label, style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.55))),
-      Text(value, style: TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        color: highlight ? AppColors.warning500 : Colors.white,
-      )),
-    ]),
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: AppColors.onGlassMuted)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(value,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: highlight ? FontWeight.w700 : FontWeight.w600,
+                  color: highlight ? (highlightColor ?? AppColors.primary) : AppColors.onGlass)),
+        ),
+      ],
+    ),
   );
+}
+
+// ─── Gradient Icon ─────────────────────────────────────
+class GradientIcon extends StatelessWidget {
+  final IconData icon;
+  final double size;
+  final Gradient gradient;
+
+  const GradientIcon({
+    super.key,
+    required this.icon,
+    this.size = 24,
+    this.gradient = AppGradients.aurora,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ShaderMask(
+      child: SizedBox(
+        width: size * 1.2,
+        height: size * 1.2,
+        child: Icon(
+          icon,
+          size: size,
+          color: Colors.white,
+        ),
+      ),
+      shaderCallback: (Rect bounds) {
+        final Rect rect = Rect.fromLTRB(0, 0, bounds.width, bounds.height);
+        return gradient.createShader(rect);
+      },
+    );
+  }
 }
 
 // ─── Confirm Dialog ───────────────────────────────────

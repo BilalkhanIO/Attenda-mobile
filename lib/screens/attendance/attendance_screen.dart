@@ -19,6 +19,39 @@ int? _asInt(dynamic v) => v == null
         ? v.toInt()
         : int.tryParse(v.toString());
 
+DateTime? _parseDateTime(dynamic v) {
+  if (v == null) return null;
+  try {
+    return DateTime.parse(v.toString()).toLocal();
+  } catch (_) {
+    return null;
+  }
+}
+
+int _totalBreakMinutes(Map<String, dynamic> record) {
+  final breaks = (record['break_records'] as List?)
+          ?.cast<Map<String, dynamic>>() ??
+      const <Map<String, dynamic>>[];
+  if (breaks.isEmpty) return _asInt(record['break_minutes']) ?? 0;
+
+  var total = 0;
+  final now = DateTime.now();
+  for (final b in breaks) {
+    final stored = _asInt(b['duration_mins']);
+    if (stored != null) {
+      total += stored;
+      continue;
+    }
+    final start = _parseDateTime(b['break_start']);
+    if (start == null) continue;
+    final end = _parseDateTime(b['break_end']) ?? now;
+    if (end.isAfter(start)) {
+      total += end.difference(start).inMinutes;
+    }
+  }
+  return total;
+}
+
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key});
   @override
@@ -198,30 +231,34 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               if (!_loading) ...[
                 Row(children: [
                   Expanded(
-                      child: _StatChip(
+                      child: KpiChip(
                           label: 'Present',
                           value: '${_summary['present']}',
-                          color: const Color(0xFF34E0A1))),
+                          color: const Color(0xFF34E0A1),
+                          compact: true)),
                   const SizedBox(width: 8),
                   Expanded(
-                      child: _StatChip(
+                      child: KpiChip(
                           label: 'Late',
                           value: '${_summary['late']}',
-                          color: const Color(0xFFFFBF4D))),
+                          color: const Color(0xFFFFBF4D),
+                          compact: true)),
                   const SizedBox(width: 8),
                   Expanded(
-                      child: _StatChip(
+                      child: KpiChip(
                           label: 'Absent',
                           value: '${_summary['absent']}',
-                          color: const Color(0xFFFF6B7D))),
+                          color: const Color(0xFFFF6B7D),
+                          compact: true)),
                   const SizedBox(width: 8),
                   Expanded(
-                      child: _StatChip(
+                      child: KpiChip(
                           label: 'Remote',
                           value: '${_summary['remote']}',
-                          color: const Color(0xFF5BD6FF))),
+                          color: const Color(0xFF5BD6FF),
+                          compact: true)),
                 ]),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
               ],
 
               const SectionHeader(title: 'Records'),
@@ -259,48 +296,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 }
 
-// ─── KPI stat chip with glass tint ──────────────────────
-class _StatChip extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-  const _StatChip(
-      {required this.label, required this.value, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.14),
-            borderRadius: BorderRadius.circular(16),
-            border:
-                Border.all(color: color.withValues(alpha: 0.28), width: 1.0),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(value,
-                  style: TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.w800, color: color)),
-              const SizedBox(height: 2),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: color.withValues(alpha: 0.75))),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _RecordTile extends StatelessWidget {
   final Map<String, dynamic> record;
   final Map<String, dynamic>? overtimeRequest;
@@ -318,70 +313,84 @@ class _RecordTile extends StatelessWidget {
 
     return GlassCard(
       onTap: () => _showDetail(context, record),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(children: [
         Container(
-          width: 44,
-          height: 44,
+          width: 52,
+          height: 52,
           decoration: BoxDecoration(
-            color: StatusColors.bg(status),
-            borderRadius: BorderRadius.circular(10),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                StatusColors.fg(status).withValues(alpha: 0.25),
+                StatusColors.fg(status).withValues(alpha: 0.1),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: StatusColors.fg(status).withValues(alpha: 0.3), width: 1.5),
           ),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Text(DateFormat('d').format(date),
                 style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
                     color: StatusColors.fg(status))),
-            Text(DateFormat('EEE').format(date),
+            Text(DateFormat('EEE').format(date).toUpperCase(),
                 style: TextStyle(
                     fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: StatusColors.fg(status))),
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                    color: StatusColors.fg(status).withValues(alpha: 0.7))),
           ]),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 16),
         Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(DateFormat('EEEE, d MMMM').format(date),
               style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
                   color: Colors.white),
               maxLines: 1,
               overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 3),
-          Wrap(
-            spacing: 6,
-            runSpacing: 2,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          const SizedBox(height: 6),
+          Row(
             children: [
-              if (checkIn != null)
-                Text(
-                    'In: ${DateFormat('hh:mm a').format(DateTime.parse(checkIn).toLocal())}',
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.onGlassMuted)),
-              if (checkIn != null && checkOut != null)
-                const Text('·',
-                    style:
-                        TextStyle(color: AppColors.onGlassDim, fontSize: 12)),
-              if (checkOut != null)
-                Text(
-                    'Out: ${DateFormat('hh:mm a').format(DateTime.parse(checkOut).toLocal())}',
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.onGlassMuted)),
+              if (checkIn != null) ...[
+                Icon(Icons.login_rounded, size: 12, color: AppColors.primary.withValues(alpha: 0.7)),
+                const SizedBox(width: 4),
+                Text(DateFormat('hh:mm a').format(DateTime.parse(checkIn).toLocal()),
+                    style: TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.5))),
+              ],
+              if (checkOut != null) ...[
+                const SizedBox(width: 12),
+                Icon(Icons.logout_rounded, size: 12, color: AppColors.secondary.withValues(alpha: 0.7)),
+                const SizedBox(width: 4),
+                Text(DateFormat('hh:mm a').format(DateTime.parse(checkOut).toLocal()),
+                    style: TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.5))),
+              ],
               if (hours != null) ...[
-                const Text('·',
-                    style:
-                        TextStyle(color: AppColors.onGlassDim, fontSize: 12)),
-                Text('${hours.toStringAsFixed(1)}h',
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.onGlassMuted)),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                  ),
+                  child: Text('${hours.toStringAsFixed(1)}h',
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.primary)),
+                ),
               ],
             ],
           ),
         ])),
-        StatusBadge(status: status, small: true),
       ]),
     );
   }
@@ -422,8 +431,7 @@ class _RecordTile extends StatelessWidget {
                 StatusBadge(status: r['status'] as String? ?? 'out'),
               ]),
               const SizedBox(height: 18),
-              const Divider(color: AppColors.glass12),
-              const SizedBox(height: 10),
+              const Divider(color: AppColors.glass20, height: 32),
               _glassDetailRow(
                   'Check In',
                   r['check_in_at'] != null
@@ -438,37 +446,37 @@ class _RecordTile extends StatelessWidget {
                       : '—'),
               Builder(builder: (_) {
                 final hours = _asDouble(r['hours_worked']);
-                return _glassDetailRow('Hours',
+                return glassDetailRow('Hours',
                     hours != null ? '${hours.toStringAsFixed(1)}h' : '—');
               }),
               Builder(builder: (_) {
                 final net = _asDouble(r['net_hours_worked']);
                 return net != null
-                    ? _glassDetailRow('Net Hours', '${net.toStringAsFixed(1)}h')
+                    ? glassDetailRow('Net Hours', '${net.toStringAsFixed(1)}h')
                     : const SizedBox.shrink();
               }),
               Builder(builder: (_) {
                 final late = _asInt(r['late_minutes']) ?? 0;
                 return late > 0
-                    ? _glassDetailRow('Late By', '$late min', highlight: true)
+                    ? glassDetailRow('Late By', '$late min', highlight: true, highlightColor: AppColors.warning500)
                     : const SizedBox.shrink();
               }),
               Builder(builder: (_) {
-                final brk = _asInt(r['break_minutes']) ?? 0;
+                final brk = _totalBreakMinutes(r);
                 return brk > 0
-                    ? _glassDetailRow('Breaks', '$brk min')
+                    ? glassDetailRow('Breaks', '$brk min')
                     : const SizedBox.shrink();
               }),
               Builder(builder: (_) {
                 final ot = _asDouble(r['overtime_hours']) ?? 0;
                 return ot > 0
-                    ? _glassDetailRow('Overtime', '${ot.toStringAsFixed(1)}h', highlight: true)
+                    ? glassDetailRow('Overtime', '${ot.toStringAsFixed(1)}h', highlight: true)
                     : const SizedBox.shrink();
               }),
               Builder(builder: (_) {
                 final extra = _asInt(r['extra_office_minutes']) ?? 0;
                 return extra > 0
-                    ? _glassDetailRow('Extra Office Time', '$extra min')
+                    ? glassDetailRow('Extra Office Time', '$extra min')
                     : const SizedBox.shrink();
               }),
               // ── Overtime request status / action ───────────────────────
@@ -481,9 +489,9 @@ class _RecordTile extends StatelessWidget {
                 final req = overtimeRequest;
                 if (req != null && req['status'] != 'rejected') {
                   final status = (req['status'] as String? ?? 'pending');
-                  return _glassDetailRow('Overtime Request',
+                  return glassDetailRow('Overtime Request',
                       status[0].toUpperCase() + status.substring(1),
-                      highlight: status == 'pending');
+                      highlight: status == 'pending', highlightColor: AppColors.warning500);
                 }
                 return Padding(
                   padding: const EdgeInsets.only(top: 12),
@@ -500,18 +508,18 @@ class _RecordTile extends StatelessWidget {
                   ),
                 );
               }),
-              _glassDetailRow(
+              glassDetailRow(
                   'Type',
                   (r['check_in_type'] as String? ?? 'manual')
                       .replaceAll('_', ' ')
                       .toUpperCase()),
               if (r['auto_checked_out'] == true)
-                _glassDetailRow('Check Out', 'Auto checked-out by system',
-                    highlight: true),
+                glassDetailRow('Check Out', 'Auto checked-out by system',
+                    highlight: true, highlightColor: AppColors.danger500),
               if (r['ip_detected'] != null)
-                _glassDetailRow('IP', r['ip_detected'] as String),
+                glassDetailRow('IP', r['ip_detected'] as String),
               if (r['is_overridden'] == true)
-                _glassDetailRow('Override',
+                glassDetailRow('Override',
                     r['override_reason'] as String? ?? 'Overridden by manager',
                     highlight: true),
               // ── Break history ────────────────────────────────────────────
@@ -523,20 +531,16 @@ class _RecordTile extends StatelessWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 14),
-                    const Divider(color: AppColors.glass12),
-                    const SizedBox(height: 10),
-                    const Text('Breaks',
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white)),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 24),
+                    const Divider(color: AppColors.glass20, height: 1),
+                    const SizedBox(height: 20),
+                    const SectionHeader(title: 'Breaks'),
+                    const SizedBox(height: 12),
                     ...breaks.map((b) => _breakHistoryRow(b)),
                   ],
                 );
               }),
-              const SizedBox(height: 6),
+              const SizedBox(height: 12),
             ],
           ),
         ),
@@ -559,71 +563,74 @@ class _RecordTile extends StatelessWidget {
     final duration = _asInt(b['duration_mins']);
     final late     = _asInt(b['late_return_minutes']) ?? 0;
     final isPaid   = (b['is_paid'] as bool?) ?? false;
-    final autoEnded = (b['auto_ended'] as bool?) ?? false;
-    final wifiBack  = (b['wifi_on_at_end'] as bool?) ?? false;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 12),
       child: GlassCard(
-        tint: late > 0 ? AppColors.danger500 : null,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        tint: late > 0 ? AppColors.danger500 : Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(
-              late > 0 ? Icons.running_with_errors : Icons.free_breakfast_outlined,
-              size: 14,
-              color: late > 0 ? AppColors.danger500 : AppColors.teal100,
+            GradientIcon(
+              icon: late > 0 ? Icons.running_with_errors : Icons.free_breakfast_rounded,
+              size: 16,
+              gradient: late > 0 
+                  ? const LinearGradient(colors: [AppColors.danger500, Color(0xFFFF8A8A)])
+                  : AppGradients.aurora,
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(name,
                   style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
                       color: late > 0 ? AppColors.danger500 : Colors.white)),
             ),
             if (isPaid)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: AppColors.teal100.withValues(alpha: 0.15),
+                  color: AppColors.primary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
                 ),
-                child: const Text('Paid',
-                    style: TextStyle(fontSize: 10, color: AppColors.teal100, fontWeight: FontWeight.w600)),
+                child: const Text('PAID',
+                    style: TextStyle(fontSize: 9, color: AppColors.primary, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
               ),
           ]),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Row(children: [
             Text('$start → $end',
-                style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6))),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.6))),
             if (duration != null) ...[
-              const SizedBox(width: 6),
-              Text('· ${duration}m',
-                  style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5))),
+              const SizedBox(width: 8),
+              Container(
+                width: 4, height: 4,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.2)),
+              ),
+              const SizedBox(width: 8),
+              Text('${duration}m',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.5))),
             ],
           ]),
           if (late > 0) ...[
-            const SizedBox(height: 4),
-            Row(children: [
-              Icon(Icons.warning_amber_rounded, size: 12, color: AppColors.danger500.withValues(alpha: 0.8)),
-              const SizedBox(width: 4),
-              Text('${late}m late returning',
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.danger500.withValues(alpha: 0.9))),
-              if (!wifiBack) ...[
-                const SizedBox(width: 4),
-                Text('· off WiFi',
-                    style: TextStyle(fontSize: 11, color: AppColors.danger500.withValues(alpha: 0.6))),
-              ],
-            ]),
-          ],
-          if (autoEnded) ...[
-            const SizedBox(height: 2),
-            Text('Auto-closed at checkout',
-                style: TextStyle(fontSize: 10, color: Colors.white.withValues(alpha: 0.35))),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.danger500.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.danger500),
+                const SizedBox(width: 6),
+                Text('${late}m late returning',
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.danger500)),
+              ]),
+            ),
           ],
         ]),
       ),
@@ -631,27 +638,6 @@ class _RecordTile extends StatelessWidget {
   }
 
   Widget _glassDetailRow(String label, String value, {bool highlight = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.onGlassMuted)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(value,
-                textAlign: TextAlign.end,
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: highlight ? FontWeight.w700 : FontWeight.w600,
-                    color: highlight ? AppColors.primary : AppColors.onGlass)),
-          ),
-        ],
-      ),
-    );
+    return glassDetailRow(label, value, highlight: highlight);
   }
 }

@@ -237,8 +237,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         return;
       }
 
-      final todayRecord =
-          records.isNotEmpty ? records.first as Map<String, dynamic> : null;
+      final statusAttendance = todayStatus['attendance'] is Map
+          ? (todayStatus['attendance'] as Map).cast<String, dynamic>()
+          : null;
+      final statusDate = todayStatus['date'] as String?;
+      final fallbackDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final todayDate = statusDate ?? fallbackDate;
+      Map<String, dynamic>? todayRecord;
+      for (final raw in records) {
+        if (raw is! Map) continue;
+        final record = raw.cast<String, dynamic>();
+        final recordDate = (record['date'] ?? '').toString();
+        if (recordDate.startsWith(todayDate)) {
+          todayRecord = record;
+          break;
+        }
+      }
+      todayRecord ??= statusAttendance;
       final status = todayRecord?['status'] as String? ?? 'none';
 
       // Compute clock offset once per successful fetch.
@@ -261,8 +276,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (mounted) {
         final mergedRecord = {
           if (todayRecord != null) ...todayRecord,
-          if (todayStatus['attendance'] is Map)
-            ...(todayStatus['attendance'] as Map).cast<String, dynamic>(),
+          if (statusAttendance != null) ...statusAttendance,
         };
         setState(() {
           _todayRecord  = mergedRecord.isNotEmpty ? mergedRecord : _todayRecord;
@@ -306,8 +320,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final checkIn = _todayRecord?['check_in_at'] as String?;
     final checkOut = _todayRecord?['check_out_at'] as String?;
     if (checkIn != null && checkOut == null) {
-      setState(
-          () => _elapsed = DateTime.now().difference(DateTime.parse(checkIn)));
+      setState(() => _elapsed = _liveWorkedDuration());
     } else if (_autoCheckoutRisk) {
       setState(() {}); // keep the disconnect countdown ticking
     }
@@ -316,6 +329,53 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // the 30s refresh).
     if (_autoCheckoutRisk && _graceExpired) _pollForAutoCheckout();
     _checkDeferredReminders();
+  }
+
+  Duration _liveWorkedDuration() {
+    final checkIn = _parseLocal(_todayRecord?['check_in_at']);
+    if (checkIn == null) return Duration.zero;
+    final checkOut = _parseLocal(_todayRecord?['check_out_at']);
+    final end = checkOut ?? _now;
+    var worked = end.difference(checkIn);
+
+    final breakRecords = (_todayRecord?['break_records'] as List?)
+            ?.cast<Map<String, dynamic>>() ??
+        const <Map<String, dynamic>>[];
+    for (final b in breakRecords) {
+      if (b['is_paid'] == true) continue;
+      final breakStart = _parseLocal(b['break_start']);
+      if (breakStart == null) continue;
+      final breakEnd = _parseLocal(b['break_end']) ?? end;
+      if (!breakEnd.isAfter(breakStart)) continue;
+      worked -= breakEnd.difference(breakStart);
+    }
+
+    return worked.isNegative ? Duration.zero : worked;
+  }
+
+  int _totalBreakMinutes(Map<String, dynamic>? record) {
+    if (record == null) return 0;
+    final breakRecords = (record['break_records'] as List?)
+            ?.cast<Map<String, dynamic>>() ??
+        const <Map<String, dynamic>>[];
+    if (breakRecords.isEmpty) return _asInt(record['break_minutes']) ?? 0;
+
+    var total = 0;
+    final endOfWork = _parseLocal(record['check_out_at']) ?? _now;
+    for (final b in breakRecords) {
+      final stored = _asInt(b['duration_mins']);
+      if (stored != null) {
+        total += stored;
+        continue;
+      }
+      final start = _parseLocal(b['break_start']);
+      if (start == null) continue;
+      final end = _parseLocal(b['break_end']) ?? endOfWork;
+      if (end.isAfter(start)) {
+        total += end.difference(start).inMinutes;
+      }
+    }
+    return total;
   }
 
   DateTime? _lastExpiryPoll;
@@ -389,10 +449,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String? get _disconnectSsid => _wifi.disconnectSsid;
   DateTime? get _disconnectDeadline => _wifi.disconnectDeadline;
 
-  // The disconnect/grace UI applies to anyone who was being WiFi-tracked
-  // (heartbeatLost is only set when we were). Gated by _checkedIn so it clears
-  // the moment the server auto-checks-out (status flips to 'out').
-  bool get _autoCheckoutRisk => _heartbeatLost && _checkedIn;
+  // The disconnect/grace UI applies to unexpected WiFi loss while actively
+  // working. During a break, the break timer owns the state; the backend also
+  // defers heartbeat checkout until the break is overdue plus grace.
+  bool get _autoCheckoutRisk => _heartbeatLost && _checkedIn && !_isOnBreak;
   // True once the grace window has elapsed — the server is closing us out.
   bool get _graceExpired =>
       _disconnectDeadline != null &&
@@ -478,12 +538,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             Text('$greeting,',
                                 style: TextStyle(
                                     fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.2,
                                     color:
                                         Colors.white.withValues(alpha: 0.55))),
+                            const SizedBox(height: 2),
                             Text(user.name.split(' ').first,
                                 style: const TextStyle(
-                                    fontSize: 26,
-                                    fontWeight: FontWeight.w800,
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -0.5,
                                     color: Colors.white)),
                           ]),
                       Row(children: [
@@ -494,36 +558,37 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             _load(silent: true);
                           },
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(16),
                             child: BackdropFilter(
                               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                               child: Container(
-                                width: 42,
-                                height: 42,
+                                width: 44,
+                                height: 44,
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(20),
+                                  color: Colors.white.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
                                       color:
-                                          Colors.white.withValues(alpha: 0.2)),
+                                          Colors.white.withValues(alpha: 0.15)),
                                 ),
                                 child: Stack(
                                     alignment: Alignment.center,
                                     children: [
-                                      Icon(Icons.notifications_outlined,
-                                          size: 20,
+                                      Icon(Icons.notifications_none_rounded,
+                                          size: 22,
                                           color: Colors.white
                                               .withValues(alpha: 0.8)),
                                       if (_unreadNotifs > 0)
                                         Positioned(
-                                          top: 8,
-                                          right: 8,
+                                          top: 12,
+                                          right: 12,
                                           child: Container(
                                             width: 8,
                                             height: 8,
-                                            decoration: const BoxDecoration(
-                                                color: AppColors.primary600,
-                                                shape: BoxShape.circle),
+                                            decoration: BoxDecoration(
+                                                color: AppColors.primary,
+                                                shape: BoxShape.circle,
+                                                border: Border.all(color: AppColors.bgDark, width: 1.5)),
                                           ),
                                         ),
                                     ]),
@@ -531,8 +596,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        UserAvatar(name: user.name),
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 1.5),
+                          ),
+                          child: UserAvatar(name: user.name, size: 40),
+                        ),
                       ]),
                     ]),
 
@@ -1871,7 +1943,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final checkOutStr = _todayRecord?['check_out_at'] as String?;
       final hoursWorked = _asDouble(_todayRecord?['hours_worked']);
       final netHours = _asDouble(_todayRecord?['net_hours_worked']);
-      final breakMins = _asInt(_todayRecord?['break_minutes']) ?? 0;
+      final breakMins = _totalBreakMinutes(_todayRecord);
       final overtimeHours = _asDouble(_todayRecord?['overtime_hours']) ?? 0;
       final extraOfficeMins = _asInt(_todayRecord?['extra_office_minutes']) ?? 0;
       final wasAutoOut = (_todayRecord?['auto_checked_out'] as bool?) ?? false;
@@ -1938,18 +2010,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           const SizedBox(height: 12),
           Row(children: [
             _infoChip(Icons.login, 'In', checkInFmt),
-            const SizedBox(width: 20),
+            const SizedBox(width: 16),
             _infoChip(Icons.logout, 'Out', checkOutFmt),
             if (breakMins > 0) ...[
-              const SizedBox(width: 20),
+              const SizedBox(width: 16),
               _infoChip(Icons.free_breakfast, 'Break', '${breakMins}m'),
             ],
             if (overtimeHours > 0) ...[
-              const SizedBox(width: 20),
+              const SizedBox(width: 16),
               _infoChip(Icons.more_time, 'Overtime', '${overtimeHours.toStringAsFixed(1)}h'),
             ],
             if (extraOfficeMins > 0) ...[
-              const SizedBox(width: 20),
+              const SizedBox(width: 16),
               _infoChip(Icons.schedule, 'Extra', '${extraOfficeMins}m'),
             ],
           ]),
@@ -2479,19 +2551,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _infoChip(IconData icon, String label, String value) {
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 14, color: Colors.white.withValues(alpha: 0.4)),
-      const SizedBox(width: 4),
-      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 12, color: Colors.white.withValues(alpha: 0.4)),
+        const SizedBox(width: 4),
         Text(label,
             style: TextStyle(
-                fontSize: 10, color: Colors.white.withValues(alpha: 0.45))),
-        Text(value,
-            style: const TextStyle(
-                fontSize: 13,
+                fontSize: 10,
                 fontWeight: FontWeight.w700,
-                color: Colors.white)),
+                letterSpacing: 0.5,
+                color: Colors.white.withValues(alpha: 0.45))),
       ]),
+      const SizedBox(height: 2),
+      Text(value,
+          style: const TextStyle(
+              fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
     ]);
   }
 

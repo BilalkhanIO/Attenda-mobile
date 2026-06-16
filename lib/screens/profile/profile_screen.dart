@@ -115,21 +115,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _menuRow(IconData icon, String label, VoidCallback onTap) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: GlassCard(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         onTap: onTap,
         child: Row(children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-            ),
-            child: Icon(icon, color: Colors.white.withValues(alpha: 0.7), size: 18),
-          ),
+          GradientIcon(icon: icon, size: 20),
           const SizedBox(width: 14),
           Expanded(
               child: Text(label,
@@ -146,13 +137,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildProfileCard(AuthUser user, ThemeController themeController) {
     return GlassCard(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
       child: Column(
         children: [
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(3),
+                padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: themeController.primaryGradient,
@@ -160,50 +151,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: UserAvatar(
                   name: user.name,
                   imageUrl: _profile?['avatar_url'] as String?,
-                  size: 64,
+                  size: 72,
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 20),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(user.name,
                         style: const TextStyle(
-                            fontSize: 18,
+                            fontSize: 20,
                             fontWeight: FontWeight.w800,
                             color: Colors.white)),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Text(
-                      _profile?['job_title'] ?? user.role.replaceAll('_', ' '),
-                      style: TextStyle(
-                          fontSize: 13, color: Colors.white.withValues(alpha: 0.5)),
+                      (_profile?['job_title'] ?? user.role.replaceAll('_', ' ')).toUpperCase(),
+                      style: const TextStyle(
+                          fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5, color: AppColors.primary),
                     ),
-                    Text(
-                      _profile?['department'] ?? '',
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.white.withValues(alpha: 0.4)),
-                    ),
+                    if (_profile?['department'] != null)
+                      Text(
+                        _profile!['department'],
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.white.withValues(alpha: 0.4)),
+                      ),
                   ],
                 ),
-              ),
-              IconButton(
-                onPressed: () => context.push('/profile/edit'),
-                icon: const Icon(Icons.edit_outlined, color: Colors.white54, size: 20),
               ),
             ],
           ),
           if (_profile != null) ...[
-            const SizedBox(height: 20),
-            const Divider(height: 1),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _statItem('Employee ID', _profile?['employee_id'] ?? '—'),
-                _statItem('Joined', _profile?['joined_date'] != null 
+                Expanded(child: _statItem('Employee ID', _profile?['employee_id'] ?? '—')),
+                Container(width: 1, height: 24, color: Colors.white.withValues(alpha: 0.1)),
+                Expanded(child: _statItem('Joined', _profile?['joined_date'] != null 
                     ? DateFormat('MMM yyyy').format(DateTime.parse(_profile!['joined_date']))
-                    : '—'),
+                    : '—')),
               ],
             ),
           ],

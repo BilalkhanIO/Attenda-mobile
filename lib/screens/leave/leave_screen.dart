@@ -106,27 +106,28 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
                     children: [
                       // ── Balance summary glass card ──
                       GlassCard(
-                        tint: AppColors.primary,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
                         child: Row(children: [
                           _LeaveRing(pct: pct, value: remainingInt, label: 'days'),
-                          const SizedBox(width: 20),
+                          const SizedBox(width: 24),
                           Expanded(
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text('TOTAL REMAINING',
-                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: Colors.white.withValues(alpha: 0.55))),
-                              const SizedBox(height: 6),
+                              const Text('TOTAL REMAINING',
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: AppColors.primary)),
+                              const SizedBox(height: 8),
                               Text(
-                                'You have $remainingInt days of leave left across all types this year.',
-                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white, height: 1.4),
+                                'You have $remainingInt days of leave left for ${DateTime.now().year}.',
+                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white, height: 1.4),
                               ),
                             ]),
                           ),
                         ]),
                       ),
+                      const SizedBox(height: 24),
+                      const SectionHeader(title: 'Leave Types'),
                       const SizedBox(height: 12),
                       ..._balances.map((b) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.only(bottom: 10),
                         child: _BalanceTile(balance: b),
                       )),
                     ],
@@ -318,26 +319,51 @@ class _BalanceTile extends StatelessWidget {
     final pct       = entitled > 0 ? (used / entitled).clamp(0.0, 1.0) : 0.0;
 
     return GlassCard(
+      padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text(leaveType.toUpperCase(),
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.5, color: Colors.white)),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.5, color: Colors.white)),
           Text('${remaining % 1 == 0 ? remaining.toInt() : remaining} days left',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primary600)),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primary)),
         ]),
-        const SizedBox(height: 10),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: pct,
-            backgroundColor: Colors.white.withValues(alpha: 0.12),
-            valueColor: AlwaysStoppedAnimation(pct > 0.8 ? AppColors.danger500 : AppColors.primary600),
-            minHeight: 6,
-          ),
+        const SizedBox(height: 14),
+        Stack(
+          children: [
+            Container(
+              height: 6,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 800),
+              curve: Curves.easeOutCubic,
+              height: 6,
+              width: MediaQuery.of(context).size.width * 0.7 * pct, // approximate
+              decoration: BoxDecoration(
+                gradient: AppGradients.aurora,
+                borderRadius: BorderRadius.circular(3),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 6),
-        Text('${used % 1 == 0 ? used.toInt() : used} used of ${entitled % 1 == 0 ? entitled.toInt() : entitled} days',
-            style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.55))),
+        const SizedBox(height: 10),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text('${used % 1 == 0 ? used.toInt() : used} used',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.45))),
+          Text('of ${entitled % 1 == 0 ? entitled.toInt() : entitled} total',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.45))),
+        ]),
       ]),
     );
   }

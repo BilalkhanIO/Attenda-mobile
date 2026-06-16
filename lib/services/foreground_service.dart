@@ -238,11 +238,14 @@ class AttendaTaskHandler extends TaskHandler {
 
         case 'already_in':
           await box.put(kCheckedInViaWifi, true);
+          await box.put(kLastKnownIp, ip);
+          await box.put(kLastKnownSsid, ssid);
           await _updateNotification(
             title: 'Attenda - Checked In',
             text: 'Office WiFi · Last ping ${_hhmm()}',
           );
           FlutterForegroundTask.sendDataToMain('already_in');
+          await _heartbeat(dio: dio, ip: ip, ssid: ssid, box: box);
           break;
 
         case 'no_networks_configured':
