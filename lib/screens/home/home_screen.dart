@@ -1448,12 +1448,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             horizontal: 12, vertical: 7),
                         decoration: BoxDecoration(
                           color: sel
-                              ? AppColors.primary600.withValues(alpha: 0.25)
+                              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.25)
                               : Colors.white.withValues(alpha: 0.06),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                               color: sel
-                                  ? AppColors.primary600
+                                  ? Theme.of(context).colorScheme.primary
                                   : Colors.white.withValues(alpha: 0.15)),
                         ),
                         child: Text(t['label']!,
@@ -1461,7 +1461,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 color: sel
-                                    ? AppColors.primary600
+                                    ? Theme.of(context).colorScheme.primary
                                     : Colors.white.withValues(alpha: 0.7))),
                       ),
                     );
@@ -1497,8 +1497,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         Border.all(color: Colors.white.withValues(alpha: 0.2)),
                   ),
                   child: Row(children: [
-                    const Icon(Icons.calendar_today,
-                        size: 15, color: AppColors.primary600),
+                    Icon(Icons.calendar_today,
+                        size: 15, color: Theme.of(context).colorScheme.primary),
                     const SizedBox(width: 8),
                     Text(fmtDateDisplay(selectedDate),
                         style: const TextStyle(
@@ -1593,8 +1593,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               color: Colors.white.withValues(alpha: 0.2)),
                         ),
                         child: Row(children: [
-                          const Icon(Icons.access_time,
-                              size: 15, color: AppColors.primary600),
+                          Icon(Icons.access_time,
+                              size: 15, color: Theme.of(context).colorScheme.primary),
                           const SizedBox(width: 8),
                           Text(selectedTime.format(ctx),
                               style: const TextStyle(

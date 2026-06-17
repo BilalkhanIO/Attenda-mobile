@@ -102,11 +102,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
               padding: const EdgeInsets.all(12),
               child: Column(
                 children: [
-                  _infoRow(Icons.badge_outlined, 'Employee ID', _profile?['employee_id'] ?? '—'),
-                  _infoRow(Icons.business_outlined, 'Department', _profile?['department'] ?? 'General'),
-                  _infoRow(Icons.calendar_month_outlined, 'Joined', _profile?['joined_date'] != null
-                      ? DateFormat('d MMMM yyyy').format(DateTime.parse(_profile!['joined_date']))
-                      : '—'),
+                  _infoRow(Icons.badge_outlined, 'Employee ID',
+                      _profile?['employee_id'] ?? '—'),
+                  _infoRow(Icons.business_outlined, 'Department',
+                      _profile?['department'] ?? 'General'),
+                  _infoRow(Icons.calendar_month_outlined, 'Joined', (() {
+                    try {
+                      final joined = _profile?['joined_date'];
+                      if (joined == null) return '—';
+                      return DateFormat('d MMMM yyyy')
+                          .format(DateTime.parse(joined.toString()));
+                    } catch (_) {
+                      return '—';
+                    }
+                  })()),
                 ],
               ),
             ),
@@ -133,12 +142,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           Icon(icon, size: 18, color: Colors.white.withValues(alpha: 0.3)),
           const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.4))),
-              Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white.withValues(alpha: 0.4))),
+                Text(
+                  value,
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ],
       ),
