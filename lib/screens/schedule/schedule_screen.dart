@@ -27,11 +27,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final [s, sw] = await Future.wait([api.getMyShifts(), api.getSwapRequests()]);
+      final results = await Future.wait([api.getMyShifts(), api.getSwapRequests()]);
       if (!mounted) return;
       setState(() {
-        _shifts = s.cast<Map<String, dynamic>>();
-        _swaps  = sw.cast<Map<String, dynamic>>();
+        _shifts = results[0].cast<Map<String, dynamic>>();
+        _swaps  = results[1].cast<Map<String, dynamic>>();
         _loading = false;
       });
     } catch (_) {
@@ -85,187 +85,196 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: Colors.transparent,
-    appBar: AppBar(
-      title: const Text('My Schedule'),
-      actions: [
-        IconButton(
-          tooltip: 'Request swap',
-          icon: const Icon(Icons.swap_horiz_rounded),
-          onPressed: _loading ? null : _openSwapSheet,
-        ),
-      ],
-      bottom: TabBar(
-        controller: _tabCtrl,
-        tabs: [
-          const Tab(text: 'Upcoming Shifts'),
-          Tab(text: 'Swap Requests${_swaps.where((s) => s['status'] == 'pending').isNotEmpty ? ' (${_swaps.where((s) => s['status'] == 'pending').length})' : ''}'),
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
+        title: const Text('My Schedule'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: IconButton(
+              tooltip: 'Request swap',
+              style: IconButton.styleFrom(
+                backgroundColor: primary.withValues(alpha: 0.15),
+                foregroundColor: primary,
+              ),
+              icon: const Icon(Icons.swap_horiz_rounded),
+              onPressed: _loading ? null : _openSwapSheet,
+            ),
+          ),
         ],
+        bottom: TabBar(
+          controller: _tabCtrl,
+          tabs: [
+            const Tab(text: 'Upcoming Shifts'),
+            Tab(
+                text:
+                    'Swap Requests${_swaps.where((s) => s["status"] == "pending").isNotEmpty ? " (${_swaps.where((s) => s["status"] == "pending").length})" : ""}'),
+          ],
+        ),
       ),
-    ),
-    body: TabBarView(controller: _tabCtrl, children: [
-      // Shifts
-      RefreshIndicator(
-        color: AppColors.primary600,
-        backgroundColor: AppColors.bgDark3,
-        onRefresh: _load,
-        child: _loading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.primary600))
-            : _shifts.isEmpty
-                ? const EmptyStateWidget(
-                    icon: Icons.calendar_today,
-                    title: 'No shifts',
-                    description: 'Your upcoming shifts will appear here once published.',
-                  )
-                : Builder(builder: (context) {
-                    final groups = _groupShifts(_shifts);
-                    final groupOrder = ['Today', 'This Week', 'Later'];
-                    final items = <Widget>[];
+      body: TabBarView(controller: _tabCtrl, children: [
+        // Shifts
+        RefreshIndicator(
+          color: primary,
+          backgroundColor: AppColors.bgDark3,
+          onRefresh: _load,
+          child: _loading
+              ? Center(child: CircularProgressIndicator(color: primary))
+              : _shifts.isEmpty
+                  ? const EmptyStateWidget(
+                      icon: Icons.calendar_today,
+                      title: 'No shifts',
+                      description: 'Your upcoming shifts will appear here once published.',
+                    )
+                  : Builder(builder: (context) {
+                      final groups = _groupShifts(_shifts);
+                      final groupOrder = ['Today', 'This Week', 'Later'];
+                      final items = <Widget>[];
 
-                    for (final groupName in groupOrder) {
-                      final groupShifts = groups[groupName]!;
-                      if (groupShifts.isEmpty) continue;
-
-                      items.add(Padding(
-                        padding: const EdgeInsets.fromLTRB(0, 8, 0, 8),
-                        child: Text(
-                          groupName.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.4,
-                            color: Colors.white.withValues(alpha: 0.45),
-                          ),
-                        ),
-                      ));
-
-                      for (final a in groupShifts) {
-                        final shift    = (a['shift'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
-                        final date     = DateTime.parse(a['date'] as String);
-                        final isToday  = groupName == 'Today';
-                        final c = parseHexColor(shift['color'] as String?,
-                            fallback: const Color(0xFF00C896));
+                      for (final groupName in groupOrder) {
+                        final groupShifts = groups[groupName]!;
+                        if (groupShifts.isEmpty) continue;
 
                         items.add(Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: GlassCard(
-                            child: Row(children: [
-                              Container(
-                                width: 4, height: 56,
-                                decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(2)),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text(shift['name'] as String? ?? 'Shift',
-                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
-                                Text('${shift['start_time'] ?? '--'} – ${shift['end_time'] ?? '--'}',
-                                    style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.55), fontFamily: 'monospace')),
-                              ])),
-                              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                                Text(DateFormat('EEE, d MMM').format(date),
-                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
-                                if (isToday) ...[
-                                  const SizedBox(height: 4),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primary600.withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(color: AppColors.primary600.withValues(alpha: 0.4)),
-                                    ),
-                                    child: const Text('TODAY',
-                                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.primary600, letterSpacing: 0.8)),
-                                  ),
-                                ],
-                              ]),
-                            ]),
+                          padding: const EdgeInsets.fromLTRB(0, 8, 0, 8),
+                          child: Text(
+                            groupName.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.4,
+                              color: Colors.white.withValues(alpha: 0.45),
+                            ),
                           ),
                         ));
+
+                        for (final a in groupShifts) {
+                          final shift    = (a['shift'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+                          final date     = DateTime.parse(a['date'] as String);
+                          final isToday  = groupName == 'Today';
+                          final c = parseHexColor(shift['color'] as String?,
+                              fallback: const Color(0xFF00C896));
+
+                          items.add(Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: GlassCard(
+                              child: Row(children: [
+                                Container(
+                                  width: 4, height: 56,
+                                  decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(2)),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text(shift['name'] as String? ?? 'Shift',
+                                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+                                  Text('${shift["start_time"] ?? "--"} – ${shift["end_time"] ?? "--"}',
+                                      style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.55), fontFamily: 'monospace')),
+                                ])),
+                                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                                  Text(DateFormat('EEE, d MMM').format(date),
+                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+                                  if (isToday) ...[
+                                    const SizedBox(height: 4),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: primary.withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(color: primary.withValues(alpha: 0.4)),
+                                      ),
+                                      child: Text('TODAY',
+                                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: primary, letterSpacing: 0.8)),
+                                    ),
+                                  ],
+                                ]),
+                              ]),
+                            ),
+                          ));
+                        }
                       }
-                    }
 
-                    return ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
-                      children: items,
-                    );
-                  }),
-      ),
+                      return ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
+                        children: items,
+                      );
+                    }),
+        ),
 
-      // Swaps
-      _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary600))
-          : _swaps.isEmpty
-              ? EmptyStateWidget(
-                  icon: Icons.swap_horiz,
-                  title: 'No swap requests',
-                  description: 'Shift swap requests will appear here.',
-                  action: AppButton(
-                    label: 'Request Swap',
-                    icon: Icons.swap_horiz_rounded,
-                    fullWidth: false,
-                    onPressed: _openSwapSheet,
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
-                  itemCount: _swaps.length,
-                  itemBuilder: (_, i) {
-                    final sw     = _swaps[i];
-                    final status = sw['status'] as String? ?? 'pending';
-                    final currentUserId = context.read<AuthProvider>().user?.id;
-                    final requesterId = (sw['requester'] as Map?)?['id'] as String?
-                        ?? sw['requester_id'] as String?;
-                    final isRequester = currentUserId != null && currentUserId == requesterId;
+        // Swaps
+        _loading
+            ? Center(child: CircularProgressIndicator(color: primary))
+            : _swaps.isEmpty
+                ? EmptyStateWidget(
+                    icon: Icons.swap_horiz,
+                    title: 'No swap requests',
+                    description: 'Shift swap requests will appear here.',
+                    action: AppButton(
+                      label: 'Request Swap',
+                      icon: Icons.swap_horiz_rounded,
+                      fullWidth: false,
+                      onPressed: _openSwapSheet,
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
+                    itemCount: _swaps.length,
+                    itemBuilder: (_, i) {
+                      final sw     = _swaps[i];
+                      final status = sw['status'] as String? ?? 'pending';
+                      final currentUserId = context.read<AuthProvider>().user?.id;
+                      final requesterId = (sw['requester'] as Map?)?['id'] as String?
+                          ?? sw['requester_id'] as String?;
+                      final isRequester = currentUserId != null && currentUserId == requesterId;
 
-                    Color statusColor;
-                    Color statusBg;
-                    switch (status) {
-                      case 'approved': statusColor = AppColors.success500; statusBg = AppColors.success100; break;
-                      case 'rejected': statusColor = AppColors.danger500;  statusBg = AppColors.danger100;  break;
-                      default:         statusColor = AppColors.warning500; statusBg = AppColors.warning100;
-                    }
+                      Color statusColor;
+                      Color statusBg;
+                      switch (status) {
+                        case 'approved': statusColor = AppColors.success500; statusBg = AppColors.success100; break;
+                        case 'rejected': statusColor = AppColors.danger500;  statusBg = AppColors.danger100;  break;
+                        default:         statusColor = AppColors.warning500; statusBg = AppColors.warning100;
+                      }
 
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: GlassCard(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: GlassCard(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                              Text(
+                                isRequester ? 'You requested a swap' : 'Swap request received',
+                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(20)),
+                                child: Text(status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor)),
+                              ),
+                            ]),
+                            const SizedBox(height: 6),
                             Text(
-                              isRequester ? 'You requested a swap' : 'Swap request received',
-                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
+                              // Show the OTHER party: target when I requested,
+                              // requester when the request was sent to me.
+                              'With: ${((isRequester ? sw["target"] : sw["requester"]) as Map?)?["name"] ?? "—"}',
+                              style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.55)),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(20)),
-                              child: Text(status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor)),
-                            ),
+                            if (sw['rejection_reason'] != null) ...[
+                              const SizedBox(height: 4),
+                              Text('Reason: ${sw["rejection_reason"]}',
+                                  style: const TextStyle(fontSize: 12, color: AppColors.danger500)),
+                            ],
                           ]),
-                          const SizedBox(height: 6),
-                          Text(
-                            // Show the OTHER party: target when I requested,
-                            // requester when the request was sent to me.
-                            'With: ${((isRequester ? sw['target'] : sw['requester']) as Map?)?['name'] ?? '—'}',
-                            style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.55)),
-                          ),
-                          if (sw['rejection_reason'] != null) ...[
-                            const SizedBox(height: 4),
-                            Text('Reason: ${sw['rejection_reason']}',
-                                style: const TextStyle(fontSize: 12, color: AppColors.danger500)),
-                          ],
-                        ]),
-                      ),
-                    );
-                  },
-                ),
-    ]),
-  );
+                        ),
+                      );
+                    },
+                  ),
+      ]),
+    );
+  }
 }
 
-// ─── Swap request bottom sheet ──────────────────────────
-// Lets the employee pick one of their own upcoming shifts and a colleague's
-// shift from the org schedule. Employees without shifts.view get a graceful
-// fallback note instead of the colleague picker.
 class _SwapRequestSheet extends StatefulWidget {
   final List<Map<String, dynamic>> myShifts;
   const _SwapRequestSheet({required this.myShifts});
@@ -287,7 +296,7 @@ class _SwapRequestSheetState extends State<_SwapRequestSheet> {
   @override
   void initState() {
     super.initState();
-    _myPickId = widget.myShifts.first['id'] as String?;
+    _myPickId = widget.myShifts.isNotEmpty ? widget.myShifts.first['id'] as String? : null;
     _loadCandidates();
   }
 
@@ -302,7 +311,6 @@ class _SwapRequestSheetState extends State<_SwapRequestSheet> {
     final fmt = DateFormat('yyyy-MM-dd');
     final today = DateTime.now();
     try {
-      // Two 7-day windows cover the next fortnight of the org schedule.
       final results = await Future.wait([
         api.getOrgSchedule(weekStart: fmt.format(today)),
         api.getOrgSchedule(weekStart: fmt.format(today.add(const Duration(days: 7)))),
@@ -369,14 +377,14 @@ class _SwapRequestSheetState extends State<_SwapRequestSheet> {
 
   String _myShiftLabel(Map<String, dynamic> a) {
     final shift = (a['shift'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
-    final date = DateTime.tryParse(a['date'] as String? ?? '');
-    final day = date != null ? DateFormat('EEE, d MMM').format(date) : '—';
-    return '$day · ${shift['name'] ?? 'Shift'} (${shift['start_time'] ?? '--'}–${shift['end_time'] ?? '--'})';
+    final date = DateTime.tryParse(a['date'] as String? ?? "");
+    final day = date != null ? DateFormat('EEE, d MMM').format(date) : "—";
+    return "$day · ${shift['name'] ?? 'Shift'} (${shift['start_time'] ?? '--'}–${shift['end_time'] ?? '--'})";
   }
 
   String _candidateLabel(Map<String, dynamic> a) {
-    final name = (a['user'] as Map?)?['name'] as String? ?? 'Colleague';
-    return '$name · ${_myShiftLabel(a)}';
+    final name = (a['user'] as Map?)?['name'] as String? ?? "Colleague";
+    return "$name · ${_myShiftLabel(a)}";
   }
 
   Widget _sectionLabel(String text) => Text(text,
@@ -412,6 +420,7 @@ class _SwapRequestSheetState extends State<_SwapRequestSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
     return SafeArea(
       child: GlassCard(
         borderRadius: 24,
@@ -424,8 +433,8 @@ class _SwapRequestSheetState extends State<_SwapRequestSheet> {
               const Text('Request a Shift Swap',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)),
               const SizedBox(height: 6),
-              Text('Pick your shift and the colleague\'s shift you want to trade. Your manager approves the swap.',
-                  style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.6))),
+              const Text('Pick your shift and the colleague\'s shift you want to trade. Your manager approves the swap.',
+                  style: TextStyle(fontSize: 13, color: Colors.white60)),
               const SizedBox(height: 18),
 
               if (_error != null) ...[
@@ -457,13 +466,14 @@ class _SwapRequestSheetState extends State<_SwapRequestSheet> {
               _sectionLabel("COLLEAGUE'S SHIFT"),
               const SizedBox(height: 8),
               if (_loadingCandidates)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Center(
                       child: SizedBox(
-                          width: 20, height: 20,
+                          width: 20,
+                          height: 20,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: AppColors.primary600))),
+                              strokeWidth: 2, color: primary))),
                 )
               else if (_noPermission)
                 Container(
@@ -477,18 +487,18 @@ class _SwapRequestSheetState extends State<_SwapRequestSheet> {
                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     const Icon(Icons.lock_outline, size: 16, color: AppColors.warning500),
                     const SizedBox(width: 8),
-                    Expanded(
+                    const Expanded(
                       child: Text(
                         'Your account can\'t browse the team schedule, so a colleague can\'t be picked here. '
                         'Ask your manager to arrange the swap — they can set it up from the schedule.',
-                        style: TextStyle(fontSize: 12, height: 1.4, color: Colors.white.withValues(alpha: 0.65)),
+                        style: TextStyle(fontSize: 12, height: 1.4, color: Colors.white70),
                       ),
                     ),
                   ]),
                 )
               else if (_candidates.isEmpty)
-                Text('No teammate shifts found in the next two weeks.',
-                    style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.5)))
+                const Text('No teammate shifts found in the next two weeks.',
+                    style: TextStyle(fontSize: 13, color: Colors.white54))
               else
                 _dropdown(
                   value: _targetPickId,

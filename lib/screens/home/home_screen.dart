@@ -511,12 +511,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ? 'Good afternoon'
             : 'Good evening';
 
+    final primary = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
         bottom: false,
         child: RefreshIndicator(
-          color: AppColors.primary600,
+          color: primary,
           backgroundColor: AppColors.bgDark3,
           onRefresh: () async {
             await _load(silent: true);
@@ -537,17 +539,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           children: [
                             Text('$greeting,',
                                 style: TextStyle(
-                                    fontSize: 14,
+                                    fontSize: 15,
                                     fontWeight: FontWeight.w600,
                                     letterSpacing: 0.2,
                                     color:
-                                        Colors.white.withValues(alpha: 0.55))),
+                                        Colors.white.withValues(alpha: 0.65))),
                             const SizedBox(height: 2),
                             Text(user.name.split(' ').first,
                                 style: const TextStyle(
-                                    fontSize: 28,
+                                    fontSize: 32,
                                     fontWeight: FontWeight.w900,
-                                    letterSpacing: -0.5,
+                                    letterSpacing: -0.8,
                                     color: Colors.white)),
                           ]),
                       Row(children: [
@@ -597,13 +599,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 1.5),
+                        GestureDetector(
+                          onTap: () => context.go('/profile'),
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3), width: 1.5),
+                            ),
+                            child: UserAvatar(
+                              name: user.name,
+                              imageUrl: _todayStatus?['user']?['avatar_url'] as String?,
+                              size: 40,
+                            ),
                           ),
-                          child: UserAvatar(name: user.name, size: 40),
                         ),
                       ]),
                     ]),
@@ -705,8 +714,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(children: [
-                    const Icon(Icons.calendar_today,
-                        size: 16, color: AppColors.primary600),
+                    Icon(Icons.calendar_today,
+                        size: 16, color: primary),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -798,7 +807,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return _glassBanner(
       icon: Icons.beach_access,
       text: 'You have approved $leaveType today. No check-in required.',
-      tint: AppColors.primary600,
+      tint: Theme.of(context).colorScheme.primary,
     );
   }
 
@@ -1003,7 +1012,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return _glassBanner(
       icon: Icons.timer_outlined,
       text: '$name starts in $label — wrap up',
-      tint: AppColors.primary600,
+      tint: Theme.of(context).colorScheme.primary,
     );
   }
 
@@ -1407,9 +1416,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           backgroundColor: AppColors.bgDark3,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Row(children: [
+          title: Row(children: [
             Icon(Icons.assignment_outlined,
-                color: AppColors.primary600, size: 22),
+                color: Theme.of(context).colorScheme.primary, size: 22),
             SizedBox(width: 8),
             Flexible(
                 child: Text('Report / Request',
@@ -1439,12 +1448,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             horizontal: 12, vertical: 7),
                         decoration: BoxDecoration(
                           color: sel
-                              ? AppColors.primary600.withValues(alpha: 0.25)
+                              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.25)
                               : Colors.white.withValues(alpha: 0.06),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                               color: sel
-                                  ? AppColors.primary600
+                                  ? Theme.of(context).colorScheme.primary
                                   : Colors.white.withValues(alpha: 0.15)),
                         ),
                         child: Text(t['label']!,
@@ -1452,7 +1461,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 color: sel
-                                    ? AppColors.primary600
+                                    ? Theme.of(context).colorScheme.primary
                                     : Colors.white.withValues(alpha: 0.7))),
                       ),
                     );
@@ -1488,8 +1497,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         Border.all(color: Colors.white.withValues(alpha: 0.2)),
                   ),
                   child: Row(children: [
-                    const Icon(Icons.calendar_today,
-                        size: 15, color: AppColors.primary600),
+                    Icon(Icons.calendar_today,
+                        size: 15, color: Theme.of(context).colorScheme.primary),
                     const SizedBox(width: 8),
                     Text(fmtDateDisplay(selectedDate),
                         style: const TextStyle(
@@ -1584,8 +1593,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               color: Colors.white.withValues(alpha: 0.2)),
                         ),
                         child: Row(children: [
-                          const Icon(Icons.access_time,
-                              size: 15, color: AppColors.primary600),
+                          Icon(Icons.access_time,
+                              size: 15, color: Theme.of(context).colorScheme.primary),
                           const SizedBox(width: 8),
                           Text(selectedTime.format(ctx),
                               style: const TextStyle(
@@ -1662,7 +1671,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary600,
+                backgroundColor: Theme.of(context).colorScheme.primary,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)),
@@ -1812,7 +1821,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (untilStart.inMinutes <= 10) {
         return {
           'icon': Icons.schedule,
-          'color': AppColors.primary600,
+        'color': Theme.of(context).colorScheme.primary,
           'text':
               '$name in ${untilStart.inMinutes}m ${untilStart.inSeconds % 60}s',
         };
@@ -2099,12 +2108,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   // Status badge
                   Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: ringTint.withValues(alpha: 0.18),
+                      color: ringTint.withValues(alpha: 0.20),
                       borderRadius: BorderRadius.circular(20),
                       border:
-                          Border.all(color: ringTint.withValues(alpha: 0.4)),
+                          Border.all(color: ringTint.withValues(alpha: 0.5), width: 1.2),
                     ),
                     child: Text(
                       isLate ? 'Checked In · Late' : 'Checked In',
@@ -2243,9 +2252,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ]),
       );
     } else if (_status == 'leave') {
-      cardTint = AppColors.primary600;
+      cardTint = Theme.of(context).colorScheme.primary;
       cardIcon = Icons.beach_access;
-      iconColor = AppColors.primary600;
+      iconColor = Theme.of(context).colorScheme.primary;
       statusTitle = 'On Leave 📅';
       statusSub = 'Approved leave';
     } else if (_status == 'half_leave') {
@@ -2577,7 +2586,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _QuickAction(
         icon: Icons.beach_access_outlined,
         label: 'Report /\nRequest',
-        color: AppColors.primary600,
+        color: Theme.of(context).colorScheme.primary,
         onTap: _showAttendanceRequestDialog,
       ),
       if (auth.hasFeature('remote_work') && !_checkedIn && !_checkedOut && !_isRemote)

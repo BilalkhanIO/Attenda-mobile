@@ -137,7 +137,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
             width: double.infinity,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary600,
+                backgroundColor: Theme.of(context).colorScheme.primary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -159,6 +159,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -226,7 +228,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: const Color(0xFF00C896).withValues(alpha: 0.4 * (1 - _pulse.value)),
+                              color: primary.withValues(alpha: 0.4 * (1 - _pulse.value)),
                               width: 3,
                             ),
                           ),
@@ -239,7 +241,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: const Color(0xFF00C896).withValues(alpha: 0.25 * (1 - _pulse.value)),
+                              color: primary.withValues(alpha: 0.25 * (1 - _pulse.value)),
                               width: 2,
                             ),
                           ),
@@ -249,14 +251,13 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
                       ],
                     ),
                     child: Container(
-                      width: 100, height: 100,
-                      decoration: const BoxDecoration(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF00C896), Color(0xFF00E5FF)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                        gradient: Theme.of(context).colorScheme.primary == AppColors.primary
+                            ? AppGradients.aurora
+                            : LinearGradient(colors: [primary, primary.withValues(alpha: 0.8)]),
                       ),
                       child: Icon(
                         _isCheckout ? Icons.logout_rounded : Icons.check_rounded,

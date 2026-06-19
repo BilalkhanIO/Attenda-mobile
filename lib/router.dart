@@ -20,6 +20,7 @@ import '../screens/settings/security_screen.dart';
 import '../screens/settings/appearance_screen.dart';
 import '../screens/settings/reliability_screen.dart';
 import '../screens/settings/edit_profile_screen.dart';
+import '../screens/settings/settings_screen.dart';
 import 'shell.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
@@ -88,6 +89,7 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
           path: '/profile',
           builder: (_, __) => const ProfileScreen(),
           routes: [
+            GoRoute(path: 'settings', parentNavigatorKey: _rootKey, builder: (_, __) => const SettingsScreen()),
             GoRoute(path: 'edit', parentNavigatorKey: _rootKey, builder: (_, __) => const EditProfileScreen()),
             GoRoute(path: 'payslips', parentNavigatorKey: _rootKey, builder: (_, __) => const PayslipsScreen()),
             GoRoute(path: 'performance', parentNavigatorKey: _rootKey, builder: (_, __) => const PerformanceScreen()),

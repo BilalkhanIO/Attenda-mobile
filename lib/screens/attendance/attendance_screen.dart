@@ -148,6 +148,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -157,7 +159,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         ],
       ),
       body: RefreshIndicator(
-        color: AppColors.primary600,
+        color: primary,
         backgroundColor: AppColors.bgDark3,
         onRefresh: _load,
         child: SingleChildScrollView(

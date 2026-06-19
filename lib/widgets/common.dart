@@ -238,11 +238,11 @@ class AppButton extends StatelessWidget {
           gradient: loading || onPressed == null ? null : gradient,
           color: loading || onPressed == null ? Colors.white12 : null,
           borderRadius: BorderRadius.circular(14),
-          boxShadow: onPressed != null && !loading ? [
+          boxShadow: (onPressed != null && !loading) ? [
             BoxShadow(
-              color: (customColor ?? themeController.palette.primary).withValues(alpha: 0.35),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
+              color: (customColor ?? themeController.palette.primary).withValues(alpha: 0.4),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
             ),
           ] : null,
         ),
@@ -402,30 +402,56 @@ class EmptyStateWidget extends StatelessWidget {
 }
 
 // ─── Glass Info Row ───────────────────────────────────
-Widget glassDetailRow(String label, String value, {bool highlight = false, Color? highlightColor}) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: AppColors.onGlassMuted)),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(value,
-              textAlign: TextAlign.end,
-              style: TextStyle(
+class GlassDetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool highlight;
+  final Color? highlightColor;
+
+  const GlassDetailRow({
+    super.key,
+    required this.label,
+    required this.value,
+    this.highlight = false,
+    this.highlightColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(
                   fontSize: 14,
-                  fontWeight: highlight ? FontWeight.w700 : FontWeight.w600,
-                  color: highlight ? (highlightColor ?? AppColors.primary) : AppColors.onGlass)),
-        ),
-      ],
-    ),
-  );
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.onGlassMuted)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(value,
+                textAlign: TextAlign.end,
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: highlight ? FontWeight.w700 : FontWeight.w600,
+                    color: highlight
+                        ? (highlightColor ?? Theme.of(context).colorScheme.primary)
+                        : AppColors.onGlass)),
+          ),
+        ],
+      ),
+    );
+  }
 }
+
+Widget glassDetailRow(String label, String value,
+        {bool highlight = false, Color? highlightColor}) =>
+    GlassDetailRow(
+        label: label,
+        value: value,
+        highlight: highlight,
+        highlightColor: highlightColor);
 
 // ─── Gradient Icon ─────────────────────────────────────
 class GradientIcon extends StatelessWidget {
@@ -480,7 +506,7 @@ Future<bool?> showConfirmDialog(BuildContext context, {
         ElevatedButton(
           onPressed: () => Navigator.pop(ctx, true),
           style: ElevatedButton.styleFrom(
-            backgroundColor: isDanger ? AppColors.danger500 : AppColors.primary600,
+            backgroundColor: isDanger ? AppColors.danger500 : Theme.of(context).colorScheme.primary,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
           child: Text(confirmLabel),

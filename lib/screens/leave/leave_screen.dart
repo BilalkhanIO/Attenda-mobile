@@ -61,11 +61,11 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
     body: TabBarView(controller: _tabCtrl, children: [
       // Requests tab
       RefreshIndicator(
-        color: AppColors.primary600,
+        color: Theme.of(context).colorScheme.primary,
         backgroundColor: AppColors.bgDark3,
         onRefresh: _load,
         child: _loading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.primary600))
+            ? Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
             : _requests.isEmpty
                 ? EmptyStateWidget(
                     icon: Icons.beach_access,
@@ -88,7 +88,7 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
       ),
       // Balance tab
       _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary600))
+          ? Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
           : _balances.isEmpty
               ? const EmptyStateWidget(
                   icon: Icons.account_balance_wallet_outlined,
@@ -112,8 +112,8 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
                           const SizedBox(width: 24),
                           Expanded(
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              const Text('TOTAL REMAINING',
-                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: AppColors.primary)),
+                              Text('TOTAL REMAINING',
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: Theme.of(context).colorScheme.primary)),
                               const SizedBox(height: 8),
                               Text(
                                 'You have $remainingInt days of leave left for ${DateTime.now().year}.',
@@ -325,7 +325,7 @@ class _BalanceTile extends StatelessWidget {
           Text(leaveType.toUpperCase(),
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.5, color: Colors.white)),
           Text('${remaining % 1 == 0 ? remaining.toInt() : remaining} days left',
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primary)),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.primary)),
         ]),
         const SizedBox(height: 14),
         Stack(
@@ -348,7 +348,7 @@ class _BalanceTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(3),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.3),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),

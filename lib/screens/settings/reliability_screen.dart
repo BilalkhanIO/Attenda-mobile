@@ -199,10 +199,10 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(children: [
-                    Icon(Icons.phone_android, size: 16, color: AppColors.primary600),
-                    SizedBox(width: 8),
-                    Text('Using Samsung, Xiaomi, Huawei or OnePlus?',
+                  Row(children: [
+                    Icon(Icons.phone_android, size: 16, color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: 8),
+                    const Text('Using Samsung, Xiaomi, Huawei or OnePlus?',
                         style: TextStyle(
                             color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
                   ]),
@@ -260,8 +260,8 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
             TextButton(
               onPressed: () => onFix(),
               child: Text(fixLabel,
-                  style: const TextStyle(
-                      color: AppColors.primary600, fontWeight: FontWeight.w700, fontSize: 12)),
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700, fontSize: 12)),
             ),
         ]),
       ),
