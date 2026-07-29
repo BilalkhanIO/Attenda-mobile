@@ -13,6 +13,7 @@ import '../../services/wifi_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
 import 'widgets/break_banners.dart';
+import 'widgets/break_control.dart';
 import 'widgets/disconnect_card.dart';
 import 'widgets/home_banners.dart';
 import 'widgets/status_card.dart';
@@ -709,7 +710,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 // shouldn't start a new break while the session is at risk).
                 if (!_loading && _checkedIn &&
                     (!_autoCheckoutRisk || _isOnBreak)) ...[
-                  _buildBreakControl(),
+                  BreakControl(
+                    isOnBreak: _isOnBreak,
+                    actionLoading: _actionLoading,
+                    onEndBreak: _endBreak,
+                    onTakeBreak: _showBreakTypeSheet,
+                  ),
                   const SizedBox(height: 20),
                 ],
 
@@ -1836,30 +1842,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } finally {
       if (mounted) setState(() => _actionLoading = false);
     }
-  }
-
-  // A standalone break control shown beneath the status card (never inside it).
-  Widget _buildBreakControl() {
-    if (_isOnBreak) {
-      return AppButton(
-        label: 'End Break',
-        icon: Icons.play_arrow_rounded,
-        color: AppColors.teal700,
-        loading: _actionLoading,
-        onPressed: _actionLoading ? null : _endBreak,
-      );
-    }
-    return OutlinedButton.icon(
-      onPressed: _actionLoading ? null : _showBreakTypeSheet,
-      icon: const Icon(Icons.free_breakfast_outlined, size: 18),
-      label: const Text('Take a Break'),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.teal100,
-        side: BorderSide(color: AppColors.teal100.withValues(alpha: 0.5)),
-        minimumSize: const Size(double.infinity, 48),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      ),
-    );
   }
 
   // ─── Shift time helpers ────────────────────────────────
