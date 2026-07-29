@@ -16,6 +16,7 @@ import 'widgets/break_banners.dart';
 import 'widgets/break_control.dart';
 import 'widgets/disconnect_card.dart';
 import 'widgets/home_banners.dart';
+import 'widgets/quick_actions.dart';
 import 'widgets/status_card.dart';
 import 'package:intl/intl.dart';
 
@@ -1877,79 +1878,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildQuickActions(BuildContext context) {
     final auth = context.read<AuthProvider>();
     final actions = [
-      _QuickAction(
+      QuickAction(
         icon: Icons.beach_access_outlined,
         label: 'Report /\nRequest',
         color: Theme.of(context).colorScheme.primary,
         onTap: _showAttendanceRequestDialog,
       ),
       if (auth.hasFeature('remote_work') && !_checkedIn && !_checkedOut && !_isRemote)
-        _QuickAction(
+        QuickAction(
           icon: Icons.home_outlined,
           label: 'Work\nRemote',
           color: AppColors.purple500,
           onTap: () => context.push('/home/remote'),
         ),
       if (auth.hasFeature('shifts'))
-        _QuickAction(
+        QuickAction(
           icon: Icons.calendar_today_outlined,
           label: 'My\nSchedule',
           color: AppColors.teal100.withValues(alpha: 0.8),
           onTap: () => context.go('/schedule'),
         ),
       if (auth.hasFeature('payroll'))
-        _QuickAction(
+        QuickAction(
           icon: Icons.receipt_long_outlined,
           label: 'My\nPayslips',
           color: AppColors.warning500,
           onTap: () => context.go('/profile'),
         ),
     ];
-    return Row(
-      children: actions
-          .map((a) => Expanded(
-                  child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: GestureDetector(
-                  onTap: a.onTap,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 14, horizontal: 8),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              a.color.withValues(alpha: 0.22),
-                              a.color.withValues(alpha: 0.1)
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          border:
-                              Border.all(color: a.color.withValues(alpha: 0.3)),
-                        ),
-                        child: Column(children: [
-                          Icon(a.icon, color: a.color, size: 24),
-                          const SizedBox(height: 6),
-                          Text(a.label,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: a.color,
-                                  height: 1.3)),
-                        ]),
-                      ),
-                    ),
-                  ),
-                ),
-              )))
-          .toList(),
-    );
+    return QuickActionsRow(actions: actions);
   }
 
   // ─── Shift Card ────────────────────────────────────────
@@ -1994,16 +1951,4 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ]),
     );
   }
-}
-
-class _QuickAction {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  const _QuickAction(
-      {required this.icon,
-      required this.label,
-      required this.color,
-      required this.onTap});
 }
