@@ -12,6 +12,7 @@ import '../../services/api_service.dart';
 import '../../services/wifi_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
+import 'widgets/home_banners.dart';
 import 'widgets/shift_ring.dart';
 import 'package:intl/intl.dart';
 
@@ -625,15 +626,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   duration: const Duration(milliseconds: 280),
                   curve: Curves.easeOutCubic,
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    if (_offline) _offlineBanner(),
-                    if (_vpnDetected) _vpnBanner(),
-                    if (_noNetworksConfig && !_vpnDetected) _noNetworksBanner(),
+                    if (_offline) const OfflineBanner(),
+                    if (_vpnDetected) const VpnBanner(),
+                    if (_noNetworksConfig && !_vpnDetected)
+                      const NoNetworksBanner(),
                     if (!_loading &&
                         _todayLeave != null &&
                         _status != 'in' &&
                         _status != 'late' &&
                         _status != 'out')
-                      _leaveTodayBanner(),
+                      LeaveTodayBanner(
+                          leaveType:
+                              (_todayLeave?['leave_type'] as String? ?? 'leave')
+                                  .replaceAll('_', ' ')),
                     if (!_loading &&
                         _lateNotice != null &&
                         _status != 'in' &&
@@ -647,12 +652,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       _preCheckinLateBanner(),
                     // ── Flash: welcome back from break ───────────
                     if (_breakWelcomeBack != null)
-                      _flashBanner(_breakWelcomeBack!, AppColors.warning500,
-                          Icons.celebration_outlined),
+                      FlashBanner(
+                          text: _breakWelcomeBack!,
+                          tint: AppColors.warning500,
+                          icon: Icons.celebration_outlined,
+                          onDismiss: _dismissFlash),
                     // ── Flash: late arrival notice ────────────────
                     if (_lateArrivalFlash != null)
-                      _flashBanner(_lateArrivalFlash!, AppColors.warning500,
-                          Icons.access_alarm),
+                      FlashBanner(
+                          text: _lateArrivalFlash!,
+                          tint: AppColors.warning500,
+                          icon: Icons.access_alarm,
+                          onDismiss: _dismissFlash),
                   ]),
                 ),
 
@@ -753,64 +764,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   // ─── Banner Widgets ────────────────────────────────────
 
-  // Temporary flash banner shown for 5 s after a WiFi event, then fades out.
-  Widget _flashBanner(String text, Color tint, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
-        tint: tint,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(children: [
-          Icon(icon, color: tint, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(text,
-                style: TextStyle(
-                    fontSize: 13, color: tint, fontWeight: FontWeight.w600)),
-          ),
-          GestureDetector(
-            onTap: () => setState(() { _breakWelcomeBack = null; _lateArrivalFlash = null; }),
-            child: Icon(Icons.close, size: 16, color: tint.withValues(alpha: 0.5)),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  Widget _offlineBanner() => _glassBanner(
-        icon: Icons.cloud_off_rounded,
-        text: "You're offline — showing the last synced data.",
-        tint: AppColors.warning500,
-      );
-
-  Widget _vpnBanner() => _glassBanner(
-        icon: Icons.vpn_lock,
-        text: 'VPN detected — auto check-in is disabled. Use QR scan instead.',
-        tint: AppColors.warning500,
-        action: TextButton(
-          onPressed: () => context.push('/attendance/qr'),
-          child: const Text('QR Scan',
-              style: TextStyle(
-                  color: AppColors.warning500, fontWeight: FontWeight.w700)),
-        ),
-      );
-
-  Widget _noNetworksBanner() => _glassBanner(
-        icon: Icons.wifi_off,
-        text:
-            "Auto check-in is off — your admin hasn't added any office networks yet.",
-        tint: Colors.white,
-      );
-
-  Widget _leaveTodayBanner() {
-    final leaveType =
-        (_todayLeave?['leave_type'] as String? ?? 'leave').replaceAll('_', ' ');
-    return _glassBanner(
-      icon: Icons.beach_access,
-      text: 'You have approved $leaveType today. No check-in required.',
-      tint: Theme.of(context).colorScheme.primary,
-    );
-  }
+  void _dismissFlash() =>
+      setState(() { _breakWelcomeBack = null; _lateArrivalFlash = null; });
 
   Widget _lateNoticeBanner() {
     final expectedTime = _lateNotice?['expected_time'] as String? ?? '';
@@ -1010,7 +965,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final name  = b['name'] as String? ?? 'Break';
     final start = _parseLocal(b['break_start_utc']);
     final label = start != null ? _countdown(start) : '—';
-    return _glassBanner(
+    return GlassBanner(
       icon: Icons.timer_outlined,
       text: '$name starts in $label — wrap up',
       tint: Theme.of(context).colorScheme.primary,
@@ -1023,7 +978,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final name = b['name'] as String? ?? 'Break';
     final end  = _parseLocal(b['break_end_utc']);
     final remaining = end != null ? _countdown(end) : '—';
-    return _glassBanner(
+    return GlassBanner(
       icon: Icons.free_breakfast_outlined,
       text: '$name is now — $remaining left in the window',
       tint: AppColors.warning500,
@@ -1059,7 +1014,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
 
     final label = breakEnd != null ? _countdown(breakEnd) : '—';
-    return _glassBanner(
+    return GlassBanner(
       icon: Icons.free_breakfast,
       text: '$name — $label remaining',
       tint: AppColors.teal100,
@@ -1106,7 +1061,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _overdueOnWifiBanner(Map<String, dynamic> b) {
     final name = b['name'] as String? ?? 'Break';
-    return _glassBanner(
+    return GlassBanner(
       icon: Icons.alarm_on_rounded,
       text: '$name time is up — please tap End Break',
       tint: AppColors.warning500,
@@ -1305,29 +1260,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     color: AppColors.warning500,
                     fontFamily: 'monospace')),
           ),
-        ]),
-      ),
-    );
-  }
-
-  Widget _glassBanner(
-      {required IconData icon,
-      required String text,
-      required Color tint,
-      Widget? action}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
-        tint: tint,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(children: [
-          Icon(icon, color: tint, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-              child: Text(text,
-                  style: TextStyle(
-                      fontSize: 13, color: tint, fontWeight: FontWeight.w500))),
-          if (action != null) action,
         ]),
       ),
     );
