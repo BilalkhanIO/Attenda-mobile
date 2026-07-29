@@ -13,6 +13,7 @@ import '../../services/wifi_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
 import 'widgets/break_banners.dart';
+import 'widgets/disconnect_card.dart';
 import 'widgets/home_banners.dart';
 import 'widgets/shift_ring.dart';
 import 'package:intl/intl.dart';
@@ -1475,92 +1476,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return null;
   }
 
-  // ─── Disconnect (left office WiFi) Card ────────────────
-
-  Widget _buildDisconnectCard() {
-    final ssid = _disconnectSsid;
-    final countdown = _disconnectCountdown;
-    final expired = _graceExpired;
-    return GlassCard(
-      tint: AppColors.warning500,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          const Icon(Icons.wifi_off_rounded,
-              size: 28, color: AppColors.warning500),
-          const SizedBox(width: 12),
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text(expired ? 'Grace Period Ended' : 'Left Office WiFi',
-                    style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white)),
-                Text(
-                  ssid != null && ssid.isNotEmpty
-                      ? 'No longer on "$ssid"'
-                      : 'WiFi connection lost',
-                  style: TextStyle(
-                      fontSize: 13, color: Colors.white.withValues(alpha: 0.6)),
-                ),
-              ])),
-        ]),
-        const SizedBox(height: 16),
-        // Prominent grace countdown
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: AppColors.warning500.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(16),
-            border:
-                Border.all(color: AppColors.warning500.withValues(alpha: 0.3)),
-          ),
-          child: Column(children: [
-            Text(
-              expired ? '00:00' : (countdown.isNotEmpty ? countdown : '--:--'),
-              style: const TextStyle(
-                fontSize: 34,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-                fontFamily: 'monospace',
-                letterSpacing: 1,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              expired ? 'checking you out…' : 'until auto check-out',
-              style: TextStyle(
-                  fontSize: 12, color: Colors.white.withValues(alpha: 0.6)),
-            ),
-          ]),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          expired
-              ? 'You\'ve been checked out. Reconnect to office WiFi and you\'ll be checked back in automatically.'
-              : 'Reconnect to office WiFi to stay checked in. If you can\'t, scan the office QR code.',
-          style: TextStyle(
-              fontSize: 12, color: Colors.white.withValues(alpha: 0.55)),
-        ),
-        const SizedBox(height: 12),
-        AppButton(
-          label: 'Scan QR Code',
-          icon: Icons.qr_code_scanner,
-          onPressed: () => context.push('/attendance/qr'),
-        ),
-      ]),
-    );
-  }
-
   // ─── Status Card ───────────────────────────────────────
 
   Widget _buildStatusCard() {
     // When the employee is actively on a break and loses WiFi, leaving the
     // office is expected — don't replace the status card with the disconnect
     // card. The break banner handles the "overdue + off WiFi" case instead.
-    if (_autoCheckoutRisk && !_isOnBreak) return _buildDisconnectCard();
+    if (_autoCheckoutRisk && !_isOnBreak) {
+      return DisconnectCard(
+        ssid: _disconnectSsid,
+        countdown: _disconnectCountdown,
+        expired: _graceExpired,
+      );
+    }
 
     Color cardTint;
     IconData cardIcon;
