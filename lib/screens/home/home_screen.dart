@@ -12,6 +12,7 @@ import '../../services/api_service.dart';
 import '../../services/wifi_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
+import 'widgets/break_banners.dart';
 import 'widgets/home_banners.dart';
 import 'widgets/shift_ring.dart';
 import 'package:intl/intl.dart';
@@ -87,7 +88,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             final lateMins = (_todayRecord?['late_minutes'] as num?)?.toInt() ?? 0;
             if (lateMins > 0) {
               _showFlash(
-                'You checked in ${_formatMinutesHours(lateMins)} late today',
+                'You checked in ${formatMinutesHours(lateMins)} late today',
                 isBreak: false,
               );
             } else {
@@ -419,13 +420,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  String _formatMinutesHours(int minutes) {
-    if (minutes < 60) return '${minutes}m';
-    final h = minutes ~/ 60;
-    final m = minutes % 60;
-    return m == 0 ? '${h}h' : '${h}h ${m}m';
-  }
-
   int get _livePreCheckinLateMins {
     final shift = (_todayStatus?['shift'] as Map?)?.cast<String, dynamic>();
     final start = _parseLocal(shift?['shift_start_utc']);
@@ -500,7 +494,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (late > maxLate) { maxLate = late; breakName = b['name'] as String?; }
     }
     if (maxLate <= 0 || breakName == null) return null;
-    return 'Welcome back — you were ${_formatMinutesHours(maxLate)} late from $breakName';
+    return 'Welcome back — you were ${formatMinutesHours(maxLate)} late from $breakName';
   }
 
   @override
@@ -644,12 +638,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         _status != 'in' &&
                         _status != 'late' &&
                         _status != 'out')
-                      _lateNoticeBanner(),
+                      LateNoticeBanner(
+                          expectedTime:
+                              _lateNotice?['expected_time'] as String? ?? '',
+                          isAcknowledged:
+                              (_lateNotice?['status'] as String? ?? 'pending') ==
+                                  'acknowledged',
+                          onCancel: _cancelLateNotice),
                     // ── Break alert banners (from today-status) ──
                     if (!_loading && _checkedIn) ..._breakAlertBanners(),
                     // ── Pre-check-in live late counter ───────────
                     if (!_loading && !_checkedIn && !_checkedOut)
-                      _preCheckinLateBanner(),
+                      PreCheckinLateBanner(
+                          lateMinutes: _livePreCheckinLateMins > 0
+                              ? _livePreCheckinLateMins
+                              : ((_todayStatus?['pre_checkin_late_minutes']
+                                          as num?)
+                                      ?.toInt() ??
+                                  0)),
                     // ── Flash: welcome back from break ───────────
                     if (_breakWelcomeBack != null)
                       FlashBanner(
@@ -767,50 +773,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _dismissFlash() =>
       setState(() { _breakWelcomeBack = null; _lateArrivalFlash = null; });
 
-  Widget _lateNoticeBanner() {
-    final expectedTime = _lateNotice?['expected_time'] as String? ?? '';
-    final noticeStatus = _lateNotice?['status'] as String? ?? 'pending';
-    final isAcked = noticeStatus == 'acknowledged';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
-        tint: isAcked ? AppColors.success500 : AppColors.warning500,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(children: [
-          Icon(isAcked ? Icons.check_circle_outline : Icons.schedule,
-              color: isAcked ? AppColors.success500 : AppColors.warning500,
-              size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-              child: Text(
-            isAcked
-                ? 'Late notice acknowledged — expected by $expectedTime'
-                : 'Late arrival notice submitted — expected by $expectedTime',
-            style: TextStyle(
-              fontSize: 13,
-              color: isAcked ? AppColors.success500 : AppColors.warning500,
-              fontWeight: FontWeight.w500,
-            ),
-          )),
-          GestureDetector(
-            onTap: () async {
-              final id = _lateNotice?['id'] as String?;
-              if (id == null) return;
-              try {
-                await api.cancelLateNotice(id);
-                if (!mounted) return;
-                setState(() => _lateNotice = null);
-                _showSnack('Late notice cancelled');
-              } catch (e) {
-                _showSnack(ApiFailure.fromError(e).userMessage, isError: true);
-              }
-            },
-            child: Icon(Icons.close,
-                size: 16, color: Colors.white.withValues(alpha: 0.4)),
-          ),
-        ]),
-      ),
-    );
+  Future<void> _cancelLateNotice() async {
+    final id = _lateNotice?['id'] as String?;
+    if (id == null) return;
+    try {
+      await api.cancelLateNotice(id);
+      if (!mounted) return;
+      setState(() => _lateNotice = null);
+      _showSnack('Late notice cancelled');
+    } catch (e) {
+      _showSnack(ApiFailure.fromError(e).userMessage, isError: true);
+    }
   }
 
   // ─── Break alert banners from today-status ─────────────────
@@ -928,12 +901,50 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     }
 
-    if (_pendingReminderName != null) return [_deferredReminderBanner()];
-    if (lateReturningOffWifi != null) return [_overdueOffWifiBanner(lateReturningOffWifi)];
-    if (lateReturningOnWifi  != null) return [_overdueOnWifiBanner(lateReturningOnWifi)];
-    if (activeBreak          != null) return [_activeBreakBanner(activeBreak)];
-    if (windowOpenNotStarted != null) return [_windowOpenBanner(windowOpenNotStarted)];
-    if (imminentBreak        != null) return [_imminentBreakBanner(imminentBreak)];
+    if (_pendingReminderName != null) {
+      return [
+        DeferredReminderBanner(
+          name: _pendingReminderName ?? 'your break',
+          deduct: _pendingReminderDeduct,
+          onTakeNow: _actionLoading ? null : _showBreakTypeSheet,
+          onDismiss: () => setState(() => _pendingReminderName = null),
+        )
+      ];
+    }
+    if (lateReturningOffWifi != null) {
+      final end = _parseLocal(lateReturningOffWifi['break_end_utc']);
+      return [
+        OverdueOffWifiBanner(
+          name: lateReturningOffWifi['name'] as String? ?? 'Break',
+          overdueLabel: end != null ? _countup(end) : '—',
+        )
+      ];
+    }
+    if (lateReturningOnWifi != null) {
+      return [
+        OverdueOnWifiBanner(
+            name: lateReturningOnWifi['name'] as String? ?? 'Break')
+      ];
+    }
+    if (activeBreak != null) return [_activeBreakBanner(activeBreak)];
+    if (windowOpenNotStarted != null) {
+      final end = _parseLocal(windowOpenNotStarted['break_end_utc']);
+      return [
+        WindowOpenBanner(
+          name: windowOpenNotStarted['name'] as String? ?? 'Break',
+          remaining: end != null ? _countdown(end) : '—',
+        )
+      ];
+    }
+    if (imminentBreak != null) {
+      final start = _parseLocal(imminentBreak['break_start_utc']);
+      return [
+        ImminentBreakBanner(
+          name: imminentBreak['name'] as String? ?? 'Break',
+          countdown: start != null ? _countdown(start) : '—',
+        )
+      ];
+    }
     return [];
   }
 
@@ -961,36 +972,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return '$m:$s';
   }
 
-  Widget _imminentBreakBanner(Map<String, dynamic> b) {
-    final name  = b['name'] as String? ?? 'Break';
-    final start = _parseLocal(b['break_start_utc']);
-    final label = start != null ? _countdown(start) : '—';
-    return GlassBanner(
-      icon: Icons.timer_outlined,
-      text: '$name starts in $label — wrap up',
-      tint: Theme.of(context).colorScheme.primary,
-    );
-  }
-
-  // Window is open but the employee hasn't tapped Start Break yet.
-  // They are still at their desk — do NOT say "return to office".
-  Widget _windowOpenBanner(Map<String, dynamic> b) {
-    final name = b['name'] as String? ?? 'Break';
-    final end  = _parseLocal(b['break_end_utc']);
-    final remaining = end != null ? _countdown(end) : '—';
-    return GlassBanner(
-      icon: Icons.free_breakfast_outlined,
-      text: '$name is now — $remaining left in the window',
-      tint: AppColors.warning500,
-    );
-  }
-
+  // Dispatches an active policy break to the right banner: an auto-started
+  // break the employee hasn't acknowledged yet gets the actionable banner,
+  // everything else gets the plain countdown banner.
   Widget _activeBreakBanner(Map<String, dynamic> b) {
     final linked = b['linked_break_record'] as Map<String, dynamic>?;
     final autoStarted = linked?['auto_started'] as bool? ?? false;
     final breakId = linked?['id'] as String?;
     if (autoStarted && breakId != null && !_acknowledgedAutoBreaks.contains(breakId)) {
-      return _autoStartedBreakBanner(b, breakId);
+      return AutoStartedBreakBanner(
+        name: b['name'] as String? ?? 'Break',
+        reminderMins: (b['reminder_after_mins'] as num?)?.toInt() ?? 30,
+        deductIfSkipped: b['deduct_if_skipped'] as bool? ?? true,
+        onAcknowledge: () =>
+            setState(() => _acknowledgedAutoBreaks.add(breakId)),
+        onTakeLater: _actionLoading ? null : () => _takeBreakLater(b, breakId),
+      );
     }
 
     final name = b['name'] as String? ?? 'Break';
@@ -1013,298 +1010,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     }
 
-    final label = breakEnd != null ? _countdown(breakEnd) : '—';
-    return GlassBanner(
-      icon: Icons.free_breakfast,
-      text: '$name — $label remaining',
-      tint: AppColors.teal100,
-    );
-  }
-
-  Widget _overdueOffWifiBanner(Map<String, dynamic> b) {
-    final name  = b['name'] as String? ?? 'Break';
-    final end   = _parseLocal(b['break_end_utc']);
-    final label = end != null ? _countup(end) : '—';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
-        tint: AppColors.danger500,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(children: [
-          const Icon(Icons.running_with_errors, color: AppColors.danger500, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('$name — return to office!',
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.danger500, fontWeight: FontWeight.w700)),
-              const Text('You are away from the office past your break time',
-                  style: TextStyle(fontSize: 12, color: AppColors.danger500)),
-            ]),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.danger500.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.danger500.withValues(alpha: 0.5)),
-            ),
-            child: Text('+$label',
-                style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w800,
-                    color: AppColors.danger500, fontFamily: 'monospace')),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  Widget _overdueOnWifiBanner(Map<String, dynamic> b) {
-    final name = b['name'] as String? ?? 'Break';
-    return GlassBanner(
-      icon: Icons.alarm_on_rounded,
-      text: '$name time is up — please tap End Break',
-      tint: AppColors.warning500,
-    );
-  }
-
-  Widget _autoStartedBreakBanner(Map<String, dynamic> b, String breakId) {
-    final name = b['name'] as String? ?? 'Break';
-    final reminderMins = (b['reminder_after_mins'] as num?)?.toInt() ?? 30;
-    final deductIfSkipped = b['deduct_if_skipped'] as bool? ?? true;
-    final subtext = deductIfSkipped
-        ? 'Deferring will set a ${reminderMins}m reminder; skipping deducts this time'
-        : 'Deferring sets a ${reminderMins}m reminder — no pay impact';
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
-        tint: AppColors.teal100,
-        padding: const EdgeInsets.all(14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Icon(Icons.free_breakfast, color: AppColors.teal100, size: 18),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('$name has started',
-                    style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.teal100,
-                        fontWeight: FontWeight.w700)),
-                Text(subtext,
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.teal100.withValues(alpha: 0.75))),
-              ]),
-            ),
-          ]),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _acknowledgedAutoBreaks.add(breakId)),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 9),
-                  decoration: BoxDecoration(
-                    color: AppColors.teal100.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border:
-                        Border.all(color: AppColors.teal100.withValues(alpha: 0.4)),
-                  ),
-                  child: const Text("I'm on it",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.teal100)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: GestureDetector(
-                onTap: _actionLoading ? null : () => _takeBreakLater(b, breakId),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 9),
-                  decoration: BoxDecoration(
-                    color: AppColors.warning500.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: AppColors.warning500.withValues(alpha: 0.4)),
-                  ),
-                  child: const Text('Take it later',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.warning500)),
-                ),
-              ),
-            ),
-          ]),
-        ]),
-      ),
-    );
-  }
-
-  Widget _deferredReminderBanner() {
-    final name = _pendingReminderName ?? 'your break';
-    final deduct = _pendingReminderDeduct;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
-        tint: AppColors.warning500,
-        padding: const EdgeInsets.all(14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Icon(Icons.alarm, color: AppColors.warning500, size: 18),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text('Time to take $name',
-                    style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.warning500,
-                        fontWeight: FontWeight.w700)),
-                if (deduct)
-                  const Text('Skipping will deduct this time from your pay',
-                      style: TextStyle(
-                          fontSize: 11, color: AppColors.warning500)),
-              ]),
-            ),
-          ]),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: _actionLoading ? null : _showBreakTypeSheet,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 9),
-                  decoration: BoxDecoration(
-                    color: AppColors.warning500.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: AppColors.warning500.withValues(alpha: 0.5)),
-                  ),
-                  child: const Text('Take it now',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.warning500)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () => setState(() => _pendingReminderName = null),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(12),
-                  border:
-                      Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                ),
-                child: const Text('Dismiss',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white54)),
-              ),
-            ),
-          ]),
-        ]),
-      ),
-    );
-  }
-
-  // ─── Pre-check-in live late counter ────────────────────
-
-  Widget _preCheckinLateBanner() {
-    final lateMin = _livePreCheckinLateMins > 0
-        ? _livePreCheckinLateMins
-        : ((_todayStatus?['pre_checkin_late_minutes'] as num?)?.toInt() ?? 0);
-    if (lateMin <= 0) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
-        tint: AppColors.warning500,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(children: [
-          const Icon(Icons.access_alarm, color: AppColors.warning500, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-              child: Text(
-            'You are currently ${_formatMinutesHours(lateMin)} late',
-            style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.warning500,
-                fontWeight: FontWeight.w600),
-          )),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.warning500.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                  color: AppColors.warning500.withValues(alpha: 0.5)),
-            ),
-            child: Text('+${_formatMinutesHours(lateMin)}',
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.warning500,
-                    fontFamily: 'monospace')),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  Widget _timePickerTile(
-    BuildContext ctx, {
-    required String label,
-    required TimeOfDay value,
-    required ValueChanged<TimeOfDay> onPicked,
-  }) {
-    return GestureDetector(
-      onTap: () async {
-        final picked = await showTimePicker(
-          context: ctx,
-          initialTime: value,
-          builder: (c, child) => Theme(data: AppTheme.glass, child: child!),
-        );
-        if (picked != null) onPicked(picked);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-        ),
-        child: Row(children: [
-          Text(label,
-              style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.white.withValues(alpha: 0.45),
-                  fontWeight: FontWeight.w700)),
-          const Spacer(),
-          Flexible(
-            child: Text(value.format(ctx),
-                textAlign: TextAlign.end,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white)),
-          ),
-        ]),
-      ),
+    return ActiveBreakBanner(
+      name: name,
+      remaining: breakEnd != null ? _countdown(breakEnd) : '—',
     );
   }
 
@@ -1555,8 +1263,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 const SizedBox(height: 6),
                 Row(children: [
                   Expanded(
-                    child: _timePickerTile(
-                      ctx,
+                    child: TimePickerTile(
                       label: 'Start',
                       value: selectedTime,
                       onPicked: (picked) => setDlg(() => selectedTime = picked),
@@ -1564,8 +1271,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _timePickerTile(
-                      ctx,
+                    child: TimePickerTile(
                       label: 'End',
                       value: selectedEndTime,
                       onPicked: (picked) => setDlg(() => selectedEndTime = picked),
@@ -2119,7 +1825,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           if (lateMins > 0) ...[
             const SizedBox(height: 8),
             Text(
-              '${_formatMinutesHours(lateMins)} late${hasNotice ? ' · pre-announced' : ''}',
+              '${formatMinutesHours(lateMins)} late${hasNotice ? ' · pre-announced' : ''}',
               style: TextStyle(
                   fontSize: 12,
                   color: AppColors.warning500.withValues(alpha: 0.9),
