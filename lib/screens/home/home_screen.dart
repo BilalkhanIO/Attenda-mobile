@@ -17,6 +17,7 @@ import 'widgets/break_control.dart';
 import 'widgets/disconnect_card.dart';
 import 'widgets/home_banners.dart';
 import 'widgets/quick_actions.dart';
+import 'widgets/shift_card.dart';
 import 'widgets/status_card.dart';
 import 'package:intl/intl.dart';
 
@@ -1913,42 +1914,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildShiftCard() {
     final shift = (_nextShift!['shift'] as Map?)?.cast<String, dynamic>();
-    final dateStr = _nextShift!['date'] as String?;
-    final shiftName = shift?['name'] as String? ?? 'Shift';
-    final startTime = shift?['start_time'] as String? ?? '--:--';
-    final endTime = shift?['end_time'] as String? ?? '--:--';
-    final shiftColor = parseHexColor(shift?['color'] as String?,
-        fallback: const Color(0xFFF15153));
-
-    return GlassCard(
-      child: Row(children: [
-        Container(
-          width: 4,
-          height: 52,
-          decoration: BoxDecoration(
-              color: shiftColor, borderRadius: BorderRadius.circular(2)),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(shiftName,
-              style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white)),
-          const SizedBox(height: 3),
-          Text('$startTime – $endTime',
-              style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.white.withValues(alpha: 0.55),
-                  fontFamily: 'monospace')),
-        ])),
-        if (dateStr != null)
-          Text(DateFormat('EEE, d MMM').format(DateTime.parse(dateStr)),
-              style: TextStyle(
-                  fontSize: 12, color: Colors.white.withValues(alpha: 0.55))),
-      ]),
+    return ShiftCard(
+      shiftName: shift?['name'] as String? ?? 'Shift',
+      startTime: shift?['start_time'] as String? ?? '--:--',
+      endTime: shift?['end_time'] as String? ?? '--:--',
+      shiftColor: parseHexColor(shift?['color'] as String?,
+          fallback: const Color(0xFFF15153)),
+      dateStr: _nextShift!['date'] as String?,
     );
   }
 }
