@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -141,38 +140,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       body: SafeArea(
         bottom: false,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               GestureDetector(
                 onTap: () => context.pop(),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      padding: const EdgeInsets.only(left: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.18)),
-                      ),
-                      child: const Icon(Icons.arrow_back_ios,
-                          color: Colors.white, size: 18),
-                    ),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  padding: const EdgeInsets.only(left: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.control),
+                    border: Border.all(color: AppColors.border),
                   ),
+                  child: const Icon(Icons.arrow_back_ios,
+                      color: AppColors.gray600, size: 18),
                 ),
               ),
               const SizedBox(width: 14),
-              const Text('Edit Profile',
-                  style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white)),
+              const Text('Edit Profile', style: AppTextStyles.headline),
             ]),
             const SizedBox(height: 24),
             if (_error != null) ...[
@@ -182,10 +170,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: AppColors.danger500.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: AppColors.danger500.withValues(alpha: 0.4)),
+                  color: AppColors.danger500.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(AppRadius.control),
                 ),
                 child: Row(children: [
                   const Icon(Icons.error_outline,
@@ -194,7 +180,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   Expanded(
                       child: Text(_error!,
                           style: const TextStyle(
-                              color: AppColors.danger500, fontSize: 13))),
+                              color: AppColors.danger800,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 13))),
                 ]),
               ),
             ],
@@ -206,23 +194,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               child: Column(children: [
                 TextFormField(
                   controller: _nameCtrl,
-                  style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     labelText: 'Full Name',
                     prefixIcon: Icon(Icons.person_outline,
-                        size: 18, color: Colors.white.withValues(alpha: 0.4)),
+                        size: 18, color: AppColors.gray400),
                   ),
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _phoneCtrl,
                   keyboardType: TextInputType.phone,
-                  style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     labelText: 'Phone Number',
                     hintText: '+44 7700 000000',
                     prefixIcon: Icon(Icons.phone_outlined,
-                        size: 18, color: Colors.white.withValues(alpha: 0.4)),
+                        size: 18, color: AppColors.gray400),
                   ),
                 ),
               ]),
@@ -243,13 +229,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       initialValue: _dob != null
                           ? DateFormat('d MMMM yyyy').format(_dob!)
                           : '',
-                      style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         labelText: 'Date of Birth',
                         hintText: 'Select date',
                         prefixIcon: Icon(Icons.cake_outlined,
-                            size: 18,
-                            color: Colors.white.withValues(alpha: 0.4)),
+                            size: 18, color: AppColors.gray400),
                       ),
                     ),
                   ),
@@ -259,12 +243,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   key: ValueKey('gender-$_gender'),
                   initialValue: _gender,
                   isExpanded: true,
-                  dropdownColor: AppColors.bgDark3,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  dropdownColor: AppColors.surface,
+                  style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500),
                   decoration: InputDecoration(
                     labelText: 'Gender',
                     prefixIcon: Icon(Icons.wc_outlined,
-                        size: 18, color: Colors.white.withValues(alpha: 0.4)),
+                        size: 18, color: AppColors.gray400),
                   ),
                   items: _genderOptions
                       .map((o) => DropdownMenuItem<String>(
@@ -277,11 +264,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _addressCtrl,
-                  style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     labelText: 'Address',
                     prefixIcon: Icon(Icons.home_outlined,
-                        size: 18, color: Colors.white.withValues(alpha: 0.4)),
+                        size: 18, color: AppColors.gray400),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -289,7 +275,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   Expanded(
                     child: TextFormField(
                       controller: _cityCtrl,
-                      style: const TextStyle(color: Colors.white),
                       decoration: const InputDecoration(labelText: 'City'),
                     ),
                   ),
@@ -297,7 +282,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   Expanded(
                     child: TextFormField(
                       controller: _countryCtrl,
-                      style: const TextStyle(color: Colors.white),
                       decoration: const InputDecoration(labelText: 'Country'),
                     ),
                   ),
@@ -313,22 +297,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               child: Column(children: [
                 TextFormField(
                   controller: _emergencyNameCtrl,
-                  style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     labelText: 'Contact Name',
                     prefixIcon: Icon(Icons.contact_emergency_outlined,
-                        size: 18, color: Colors.white.withValues(alpha: 0.4)),
+                        size: 18, color: AppColors.gray400),
                   ),
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _emergencyPhoneCtrl,
                   keyboardType: TextInputType.phone,
-                  style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     labelText: 'Contact Phone',
                     prefixIcon: Icon(Icons.phone_in_talk_outlined,
-                        size: 18, color: Colors.white.withValues(alpha: 0.4)),
+                        size: 18, color: AppColors.gray400),
                   ),
                 ),
               ]),
@@ -346,7 +328,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget _sectionLabel(String text) => Text(text,
       style: const TextStyle(
           fontSize: 11,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
           letterSpacing: 1.0,
-          color: Color(0x66FFFFFF)));
+          color: AppColors.gray500));
 }

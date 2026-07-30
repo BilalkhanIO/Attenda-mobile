@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -138,35 +137,30 @@ class _SecurityScreenState extends State<SecurityScreen> {
       body: SafeArea(
         bottom: false,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             // Back header
             Row(children: [
               GestureDetector(
                 onTap: () => context.pop(),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(15),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
-                      width: 42, height: 42,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(15),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-                      ),
-                      child: Icon(Icons.arrow_back, color: Colors.white.withValues(alpha: 0.8), size: 20),
-                    ),
+                child: Container(
+                  width: 42, height: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.control),
+                    border: Border.all(color: AppColors.border),
                   ),
+                  child: const Icon(Icons.arrow_back,
+                      color: AppColors.gray600, size: 20),
                 ),
               ),
               const SizedBox(width: 14),
-              const Text('Security & 2FA', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
+              const Text('Security & 2FA', style: AppTextStyles.headline),
             ]),
             const SizedBox(height: 24),
 
             // ── Change Password ────────────────────────────────
-            const Text('CHANGE PASSWORD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0, color: Color(0x66FFFFFF))),
+            const Text('CHANGE PASSWORD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.0, color: AppColors.gray500)),
             const SizedBox(height: 10),
             GlassCard(
               padding: const EdgeInsets.all(20),
@@ -177,11 +171,14 @@ class _SecurityScreenState extends State<SecurityScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     margin: const EdgeInsets.only(bottom: 14),
                     decoration: BoxDecoration(
-                      color: AppColors.danger500.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.danger500.withValues(alpha: 0.4)),
+                      color: AppColors.danger500.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(AppRadius.control),
                     ),
-                    child: Text(_pwError!, style: const TextStyle(fontSize: 13, color: AppColors.danger500)),
+                    child: Text(_pwError!,
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.danger800)),
                   ),
                 ],
                 _passField('Current Password', _currentCtrl, _obscureCurrent, () => setState(() => _obscureCurrent = !_obscureCurrent)),
@@ -197,7 +194,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
             const SizedBox(height: 24),
 
             // ── Two-Factor Authentication ──────────────────────
-            const Text('TWO-FACTOR AUTH', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0, color: Color(0x66FFFFFF))),
+            const Text('TWO-FACTOR AUTH', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.0, color: AppColors.gray500)),
             const SizedBox(height: 10),
             GlassCard(
               tint: has2fa ? AppColors.success500 : null,
@@ -207,22 +204,32 @@ class _SecurityScreenState extends State<SecurityScreen> {
                   Container(
                     width: 42, height: 42,
                     decoration: BoxDecoration(
-                      color: (has2fa ? AppColors.success500 : Colors.white).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: (has2fa ? AppColors.success500 : Colors.white).withValues(alpha: 0.3)),
+                      color: has2fa
+                          ? AppColors.success500.withValues(alpha: 0.10)
+                          : AppColors.gray100,
+                      borderRadius: BorderRadius.circular(AppRadius.control),
                     ),
-                    child: Icon(Icons.shield, color: has2fa ? AppColors.success500 : Colors.white.withValues(alpha: 0.5), size: 20),
+                    child: Icon(Icons.shield,
+                        color: has2fa
+                            ? AppColors.success500
+                            : AppColors.gray400,
+                        size: 20),
                   ),
                   const SizedBox(width: 14),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('Authenticator App', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+                    const Text('Authenticator App', style: AppTextStyles.title),
                     Text(has2fa ? 'Enabled — your account is protected' : 'Not enabled — add extra security',
-                        style: TextStyle(fontSize: 12, color: has2fa ? AppColors.success500 : Colors.white.withValues(alpha: 0.5))),
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: has2fa
+                                ? AppColors.success700
+                                : AppColors.gray500)),
                   ])),
                   if (has2fa)
                     const GlassBadge(text: 'ON', color: AppColors.success500)
                   else
-                    GlassBadge(text: 'OFF', color: Colors.white.withValues(alpha: 0.3)),
+                    const GlassBadge(text: 'OFF', color: AppColors.gray500),
                 ]),
 
                 // Setup flow
@@ -238,17 +245,16 @@ class _SecurityScreenState extends State<SecurityScreen> {
 
                 if (!has2fa && _setupSecret != null) ...[
                   const SizedBox(height: 16),
-                  Text('Scan the QR code in your authenticator app, or enter this key manually:', style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.7))),
+                  const Text('Scan the QR code in your authenticator app, or enter this key manually:', style: AppTextStyles.body),
                   const SizedBox(height: 12),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                      color: AppColors.gray100,
+                      borderRadius: BorderRadius.circular(AppRadius.control),
                     ),
-                    child: SelectableText(_setupSecret!, style: const TextStyle(fontFamily: 'monospace', fontSize: 14, letterSpacing: 2, color: Colors.white), textAlign: TextAlign.center),
+                    child: SelectableText(_setupSecret!, style: const TextStyle(fontFamily: 'monospace', fontSize: 14, letterSpacing: 2, color: AppColors.textPrimary), textAlign: TextAlign.center),
                   ),
                   const SizedBox(height: 16),
                   TextField(
@@ -256,7 +262,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
                     keyboardType: TextInputType.number,
                     maxLength: 6,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 8),
+                    style: AppTextStyles.timer.copyWith(letterSpacing: 8),
                     decoration: const InputDecoration(hintText: '000000', counterText: '', labelText: 'Enter 6-digit code'),
                   ),
                   const SizedBox(height: 14),
@@ -287,12 +293,12 @@ class _SecurityScreenState extends State<SecurityScreen> {
     return TextFormField(
       controller: ctrl,
       obscureText: obscure,
-      style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(Icons.lock_outline, size: 18, color: Colors.white.withValues(alpha: 0.4)),
+        prefixIcon: const Icon(Icons.lock_outline,
+            size: 18, color: AppColors.gray400),
         suffixIcon: IconButton(
-          icon: Icon(obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 18, color: Colors.white.withValues(alpha: 0.4)),
+          icon: Icon(obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 18, color: AppColors.gray400),
           onPressed: toggle,
         ),
       ),

@@ -56,7 +56,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
         child: Column(
           children: [
             // Profile Card (Header)
@@ -140,22 +140,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: Colors.white.withValues(alpha: 0.3)),
+          Icon(icon, size: 18, color: AppColors.gray400),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label,
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.white.withValues(alpha: 0.4))),
+                Text(label, style: AppTextStyles.caption),
                 Text(
                   value,
-                  style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white),
+                  style: AppTextStyles.bodyStrong,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -177,15 +171,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            GradientIcon(
-              icon: icon,
-              size: 28,
-              gradient: primary == AppColors.primary
-                  ? AppGradients.aurora
-                  : LinearGradient(colors: [primary, primary.withValues(alpha: 0.8)]),
-            ),
+            Icon(icon, size: 28, color: primary),
             const SizedBox(height: 8),
-            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+            Text(label, style: AppTextStyles.bodyStrong),
           ],
         ),
       ),
@@ -200,53 +188,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Stack(
           alignment: Alignment.bottomRight,
           children: [
-            Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: themeController.primaryGradient,
-                boxShadow: [
-                  BoxShadow(
-                    color: primary.withValues(alpha: 0.25),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: UserAvatar(
-                name: user.name,
-                imageUrl: _profile?['avatar_url'] as String?,
-                size: 96,
-              ),
+            UserAvatar(
+              name: user.name,
+              imageUrl: _profile?['avatar_url'] as String?,
+              size: 96,
             ),
             Container(
               padding: const EdgeInsets.all(6),
-              decoration: const BoxDecoration(
-                color: AppColors.bgDark3,
+              decoration: BoxDecoration(
+                color: AppColors.surface,
                 shape: BoxShape.circle,
+                border: Border.all(color: AppColors.border),
               ),
-              child: Icon(Icons.camera_alt_outlined, size: 16, color: Colors.white.withValues(alpha: 0.8)),
+              child: const Icon(Icons.camera_alt_outlined,
+                  size: 16, color: AppColors.gray500),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        Text(user.name,
-            style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: Colors.white)),
+        Text(user.name, style: AppTextStyles.display),
         const SizedBox(height: 4),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
-            color: primary.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: primary.withValues(alpha: 0.3)),
+            color: primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(AppRadius.control),
           ),
           child: Text(
             (_profile?['job_title'] ?? user.role.replaceAll('_', ' ')).toUpperCase(),
             style: TextStyle(
-                fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.0, color: primary),
+                fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.0, color: primary),
           ),
         ),
       ],

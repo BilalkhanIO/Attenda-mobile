@@ -1,8 +1,8 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../services/theme_controller.dart';
+import '../../utils/theme.dart';
 import '../../widgets/common.dart';
 
 class AppearanceScreen extends StatelessWidget {
@@ -18,33 +18,28 @@ class AppearanceScreen extends StatelessWidget {
       body: SafeArea(
         bottom: false,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               GestureDetector(
                 onTap: () => context.pop(),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(15),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
-                      width: 42, height: 42,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(15),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-                      ),
-                      child: Icon(Icons.arrow_back, color: Colors.white.withValues(alpha: 0.8), size: 20),
-                    ),
+                child: Container(
+                  width: 42, height: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.control),
+                    border: Border.all(color: AppColors.border),
                   ),
+                  child: const Icon(Icons.arrow_back,
+                      color: AppColors.gray600, size: 20),
                 ),
               ),
               const SizedBox(width: 14),
-              const Text('Appearance', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
+              const Text('Appearance', style: AppTextStyles.headline),
             ]),
             const SizedBox(height: 24),
 
-            const Text('COLOUR THEME', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0, color: Color(0x66FFFFFF))),
+            const Text('COLOUR THEME', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.0, color: AppColors.gray500)),
             const SizedBox(height: 10),
             GlassCard(
               child: Padding(
@@ -57,23 +52,22 @@ class AppearanceScreen extends StatelessWidget {
                       onTap: () => themeController.setPalette(palette),
                       child: Column(children: [
                         AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
+                          duration: AppMotion.duration,
+                          curve: AppMotion.curve,
                           width: selected ? 50 : 44,
                           height: selected ? 50 : 44,
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [palette.primary, palette.secondary], 
-                              begin: Alignment.topLeft, 
-                              end: Alignment.bottomRight
-                            ),
+                            color: palette.primary,
                             shape: BoxShape.circle,
-                            boxShadow: selected ? [BoxShadow(color: palette.primary.withValues(alpha: 0.5), blurRadius: 14, spreadRadius: 2)] : null,
-                            border: selected ? Border.all(color: Colors.white, width: 2.5) : null,
+                            border: selected
+                                ? Border.all(
+                                    color: AppColors.surface, width: 2.5)
+                                : null,
                           ),
                           child: selected ? const Icon(Icons.check, color: Colors.white, size: 20) : null,
                         ),
                         const SizedBox(height: 6),
-                        Text(palette.name, style: TextStyle(fontSize: 11, fontWeight: selected ? FontWeight.w700 : FontWeight.w400, color: selected ? Colors.white : Colors.white.withValues(alpha: 0.5))),
+                        Text(palette.name, style: TextStyle(fontSize: 11, fontWeight: selected ? FontWeight.w700 : FontWeight.w500, color: selected ? AppColors.textPrimary : AppColors.gray500)),
                       ]),
                     );
                   }).toList(),
@@ -82,7 +76,7 @@ class AppearanceScreen extends StatelessWidget {
             ),
 
             const SizedBox(height: 24),
-            const Text('DENSITY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0, color: Color(0x66FFFFFF))),
+            const Text('DENSITY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.0, color: AppColors.gray500)),
             const SizedBox(height: 10),
             GlassCard(
               padding: const EdgeInsets.all(6),
@@ -93,16 +87,18 @@ class AppearanceScreen extends StatelessWidget {
                     child: GestureDetector(
                       onTap: () => themeController.setDensity(i),
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
+                        duration: AppMotion.duration,
+                        curve: AppMotion.curve,
                         height: 42,
                         margin: const EdgeInsets.symmetric(horizontal: 2),
                         decoration: BoxDecoration(
-                          gradient: selected ? themeController.primaryGradient : null,
-                          color: selected ? null : Colors.transparent,
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: selected ? [BoxShadow(color: themeController.palette.primary.withValues(alpha: 0.35), blurRadius: 10)] : null,
+                          color: selected
+                              ? themeController.palette.primary
+                              : Colors.transparent,
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.control),
                         ),
-                        child: Center(child: Text(densities[i], style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: selected ? Colors.white : Colors.white.withValues(alpha: 0.5)))),
+                        child: Center(child: Text(densities[i], style: TextStyle(fontSize: 13, fontWeight: selected ? FontWeight.w700 : FontWeight.w500, color: selected ? Colors.white : AppColors.gray500))),
                       ),
                     ),
                   );
@@ -113,10 +109,10 @@ class AppearanceScreen extends StatelessWidget {
             const SizedBox(height: 24),
             GlassCard(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Row(children: [
-                const Icon(Icons.info_outline, color: Color(0x66FFFFFF), size: 16),
-                const SizedBox(width: 10),
-                Expanded(child: Text('Appearance settings are applied instantly and stored locally.', style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.4)))),
+              child: const Row(children: [
+                Icon(Icons.info_outline, color: AppColors.gray400, size: 16),
+                SizedBox(width: 10),
+                Expanded(child: Text('Appearance settings are applied instantly and stored locally.', style: AppTextStyles.body)),
               ]),
             ),
           ]),
