@@ -4,6 +4,7 @@ import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
+import 'correction_sheet.dart';
 
 // Backend serializes Decimal fields (hours_worked, net_hours_worked) as strings
 // and Int fields as numbers — parse defensively for either.
@@ -62,6 +63,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   // Existing overtime requests keyed by attendance_id, so records show their
   // request status instead of offering a duplicate "Request overtime" action.
   Map<String, Map<String, dynamic>> _overtimeByAttendance = {};
+  // Latest correction request per day (yyyy-MM-dd), so records show their
+  // correction status and don't offer a duplicate request while one is pending.
+  Map<String, Map<String, dynamic>> _correctionsByDate = {};
   bool _loading = true;
   DateTime _selectedMonth = DateTime.now();
 
@@ -80,6 +84,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         api.getMyAttendance(days: 186),
         // Overtime is optional server-side; ignore failures quietly.
         api.getMyOvertimeRequests().catchError((_) => <dynamic>[]),
+        // Corrections are additive UI — ignore failures quietly too.
+        api.getMyCorrections().catchError((_) => <dynamic>[]),
       ]);
       if (!mounted) return;
       final overtime = <String, Map<String, dynamic>>{};
@@ -88,9 +94,19 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         final attendanceId = req['attendance_id'] as String?;
         if (attendanceId != null) overtime[attendanceId] = req;
       }
+      // Newest-first from the API — keep only the latest correction per day.
+      final corrections = <String, Map<String, dynamic>>{};
+      for (final raw in results[2]) {
+        final req = (raw as Map).cast<String, dynamic>();
+        final date = (req['date'] as String?) ?? '';
+        if (date.length >= 10) {
+          corrections.putIfAbsent(date.substring(0, 10), () => req);
+        }
+      }
       setState(() {
         _records = results[0].cast<Map<String, dynamic>>();
         _overtimeByAttendance = overtime;
+        _correctionsByDate = corrections;
         _loading = false;
       });
     } catch (_) {
@@ -121,6 +137,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(ApiFailure.fromError(e).userMessage)));
+    }
+  }
+
+  Future<void> _requestCorrection(Map<String, dynamic> record) async {
+    final submitted = await showCorrectionSheet(
+      context,
+      date: DateTime.parse(record['date'] as String),
+      initialCheckIn: _parseDateTime(record['check_in_at']),
+      initialCheckOut: _parseDateTime(record['check_out_at']),
+    );
+    if (submitted == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Correction request sent for approval')));
+      _load();
     }
   }
 
@@ -271,7 +301,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       child: _RecordTile(
                         record: r,
                         overtimeRequest: _overtimeByAttendance[r['id']],
+                        correction: _correctionsByDate[
+                            (r['date'] as String).substring(0, 10)],
                         onRequestOvertime: () => _requestOvertime(r),
+                        onRequestCorrection: () => _requestCorrection(r),
                       ),
                     )),
             ],
@@ -282,12 +315,25 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 }
 
+// Correction request status → chip/row colors (matches leave status colors).
+(Color, Color) _correctionColors(String status) => switch (status) {
+      'approved' => (AppColors.success700, AppColors.success100),
+      'rejected' => (AppColors.danger800, AppColors.danger100),
+      _ => (AppColors.warning800, AppColors.warning100),
+    };
+
 class _RecordTile extends StatelessWidget {
   final Map<String, dynamic> record;
   final Map<String, dynamic>? overtimeRequest;
+  final Map<String, dynamic>? correction;
   final VoidCallback? onRequestOvertime;
+  final VoidCallback? onRequestCorrection;
   const _RecordTile(
-      {required this.record, this.overtimeRequest, this.onRequestOvertime});
+      {required this.record,
+      this.overtimeRequest,
+      this.correction,
+      this.onRequestOvertime,
+      this.onRequestCorrection});
 
   @override
   Widget build(BuildContext context) {
@@ -326,10 +372,18 @@ class _RecordTile extends StatelessWidget {
         Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(DateFormat('EEEE, d MMMM').format(date),
-              style: AppTextStyles.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
+          Row(children: [
+            Expanded(
+              child: Text(DateFormat('EEEE, d MMMM').format(date),
+                  style: AppTextStyles.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
+            ),
+            if (correction != null) ...[
+              const SizedBox(width: 6),
+              _correctionChip(correction!['status'] as String? ?? 'pending'),
+            ],
+          ]),
           const SizedBox(height: 6),
           Row(
             children: [
@@ -364,6 +418,24 @@ class _RecordTile extends StatelessWidget {
             ],
           ),
         ])),
+      ]),
+    );
+  }
+
+  Widget _correctionChip(String status) {
+    final (fg, bg) = _correctionColors(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.edit_calendar_outlined, size: 10, color: fg),
+        const SizedBox(width: 4),
+        Text(status[0].toUpperCase() + status.substring(1),
+            style: TextStyle(
+                fontSize: 10, fontWeight: FontWeight.w700, color: fg)),
       ]),
     );
   }
@@ -492,6 +564,24 @@ class _RecordTile extends StatelessWidget {
                 glassDetailRow('Override',
                     r['override_reason'] as String? ?? 'Overridden by manager',
                     highlight: true),
+              // ── Correction request status ────────────────────────────────
+              Builder(builder: (_) {
+                final c = correction;
+                if (c == null) return const SizedBox.shrink();
+                final status = c['status'] as String? ?? 'pending';
+                final note = c['review_note'] as String?;
+                final (fg, _) = _correctionColors(status);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    glassDetailRow('Correction',
+                        status[0].toUpperCase() + status.substring(1),
+                        highlight: true, highlightColor: fg),
+                    if (note != null && note.isNotEmpty)
+                      glassDetailRow('Reviewer Note', note),
+                  ],
+                );
+              }),
               // ── Break history ────────────────────────────────────────────
               Builder(builder: (_) {
                 final breaks = (r['break_records'] as List?)
@@ -510,6 +600,21 @@ class _RecordTile extends StatelessWidget {
                   ],
                 );
               }),
+              // ── Request a correction (wrong / missing times) ─────────────
+              if (onRequestCorrection != null &&
+                  (correction?['status'] as String?) != 'pending')
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: AppButton(
+                    label: 'Request Correction',
+                    icon: Icons.edit_calendar_outlined,
+                    outline: true,
+                    onPressed: () {
+                      Navigator.pop(context);
+                      onRequestCorrection!();
+                    },
+                  ),
+                ),
               const SizedBox(height: 12),
             ],
           ),

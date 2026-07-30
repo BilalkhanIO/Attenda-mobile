@@ -204,6 +204,30 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
+  // ─── Attendance Corrections ───────────────────────
+  /// Requests a correction of a past day's times ("forgot to check out").
+  /// [requestedCheckIn]/[requestedCheckOut] are ISO 8601 with offset;
+  /// at least one must be provided. [reason] must be 5+ characters.
+  Future<Map<String, dynamic>> submitCorrection({
+    required String date, // yyyy-MM-dd
+    String? requestedCheckIn,
+    String? requestedCheckOut,
+    required String reason,
+  }) async {
+    final res = await _dio.post('/attendance/corrections', data: {
+      'date': date,
+      if (requestedCheckIn != null) 'requested_check_in': requestedCheckIn,
+      if (requestedCheckOut != null) 'requested_check_out': requestedCheckOut,
+      'reason': reason,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> getMyCorrections() async {
+    final res = await _dio.get('/attendance/corrections/me');
+    return res.data['data'] as List;
+  }
+
   Future<Map<String, dynamic>> getLeaveAndNoticeCheck() async {
     final res = await _dio.get('/attendance/leave-check');
     return res.data['data'] as Map<String, dynamic>;
