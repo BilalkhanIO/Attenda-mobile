@@ -2,31 +2,33 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/theme.dart';
 
+// Single-accent palettes: `secondary` always equals `primary` — the minimal
+// design uses exactly one accent color (no gradients, no second hue).
 enum AppThemePalette {
   emerald(
     name: 'Emerald',
-    primary: Color(0xFF00C896),
-    secondary: Color(0xFF00E5FF),
+    primary: Color(0xFF059669),
+    secondary: Color(0xFF059669),
   ),
   cyber(
     name: 'Cyber',
-    primary: Color(0xFF7B61FF),
-    secondary: Color(0xFFFF3CAC),
+    primary: Color(0xFF4F46E5),
+    secondary: Color(0xFF4F46E5),
   ),
   sunset(
     name: 'Sunset',
-    primary: Color(0xFFFF6FD8),
-    secondary: Color(0xFFFF9671),
+    primary: Color(0xFFE11D48),
+    secondary: Color(0xFFE11D48),
   ),
   slate(
     name: 'Slate',
-    primary: Color(0xFF94A3B8),
-    secondary: Color(0xFF64748B),
+    primary: Color(0xFF475569),
+    secondary: Color(0xFF475569),
   ),
   aurora(
     name: 'Aurora',
-    primary: Color(0xFF6C63FF),
-    secondary: Color(0xFF00D4FF),
+    primary: Color(0xFF2563EB),
+    secondary: Color(0xFF2563EB),
   );
 
   final String name;
@@ -107,9 +109,9 @@ class ThemeController extends ChangeNotifier {
     visualDensity: _visualDensity,
   );
 
+  /// Legacy `Gradient`-typed accessor — resolves to a flat accent fill so
+  /// remaining gradient call sites render solid color (minimal design).
   LinearGradient get primaryGradient => LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [_palette.primary, _palette.secondary],
+    colors: [_palette.primary, _palette.primary],
   );
 }
