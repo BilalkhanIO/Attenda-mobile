@@ -114,24 +114,26 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
       isScrollControlled: true,
       builder: (ctx) => Container(
         decoration: const BoxDecoration(
-          color: AppColors.bgDark2,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          color: AppColors.surface,
+          borderRadius:
+              BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
         ),
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Container(width: 40, height: 4,
-              decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+              decoration: BoxDecoration(
+                  color: AppColors.gray300,
+                  borderRadius: BorderRadius.circular(2))),
           const SizedBox(height: 20),
-          const Icon(Icons.logout_rounded, color: Colors.white, size: 40),
+          const Icon(Icons.logout_rounded,
+              color: AppColors.textPrimary, size: 40),
           const SizedBox(height: 12),
-          const Text('Check Out?',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
+          const Text('Check Out?', style: AppTextStyles.display),
           const SizedBox(height: 6),
-          Text('You checked in at $timeDisplay',
-              style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.6))),
+          Text('You checked in at $timeDisplay', style: AppTextStyles.body),
           const SizedBox(height: 4),
           Text('Time in office: $durationDisplay',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+              style: AppTextStyles.title),
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
@@ -140,17 +142,19 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
                 backgroundColor: Theme.of(context).colorScheme.primary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.control)),
               ),
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Confirm Check Out',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
             ),
           ),
           const SizedBox(height: 12),
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 15)),
+            child: const Text('Cancel',
+                style: TextStyle(color: AppColors.gray500, fontSize: 15)),
           ),
         ]),
       ),
@@ -255,9 +259,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
                       height: 100,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: Theme.of(context).colorScheme.primary == AppColors.primary
-                            ? AppGradients.aurora
-                            : LinearGradient(colors: [primary, primary.withValues(alpha: 0.8)]),
+                        color: primary,
                       ),
                       child: Icon(
                         _isCheckout ? Icons.logout_rounded : Icons.check_rounded,
@@ -339,8 +341,8 @@ class _ScanLinePainter extends CustomPainter {
     final grad = LinearGradient(
       colors: [
         Colors.transparent,
-        const Color(0xFF00C896).withValues(alpha: 0.8),
-        const Color(0xFF00E5FF).withValues(alpha: 0.8),
+        AppColors.primary.withValues(alpha: 0.8),
+        AppColors.primary.withValues(alpha: 0.8),
         Colors.transparent,
       ],
       stops: const [0.0, 0.3, 0.7, 1.0],
@@ -377,7 +379,7 @@ class _ScanOverlayPainter extends CustomPainter {
     );
 
     // Corner brackets (emerald accent)
-    final linePaint = Paint()..color = const Color(0xFF00C896)..strokeWidth = 3.5..style = PaintingStyle.stroke..strokeCap = StrokeCap.round;
+    final linePaint = Paint()..color = AppColors.primary..strokeWidth = 3.5..style = PaintingStyle.stroke..strokeCap = StrokeCap.round;
     final corners = [
       [rect.topLeft,     Offset(rect.left + corner, rect.top),    Offset(rect.left, rect.top + corner)],
       [rect.topRight,    Offset(rect.right - corner, rect.top),   Offset(rect.right, rect.top + corner)],

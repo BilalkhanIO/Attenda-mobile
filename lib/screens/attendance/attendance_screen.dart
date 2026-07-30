@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_failure.dart';
@@ -160,11 +159,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       ),
       body: RefreshIndicator(
         color: primary,
-        backgroundColor: AppColors.bgDark3,
+        backgroundColor: AppColors.surface,
         onRefresh: _load,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -183,42 +182,27 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       padding: const EdgeInsets.only(right: 8),
                       child: GestureDetector(
                         onTap: () => setState(() => _selectedMonth = m),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(22),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 10),
-                              decoration: BoxDecoration(
-                                gradient: selected
-                                    ? const LinearGradient(
-                                        colors: [
-                                          Color(0xFF00C896),
-                                          Color(0xFF00E5FF)
-                                        ],
-                                        begin: Alignment.centerLeft,
-                                        end: Alignment.centerRight,
-                                      )
-                                    : null, // If not selected, use the color below
-                                color: selected ? null : AppColors.glass10,
-                                borderRadius: BorderRadius.circular(22),
-                                border: Border.all(
-                                  color: selected
-                                      ? Colors.transparent
-                                      : AppColors.glass20,
-                                ),
-                              ),
-                              child: Text(
-                                DateFormat('MMM yyyy').format(m),
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: selected
-                                      ? Colors.white
-                                      : AppColors.onGlassMuted,
-                                ),
-                              ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: selected ? primary : AppColors.surface,
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.control),
+                            border: selected
+                                ? null
+                                : Border.all(color: AppColors.border),
+                          ),
+                          child: Text(
+                            DateFormat('MMM yyyy').format(m),
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: selected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: selected
+                                  ? Colors.white
+                                  : AppColors.gray600,
                             ),
                           ),
                         ),
@@ -236,28 +220,28 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       child: KpiChip(
                           label: 'Present',
                           value: '${_summary['present']}',
-                          color: const Color(0xFF34E0A1),
+                          color: AppColors.success500,
                           compact: true)),
                   const SizedBox(width: 8),
                   Expanded(
                       child: KpiChip(
                           label: 'Late',
                           value: '${_summary['late']}',
-                          color: const Color(0xFFFFBF4D),
+                          color: AppColors.warning500,
                           compact: true)),
                   const SizedBox(width: 8),
                   Expanded(
                       child: KpiChip(
                           label: 'Absent',
                           value: '${_summary['absent']}',
-                          color: const Color(0xFFFF6B7D),
+                          color: AppColors.danger500,
                           compact: true)),
                   const SizedBox(width: 8),
                   Expanded(
                       child: KpiChip(
                           label: 'Remote',
                           value: '${_summary['remote']}',
-                          color: const Color(0xFF5BD6FF),
+                          color: AppColors.info500,
                           compact: true)),
                 ]),
                 const SizedBox(height: 24),
@@ -321,30 +305,21 @@ class _RecordTile extends StatelessWidget {
           width: 52,
           height: 52,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                StatusColors.fg(status).withValues(alpha: 0.25),
-                StatusColors.fg(status).withValues(alpha: 0.1),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: StatusColors.fg(status).withValues(alpha: 0.3), width: 1.5),
+            color: StatusColors.bg(status),
+            borderRadius: BorderRadius.circular(AppRadius.control),
           ),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Text(DateFormat('d').format(date),
                 style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.5,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
                     color: StatusColors.fg(status))),
             Text(DateFormat('EEE').format(date).toUpperCase(),
                 style: TextStyle(
                     fontSize: 10,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w500,
                     letterSpacing: 0.8,
-                    color: StatusColors.fg(status).withValues(alpha: 0.7))),
+                    color: StatusColors.fg(status))),
           ]),
         ),
         const SizedBox(width: 16),
@@ -352,42 +327,38 @@ class _RecordTile extends StatelessWidget {
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(DateFormat('EEEE, d MMMM').format(date),
-              style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white),
+              style: AppTextStyles.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis),
           const SizedBox(height: 6),
           Row(
             children: [
               if (checkIn != null) ...[
-                Icon(Icons.login_rounded, size: 12, color: AppColors.primary.withValues(alpha: 0.7)),
+                const Icon(Icons.login_rounded,
+                    size: 12, color: AppColors.gray400),
                 const SizedBox(width: 4),
                 Text(DateFormat('hh:mm a').format(DateTime.parse(checkIn).toLocal()),
-                    style: TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.5))),
+                    style: AppTextStyles.caption),
               ],
               if (checkOut != null) ...[
                 const SizedBox(width: 12),
-                Icon(Icons.logout_rounded, size: 12, color: AppColors.secondary.withValues(alpha: 0.7)),
+                const Icon(Icons.logout_rounded,
+                    size: 12, color: AppColors.gray400),
                 const SizedBox(width: 4),
                 Text(DateFormat('hh:mm a').format(DateTime.parse(checkOut).toLocal()),
-                    style: TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.5))),
+                    style: AppTextStyles.caption),
               ],
               if (hours != null) ...[
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
+                    color: AppColors.primary.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
                   ),
                   child: Text('${hours.toStringAsFixed(1)}h',
                       style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.primary)),
+                          fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primary)),
                 ),
               ],
             ],
@@ -405,7 +376,7 @@ class _RecordTile extends StatelessWidget {
       backgroundColor: Colors.transparent,
       builder: (context) => SafeArea(
         child: GlassCard(
-          borderRadius: 32,
+          borderRadius: AppRadius.card,
           padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -417,7 +388,7 @@ class _RecordTile extends StatelessWidget {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 24),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
+                    color: AppColors.gray300,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -426,14 +397,11 @@ class _RecordTile extends StatelessWidget {
                 Text(
                     DateFormat('EEEE, d MMMM yyyy')
                         .format(DateTime.parse(r['date'] as String)),
-                    style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white)),
+                    style: AppTextStyles.title),
                 StatusBadge(status: r['status'] as String? ?? 'out'),
               ]),
               const SizedBox(height: 18),
-              const Divider(color: AppColors.glass20, height: 32),
+              const Divider(height: 32),
               _glassDetailRow(
                   'Check In',
                   r['check_in_at'] != null
@@ -534,7 +502,7 @@ class _RecordTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 24),
-                    const Divider(color: AppColors.glass20, height: 1),
+                    const Divider(height: 1),
                     const SizedBox(height: 20),
                     const SectionHeader(title: 'Breaks'),
                     const SizedBox(height: 12),
@@ -569,70 +537,61 @@ class _RecordTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: GlassCard(
-        tint: late > 0 ? AppColors.danger500 : Colors.white,
+        tint: late > 0 ? AppColors.danger500 : null,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            GradientIcon(
-              icon: late > 0 ? Icons.running_with_errors : Icons.free_breakfast_rounded,
+            Icon(
+              late > 0 ? Icons.running_with_errors : Icons.free_breakfast_rounded,
               size: 16,
-              gradient: late > 0 
-                  ? const LinearGradient(colors: [AppColors.danger500, Color(0xFFFF8A8A)])
-                  : AppGradients.aurora,
+              color: late > 0 ? AppColors.danger500 : AppColors.primary,
             ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(name,
                   style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: late > 0 ? AppColors.danger500 : Colors.white)),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: late > 0
+                          ? AppColors.danger800
+                          : AppColors.textPrimary)),
             ),
             if (isPaid)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.15),
+                  color: AppColors.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
                 ),
                 child: const Text('PAID',
-                    style: TextStyle(fontSize: 9, color: AppColors.primary, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                    style: TextStyle(fontSize: 9, color: AppColors.primary, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
               ),
           ]),
           const SizedBox(height: 8),
           Row(children: [
-            Text('$start → $end',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.6))),
+            Text('$start → $end', style: AppTextStyles.body),
             if (duration != null) ...[
               const SizedBox(width: 8),
               Container(
                 width: 4, height: 4,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.2)),
+                decoration: const BoxDecoration(
+                    shape: BoxShape.circle, color: AppColors.gray300),
               ),
               const SizedBox(width: 8),
-              Text('${duration}m',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.5))),
+              Text('${duration}m', style: AppTextStyles.bodyStrong),
             ],
           ]),
           if (late > 0) ...[
             const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.danger500.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.danger500),
-                const SizedBox(width: 6),
-                Text('${late}m late returning',
-                    style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.danger500)),
-              ]),
-            ),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.danger500),
+              const SizedBox(width: 6),
+              Text('${late}m late returning',
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.danger800)),
+            ]),
           ],
         ]),
       ),
