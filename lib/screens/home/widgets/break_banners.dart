@@ -83,23 +83,17 @@ class OverdueOffWifiBanner extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('$name — return to office!',
                   style: const TextStyle(
-                      fontSize: 13, color: AppColors.danger500, fontWeight: FontWeight.w700)),
+                      fontSize: 13, color: AppColors.danger800, fontWeight: FontWeight.w700)),
               const Text('You are away from the office past your break time',
-                  style: TextStyle(fontSize: 12, color: AppColors.danger500)),
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.danger800)),
             ]),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.danger500.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.danger500.withValues(alpha: 0.5)),
-            ),
-            child: Text('+$overdueLabel',
-                style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w800,
-                    color: AppColors.danger500, fontFamily: 'monospace')),
-          ),
+          Text('+$overdueLabel',
+              style: AppTextStyles.timer
+                  .copyWith(fontSize: 13, color: AppColors.danger800)),
         ]),
       ),
     );
@@ -157,12 +151,13 @@ class AutoStartedBreakBanner extends StatelessWidget {
                 Text('$name has started',
                     style: const TextStyle(
                         fontSize: 13,
-                        color: AppColors.teal100,
+                        color: AppColors.teal700,
                         fontWeight: FontWeight.w700)),
                 Text(subtext,
-                    style: TextStyle(
+                    style: const TextStyle(
                         fontSize: 11,
-                        color: AppColors.teal100.withValues(alpha: 0.75))),
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.teal700)),
               ]),
             ),
           ]),
@@ -174,17 +169,15 @@ class AutoStartedBreakBanner extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 9),
                   decoration: BoxDecoration(
-                    color: AppColors.teal100.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border:
-                        Border.all(color: AppColors.teal100.withValues(alpha: 0.4)),
+                    color: AppColors.teal100.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(AppRadius.control),
                   ),
                   child: const Text("I'm on it",
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.teal100)),
+                          color: AppColors.teal700)),
                 ),
               ),
             ),
@@ -195,17 +188,15 @@ class AutoStartedBreakBanner extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 9),
                   decoration: BoxDecoration(
-                    color: AppColors.warning500.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: AppColors.warning500.withValues(alpha: 0.4)),
+                    color: AppColors.warning500.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(AppRadius.control),
                   ),
                   child: const Text('Take it later',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.warning500)),
+                          color: AppColors.warning800)),
                 ),
               ),
             ),
@@ -248,12 +239,14 @@ class DeferredReminderBanner extends StatelessWidget {
                 Text('Time to take $name',
                     style: const TextStyle(
                         fontSize: 13,
-                        color: AppColors.warning500,
+                        color: AppColors.warning800,
                         fontWeight: FontWeight.w700)),
                 if (deduct)
                   const Text('Skipping will deduct this time from your pay',
                       style: TextStyle(
-                          fontSize: 11, color: AppColors.warning500)),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.warning800)),
               ]),
             ),
           ]),
@@ -265,17 +258,15 @@ class DeferredReminderBanner extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 9),
                   decoration: BoxDecoration(
-                    color: AppColors.warning500.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: AppColors.warning500.withValues(alpha: 0.5)),
+                    color: AppColors.warning500.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(AppRadius.control),
                   ),
                   child: const Text('Take it now',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.warning500)),
+                          color: AppColors.warning800)),
                 ),
               ),
             ),
@@ -286,16 +277,14 @@ class DeferredReminderBanner extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(12),
-                  border:
-                      Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  color: AppColors.gray100,
+                  borderRadius: BorderRadius.circular(AppRadius.control),
                 ),
                 child: const Text('Dismiss',
                     style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white54)),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.gray500)),
               ),
             ),
           ]),
@@ -327,24 +316,12 @@ class PreCheckinLateBanner extends StatelessWidget {
             'You are currently ${formatMinutesHours(lateMinutes)} late',
             style: const TextStyle(
                 fontSize: 13,
-                color: AppColors.warning500,
-                fontWeight: FontWeight.w600),
+                color: AppColors.warning800,
+                fontWeight: FontWeight.w500),
           )),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.warning500.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                  color: AppColors.warning500.withValues(alpha: 0.5)),
-            ),
-            child: Text('+${formatMinutesHours(lateMinutes)}',
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.warning500,
-                    fontFamily: 'monospace')),
-          ),
+          Text('+${formatMinutesHours(lateMinutes)}',
+              style: AppTextStyles.timer
+                  .copyWith(fontSize: 13, color: AppColors.warning800)),
         ]),
       ),
     );
@@ -381,14 +358,13 @@ class LateNoticeBanner extends StatelessWidget {
                 : 'Late arrival notice submitted — expected by $expectedTime',
             style: TextStyle(
               fontSize: 13,
-              color: isAcked ? AppColors.success500 : AppColors.warning500,
+              color: isAcked ? AppColors.success700 : AppColors.warning800,
               fontWeight: FontWeight.w500,
             ),
           )),
           GestureDetector(
             onTap: onCancel,
-            child: Icon(Icons.close,
-                size: 16, color: Colors.white.withValues(alpha: 0.4)),
+            child: const Icon(Icons.close, size: 16, color: AppColors.gray400),
           ),
         ]),
       ),
@@ -413,23 +389,23 @@ class TimePickerTile extends StatelessWidget {
         final picked = await showTimePicker(
           context: context,
           initialTime: value,
-          builder: (c, child) => Theme(data: AppTheme.glass, child: child!),
+          builder: (c, child) => Theme(data: AppTheme.light, child: child!),
         );
         if (picked != null) onPicked(picked);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.control),
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(children: [
           Text(label,
-              style: TextStyle(
+              style: const TextStyle(
                   fontSize: 11,
-                  color: Colors.white.withValues(alpha: 0.45),
-                  fontWeight: FontWeight.w700)),
+                  color: AppColors.gray500,
+                  fontWeight: FontWeight.w500)),
           const Spacer(),
           Flexible(
             child: Text(value.format(context),
@@ -438,7 +414,7 @@ class TimePickerTile extends StatelessWidget {
                 style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white)),
+                    color: AppColors.textPrimary)),
           ),
         ]),
       ),

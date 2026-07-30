@@ -5,7 +5,7 @@ import '../../../widgets/common.dart';
 
 // ─── Banner Widgets ────────────────────────────────────
 
-/// Thin glass banner row: icon + text + optional trailing action.
+/// Single-line banner row: leading icon + text on a flat ≤10% tint.
 class GlassBanner extends StatelessWidget {
   final IconData icon;
   final String text;
@@ -20,18 +20,20 @@ class GlassBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // A white tint used to mean "neutral" — render it as gray.
+    final fg = tint == Colors.white ? AppColors.gray600 : tint;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: GlassCard(
-        tint: tint,
+        tint: tint == Colors.white ? AppColors.gray500 : tint,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(children: [
-          Icon(icon, color: tint, size: 18),
+          Icon(icon, color: fg, size: 18),
           const SizedBox(width: 10),
           Expanded(
               child: Text(text,
                   style: TextStyle(
-                      fontSize: 13, color: tint, fontWeight: FontWeight.w500))),
+                      fontSize: 13, color: fg, fontWeight: FontWeight.w500))),
           if (action != null) action!,
         ]),
       ),
@@ -65,11 +67,11 @@ class FlashBanner extends StatelessWidget {
           Expanded(
             child: Text(text,
                 style: TextStyle(
-                    fontSize: 13, color: tint, fontWeight: FontWeight.w600)),
+                    fontSize: 13, color: tint, fontWeight: FontWeight.w500)),
           ),
           GestureDetector(
             onTap: onDismiss,
-            child: Icon(Icons.close, size: 16, color: tint.withValues(alpha: 0.5)),
+            child: const Icon(Icons.close, size: 16, color: AppColors.gray400),
           ),
         ]),
       ),

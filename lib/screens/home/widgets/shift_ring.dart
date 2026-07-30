@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../utils/theme.dart';
 
 // ─── Shift Progress Ring ────────────────────────────────
 
@@ -32,7 +33,7 @@ class _RingPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2 - 9;
     final trackPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.12)
+      ..color = AppColors.gray200
       ..style = PaintingStyle.stroke
       ..strokeWidth = 9
       ..strokeCap = StrokeCap.round;
@@ -41,13 +42,8 @@ class _RingPainter extends CustomPainter {
     if (pct > 0) {
       final sweepAngle = 2 * 3.14159265 * pct;
       final rect = Rect.fromCircle(center: center, radius: radius);
-      final gradient = SweepGradient(
-        startAngle: -3.14159265 / 2,
-        endAngle: -3.14159265 / 2 + sweepAngle,
-        colors: const [Color(0xFF00C896), Color(0xFF00E5FF)],
-      );
       final arcPaint = Paint()
-        ..shader = gradient.createShader(rect)
+        ..color = AppColors.primary
         ..style = PaintingStyle.stroke
         ..strokeWidth = 9
         ..strokeCap = StrokeCap.round;

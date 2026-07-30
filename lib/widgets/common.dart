@@ -33,10 +33,13 @@ class GlassCard extends StatelessWidget {
       child: child,
     );
     final radius = BorderRadius.circular(borderRadius);
+    // A white "tint" used to mean a neutral glass card — render it as the
+    // plain solid surface.
+    final tint = this.tint == Colors.white ? null : this.tint;
     return Container(
       decoration: BoxDecoration(
         // Tinted cards (banners, notices): ≤10% alpha fill, no border.
-        color: tint != null ? tint!.withValues(alpha: 0.08) : AppColors.surface,
+        color: tint != null ? tint.withValues(alpha: 0.08) : AppColors.surface,
         borderRadius: radius,
         border: tint != null ? null : Border.all(color: AppColors.border),
         boxShadow: tint != null

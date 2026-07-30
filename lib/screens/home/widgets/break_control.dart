@@ -33,9 +33,10 @@ class BreakControl extends StatelessWidget {
       label: const Text('Take a Break'),
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.teal100,
-        side: BorderSide(color: AppColors.teal100.withValues(alpha: 0.5)),
+        side: const BorderSide(color: AppColors.border),
         minimumSize: const Size(double.infinity, 48),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.control)),
       ),
     );
   }

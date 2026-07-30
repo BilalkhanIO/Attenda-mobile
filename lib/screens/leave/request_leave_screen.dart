@@ -75,7 +75,7 @@ class _RequestLeaveScreenState extends State<RequestLeaveScreen> {
       initialDate: (isStart ? _start : _end) ?? DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
-      builder: (ctx, child) => Theme(data: AppTheme.glass, child: child!),
+      builder: (ctx, child) => Theme(data: AppTheme.light, child: child!),
     );
     if (picked == null) return;
     setState(() { if (isStart) {

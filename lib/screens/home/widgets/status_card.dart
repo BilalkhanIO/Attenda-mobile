@@ -26,19 +26,20 @@ class InfoChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 12, color: Colors.white.withValues(alpha: 0.4)),
+        Icon(icon, size: 12, color: AppColors.gray400),
         const SizedBox(width: 4),
         Text(label,
-            style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-                color: Colors.white.withValues(alpha: 0.45))),
+            style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: AppColors.gray500)),
       ]),
       const SizedBox(height: 2),
       Text(value,
           style: const TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary)),
     ]);
   }
 }
@@ -72,45 +73,40 @@ class CheckedOutCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GlassCard(
-      tint: Colors.white,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.check_circle_outline,
-              size: 28, color: Colors.white.withValues(alpha: 0.5)),
+          const Icon(Icons.check_circle_outline,
+              size: 28, color: AppColors.success500),
           const SizedBox(width: 12),
           Expanded(
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                const Text('Work Day Complete',
-                    style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white)),
+                const Text('Work Day Complete', style: AppTextStyles.title),
                 if (wasAutoOut)
-                  Text('Auto checked-out by system',
+                  const Text('Auto checked-out by system',
                       style: TextStyle(
-                          fontSize: 12,
-                          color:
-                              AppColors.warning500.withValues(alpha: 0.9))),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.warning800)),
               ])),
           if (hoursLabel.isNotEmpty)
             Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(20),
+                color: AppColors.gray100,
+                borderRadius: BorderRadius.circular(AppRadius.control),
               ),
               child: Text(hoursLabel,
                   style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white)),
+                      color: AppColors.textPrimary)),
             ),
         ]),
         const SizedBox(height: 12),
-        Divider(color: Colors.white.withValues(alpha: 0.15), height: 1),
+        const Divider(height: 1),
         const SizedBox(height: 12),
         Row(children: [
           InfoChip(icon: Icons.login, label: 'In', value: checkInFmt),
@@ -146,9 +142,10 @@ class CheckedOutCard extends StatelessWidget {
             label: const Text('Request Overtime'),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.teal100,
-              side: BorderSide(color: AppColors.teal100.withValues(alpha: 0.5)),
+              side: const BorderSide(color: AppColors.border),
               minimumSize: const Size(double.infinity, 46),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.control)),
             ),
           ),
         ],
@@ -212,10 +209,8 @@ class CheckedInCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: ringTint.withValues(alpha: 0.20),
-                    borderRadius: BorderRadius.circular(20),
-                    border:
-                        Border.all(color: ringTint.withValues(alpha: 0.5), width: 1.2),
+                    color: ringTint.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(AppRadius.control),
                   ),
                   child: Text(
                     isLate ? 'Checked In · Late' : 'Checked In',
@@ -227,22 +222,12 @@ class CheckedInCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 // Big elapsed timer
-                Text(
-                  elapsedDisplay,
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    fontFamily: 'monospace',
-                  ),
-                ),
+                Text(elapsedDisplay, style: AppTextStyles.timer),
                 const SizedBox(height: 2),
                 // "Working since HH:MM" subtitle
                 Text(
                   'Working since $checkInTime',
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white.withValues(alpha: 0.55)),
+                  style: AppTextStyles.body,
                 ),
               ])),
         ]),
@@ -250,7 +235,7 @@ class CheckedInCard extends StatelessWidget {
         // ── Divider + info chips ───────────────────────────
         if (hasCheckIn) ...[
           const SizedBox(height: 12),
-          Divider(color: Colors.white.withValues(alpha: 0.15), height: 1),
+          const Divider(height: 1),
           const SizedBox(height: 12),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             InfoChip(icon: Icons.login, label: 'Checked in', value: checkInTime),
@@ -264,7 +249,7 @@ class CheckedInCard extends StatelessWidget {
         if (breakInfo != null)
           Column(children: [
             const SizedBox(height: 8),
-            Divider(color: Colors.white.withValues(alpha: 0.12), height: 1),
+            const Divider(height: 1),
             const SizedBox(height: 8),
             Row(children: [
               Icon(breakInfo!['icon'] as IconData,
@@ -274,9 +259,9 @@ class CheckedInCard extends StatelessWidget {
                   child: Text(
                 breakInfo!['text'] as String,
                 style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 13,
                     color: breakInfo!['color'] as Color,
-                    fontWeight: FontWeight.w600),
+                    fontWeight: FontWeight.w500),
               )),
             ]),
           ]),
@@ -286,10 +271,10 @@ class CheckedInCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             '${formatMinutesHours(lateMins)} late${hasNotice ? ' · pre-announced' : ''}',
-            style: TextStyle(
-                fontSize: 12,
-                color: AppColors.warning500.withValues(alpha: 0.9),
-                fontWeight: FontWeight.w600),
+            style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.warning800,
+                fontWeight: FontWeight.w500),
           ),
         ],
 
@@ -304,11 +289,11 @@ class CheckedInCard extends StatelessWidget {
               icon: const Icon(Icons.qr_code_scanner, size: 16),
               label: const Text('Scan QR'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                foregroundColor: AppColors.textPrimary,
+                side: const BorderSide(color: AppColors.border),
                 minimumSize: const Size(0, 42),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(AppRadius.control)),
               ),
             ),
           ),
@@ -371,15 +356,8 @@ class StatusInfoCard extends StatelessWidget {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white)),
-                Text(subtitle,
-                    style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.white.withValues(alpha: 0.6))),
+                Text(title, style: AppTextStyles.title),
+                Text(subtitle, style: AppTextStyles.body),
               ])),
         ]),
 
@@ -398,12 +376,11 @@ class StatusInfoCard extends StatelessWidget {
               icon: const Icon(Icons.schedule, size: 16),
               label: const Text('Report Late Arrival'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.warning500,
-                side: BorderSide(
-                    color: AppColors.warning500.withValues(alpha: 0.6)),
+                foregroundColor: AppColors.warning800,
+                side: const BorderSide(color: AppColors.border),
                 minimumSize: const Size(double.infinity, 42),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
+                    borderRadius: BorderRadius.circular(AppRadius.control)),
               ),
             ),
         ],

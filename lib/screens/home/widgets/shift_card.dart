@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../../utils/theme.dart';
 import '../../../widgets/common.dart';
 
 // ─── Shift Card ────────────────────────────────────────
@@ -33,22 +34,15 @@ class ShiftCard extends StatelessWidget {
         Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(shiftName,
-              style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white)),
+          Text(shiftName, style: AppTextStyles.title),
           const SizedBox(height: 3),
           Text('$startTime – $endTime',
-              style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.white.withValues(alpha: 0.55),
-                  fontFamily: 'monospace')),
+              style: AppTextStyles.body
+                  .copyWith(fontFeatures: [FontFeature.tabularFigures()])),
         ])),
         if (dateStr != null)
           Text(DateFormat('EEE, d MMM').format(DateTime.parse(dateStr!)),
-              style: TextStyle(
-                  fontSize: 12, color: Colors.white.withValues(alpha: 0.55))),
+              style: AppTextStyles.caption),
       ]),
     );
   }

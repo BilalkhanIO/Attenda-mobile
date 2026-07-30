@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ui';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -174,10 +173,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _showSnack(String msg, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w600)),
-      backgroundColor: isError ? AppColors.danger500 : AppColors.bgDark3,
+      content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w500)),
+      backgroundColor: isError ? AppColors.danger500 : AppColors.gray900,
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.control)),
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 90),
       duration: const Duration(seconds: 3),
     ));
@@ -519,14 +519,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         bottom: false,
         child: RefreshIndicator(
           color: primary,
-          backgroundColor: AppColors.bgDark3,
+          backgroundColor: AppColors.surface,
           onRefresh: () async {
             await _load(silent: true);
             await WifiAttendanceService().checkAndReport();
           },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -538,19 +538,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('$greeting,',
-                                style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0.2,
-                                    color:
-                                        Colors.white.withValues(alpha: 0.65))),
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.gray500)),
                             const SizedBox(height: 2),
                             Text(user.name.split(' ').first,
-                                style: const TextStyle(
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -0.8,
-                                    color: Colors.white)),
+                                style: AppTextStyles.display),
                           ]),
                       Row(children: [
                         // Notification bell
@@ -559,59 +553,45 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             await context.push('/home/notifications');
                             _load(silent: true);
                           },
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                              child: Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.15)),
-                                ),
-                                child: Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      Icon(Icons.notifications_none_rounded,
-                                          size: 22,
-                                          color: Colors.white
-                                              .withValues(alpha: 0.8)),
-                                      if (_unreadNotifs > 0)
-                                        Positioned(
-                                          top: 12,
-                                          right: 12,
-                                          child: Container(
-                                            width: 8,
-                                            height: 8,
-                                            decoration: BoxDecoration(
-                                                color: AppColors.primary,
-                                                shape: BoxShape.circle,
-                                                border: Border.all(color: AppColors.bgDark, width: 1.5)),
-                                          ),
-                                        ),
-                                    ]),
-                              ),
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.control),
+                              border: Border.all(color: AppColors.border),
                             ),
+                            child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  const Icon(Icons.notifications_none_rounded,
+                                      size: 22, color: AppColors.gray600),
+                                  if (_unreadNotifs > 0)
+                                    Positioned(
+                                      top: 12,
+                                      right: 12,
+                                      child: Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                            color: AppColors.primary,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                                color: AppColors.surface,
+                                                width: 1.5)),
+                                      ),
+                                    ),
+                                ]),
                           ),
                         ),
                         const SizedBox(width: 12),
                         GestureDetector(
                           onTap: () => context.go('/profile'),
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3), width: 1.5),
-                            ),
-                            child: UserAvatar(
-                              name: user.name,
-                              imageUrl: _todayStatus?['user']?['avatar_url'] as String?,
-                              size: 40,
-                            ),
+                          child: UserAvatar(
+                            name: user.name,
+                            imageUrl: _todayStatus?['user']?['avatar_url'] as String?,
+                            size: 40,
                           ),
                         ),
                       ]),
@@ -621,8 +601,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
                 // ─── Banners ──────────────────────────────
                 AnimatedSize(
-                  duration: const Duration(milliseconds: 280),
-                  curve: Curves.easeOutCubic,
+                  duration: AppMotion.duration,
+                  curve: AppMotion.curve,
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
                     if (_offline) const OfflineBanner(),
                     if (_vpnDetected) const VpnBanner(),
@@ -680,20 +660,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 // ─── Status Card ──────────────────────────
                 _loading
                     ? const SkeletonBox(
-                        width: double.infinity, height: 160, radius: 28)
+                        width: double.infinity, height: 160, radius: 16)
                     : AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 300),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
+                        duration: AppMotion.duration,
+                        switchInCurve: AppMotion.curve,
+                        switchOutCurve: AppMotion.curve,
                         transitionBuilder: (child, animation) => FadeTransition(
                           opacity: animation,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0, 0.05),
-                              end: Offset.zero,
-                            ).animate(animation),
-                            child: child,
-                          ),
+                          child: child,
                         ),
                         child: KeyedSubtree(
                           key: ValueKey(
@@ -749,23 +723,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         DateFormat('EEEE, d MMMM yyyy').format(DateTime.now()),
                         style: const TextStyle(
                             fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white),
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textPrimary),
                       ),
                     ),
                     Icon(Icons.wifi_rounded,
                         size: 15,
                         color: _noNetworksConfig
-                            ? Colors.white.withValues(alpha: 0.3)
+                            ? AppColors.gray300
                             : AppColors.success500),
                     const SizedBox(width: 4),
                     Text(
                       _noNetworksConfig
                           ? 'Auto check-in off'
                           : 'Auto check-in on',
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontSize: 11,
-                          color: Colors.white.withValues(alpha: 0.45)),
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.gray500),
                     ),
                   ]),
                 ),
@@ -1063,16 +1038,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => AlertDialog(
-          backgroundColor: AppColors.bgDark3,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Row(children: [
             Icon(Icons.assignment_outlined,
                 color: Theme.of(context).colorScheme.primary, size: 22),
-            SizedBox(width: 8),
-            Flexible(
-                child: Text('Report / Request',
-                    style: TextStyle(color: Colors.white, fontSize: 16))),
+            const SizedBox(width: 8),
+            const Flexible(
+                child: Text('Report / Request', style: AppTextStyles.title)),
           ]),
           content: SingleChildScrollView(
               child: Column(
@@ -1080,11 +1051,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ── Request type chips ──────────────────────
-              Text('Request Type',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white.withValues(alpha: 0.6))),
+              const Text('Request Type', style: AppTextStyles.captionStrong),
               const SizedBox(height: 8),
               Wrap(
                   spacing: 6,
@@ -1098,32 +1065,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             horizontal: 12, vertical: 7),
                         decoration: BoxDecoration(
                           color: sel
-                              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.25)
-                              : Colors.white.withValues(alpha: 0.06),
-                          borderRadius: BorderRadius.circular(10),
+                              ? Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withValues(alpha: 0.10)
+                              : AppColors.surface,
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.control),
                           border: Border.all(
                               color: sel
                                   ? Theme.of(context).colorScheme.primary
-                                  : Colors.white.withValues(alpha: 0.15)),
+                                  : AppColors.border),
                         ),
                         child: Text(t['label']!,
                             style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                                fontWeight:
+                                    sel ? FontWeight.w700 : FontWeight.w500,
                                 color: sel
                                     ? Theme.of(context).colorScheme.primary
-                                    : Colors.white.withValues(alpha: 0.7))),
+                                    : AppColors.gray600)),
                       ),
                     );
                   }).toList()),
               const SizedBox(height: 16),
 
               // ── Date picker ──────────────────────────────
-              Text('Date',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white.withValues(alpha: 0.6))),
+              const Text('Date', style: AppTextStyles.captionStrong),
               const SizedBox(height: 6),
               GestureDetector(
                 onTap: () async {
@@ -1133,7 +1101,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     firstDate: DateTime.now().subtract(const Duration(days: 7)),
                     lastDate: DateTime.now().add(const Duration(days: 30)),
                     builder: (c, child) =>
-                        Theme(data: AppTheme.glass, child: child!),
+                        Theme(data: AppTheme.light, child: child!),
                   );
                   if (picked != null) setDlg(() => selectedDate = picked);
                 },
@@ -1141,10 +1109,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10),
-                    border:
-                        Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.control),
+                    border: Border.all(color: AppColors.border),
                   ),
                   child: Row(children: [
                     Icon(Icons.calendar_today,
@@ -1153,13 +1120,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     Text(fmtDateDisplay(selectedDate),
                         style: const TextStyle(
                             fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white)),
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary)),
                     const Spacer(),
-                    Text('Change',
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.white.withValues(alpha: 0.4))),
+                    const Text('Change', style: AppTextStyles.caption),
                   ]),
                 ),
               ),
@@ -1169,11 +1133,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               if (requestType == 'leave' || requestType == 'mid_shift_leave')
                 ...(() {
                   return [
-                    Text('Leave Type',
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white.withValues(alpha: 0.6))),
+                    const Text('Leave Type', style: AppTextStyles.captionStrong),
                     const SizedBox(height: 6),
                     Wrap(
                         spacing: 6,
@@ -1187,22 +1147,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   horizontal: 10, vertical: 6),
                               decoration: BoxDecoration(
                                 color: sel
-                                    ? AppColors.teal700.withValues(alpha: 0.3)
-                                    : Colors.white.withValues(alpha: 0.06),
-                                borderRadius: BorderRadius.circular(8),
+                                    ? AppColors.teal100.withValues(alpha: 0.10)
+                                    : AppColors.surface,
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.control),
                                 border: Border.all(
                                     color: sel
                                         ? AppColors.teal100
-                                        : Colors.white.withValues(alpha: 0.15)),
+                                        : AppColors.border),
                               ),
                               child: Text(l['label']!,
                                   style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                      fontWeight: sel
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
                                       color: sel
-                                          ? AppColors.teal100
-                                          : Colors.white
-                                              .withValues(alpha: 0.6))),
+                                          ? AppColors.teal700
+                                          : AppColors.gray600)),
                             ),
                           );
                         }).toList()),
@@ -1217,11 +1179,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ? 'Expected Arrival Time'
                       : 'Expected Departure Time';
                   return [
-                    Text(label,
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white.withValues(alpha: 0.6))),
+                    Text(label, style: AppTextStyles.captionStrong),
                     const SizedBox(height: 6),
                     GestureDetector(
                       onTap: () async {
@@ -1229,7 +1187,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           context: ctx,
                           initialTime: selectedTime,
                           builder: (c, child) =>
-                              Theme(data: AppTheme.glass, child: child!),
+                              Theme(data: AppTheme.light, child: child!),
                         );
                         if (picked != null) setDlg(() => selectedTime = picked);
                       },
@@ -1237,10 +1195,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 11),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.2)),
+                          color: AppColors.surface,
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.control),
+                          border: Border.all(color: AppColors.border),
                         ),
                         child: Row(children: [
                           Icon(Icons.access_time,
@@ -1249,13 +1207,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           Text(selectedTime.format(ctx),
                               style: const TextStyle(
                                   fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white)),
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary)),
                           const Spacer(),
-                          Text('Tap to change',
-                              style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.white.withValues(alpha: 0.4))),
+                          const Text('Tap to change',
+                              style: AppTextStyles.caption),
                         ]),
                       ),
                     ),
@@ -1264,11 +1220,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 })(),
 
               if (requestType == 'mid_shift_leave') ...[
-                Text('Leave Window',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white.withValues(alpha: 0.6))),
+                const Text('Leave Window', style: AppTextStyles.captionStrong),
                 const SizedBox(height: 6),
                 Row(children: [
                   Expanded(
@@ -1291,22 +1243,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ],
 
               // ── Reason ───────────────────────────────────
-              Text('Reason',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white.withValues(alpha: 0.6))),
+              const Text('Reason', style: AppTextStyles.captionStrong),
               const SizedBox(height: 6),
               TextField(
                 controller: reasonCtrl,
                 maxLines: 3,
                 maxLength: 200,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-                decoration: InputDecoration(
+                style: const TextStyle(
+                    color: AppColors.textPrimary, fontSize: 13),
+                decoration: const InputDecoration(
                   hintText: 'Briefly describe the reason…',
-                  hintStyle: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.35),
-                      fontSize: 13),
                 ),
               ),
             ],
@@ -1314,15 +1260,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('Cancel',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5))),
+              child: const Text('Cancel',
+                  style: TextStyle(color: AppColors.gray500)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: Theme.of(context).colorScheme.primary,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
+                    borderRadius: BorderRadius.circular(AppRadius.control)),
               ),
               onPressed: () async {
                 final reason = reasonCtrl.text.trim();
@@ -1477,7 +1423,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // More than 10 min away — show next break time
       return {
         'icon': Icons.schedule,
-        'color': Colors.white.withValues(alpha: 0.45),
+        'color': AppColors.gray500,
         'text': '$name at ${DateFormat('hh:mm a').format(breakStart)}',
       };
     }
@@ -1568,7 +1514,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final lateMins = _asInt(_todayRecord?['late_minutes']) ?? 0;
       final isLate = _status == 'late' || lateMins > 0;
       final hasNotice = _todayRecord?['late_notice_id'] != null;
-      final ringTint = isLate ? AppColors.warning500 : const Color(0xFF34E0A1);
+      final ringTint = isLate ? AppColors.warning500 : AppColors.success500;
 
       final shiftStart = _getShiftStartMins();
       final shiftEnd = _getShiftEndMins();
@@ -1610,7 +1556,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final expected = period == 'morning' ? 'Afternoon' : 'Morning';
       cardTint = AppColors.teal700;
       cardIcon = Icons.calendar_today;
-      iconColor = AppColors.teal100.withValues(alpha: 0.9);
+      iconColor = AppColors.teal100;
       statusTitle = 'Half-Day Leave';
       statusSub = period.isNotEmpty
           ? '$expected half — you may still check in'
@@ -1618,7 +1564,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } else {
       cardTint = Colors.white;
       cardIcon = Icons.radio_button_unchecked;
-      iconColor = Colors.white.withValues(alpha: 0.4);
+      iconColor = AppColors.gray400;
       statusTitle = 'Not Checked In';
       statusSub = _noNetworksConfig
           ? 'Scan QR code to check in — WiFi auto-detection not set up'
@@ -1761,10 +1707,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     final chosen = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
-      backgroundColor: AppColors.bgDark3,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (_) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const SizedBox(height: 12),
@@ -1772,16 +1714,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             width: 36,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
+              color: AppColors.gray300,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
           const SizedBox(height: 16),
-          const Text('Start a Break',
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white)),
+          const Text('Start a Break', style: AppTextStyles.title),
           const SizedBox(height: 8),
           ...types.map((t) {
                 final state = t['state'] as String? ?? '';
@@ -1790,20 +1728,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         !(t['subtitle'] as String? ?? '').contains('window open'));
                 final isNow  = (t['subtitle'] as String? ?? '').contains('window open');
                 final subtitleColor = isLate
-                    ? AppColors.warning500
+                    ? AppColors.warning800
                     : isNow
-                        ? AppColors.teal100
-                        : Colors.white.withValues(alpha: 0.45);
+                        ? AppColors.teal700
+                        : AppColors.gray500;
                 return ListTile(
                   leading: Icon(t['icon'] as IconData,
                       color: isLate ? AppColors.warning500 : AppColors.teal100,
                       size: 22),
                   title: Text(t['label'] as String,
                       style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w600)),
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w700)),
                   subtitle: t['subtitle'] != null
                       ? Text(t['subtitle'] as String,
-                          style: TextStyle(color: subtitleColor, fontSize: 12))
+                          style: TextStyle(color: subtitleColor, fontSize: 11))
                       : null,
                   onTap: () => Navigator.pop(context, t),
                 );
@@ -1896,7 +1835,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         QuickAction(
           icon: Icons.calendar_today_outlined,
           label: 'My\nSchedule',
-          color: AppColors.teal100.withValues(alpha: 0.8),
+          color: AppColors.teal100,
           onTap: () => context.go('/schedule'),
         ),
       if (auth.hasFeature('payroll'))
