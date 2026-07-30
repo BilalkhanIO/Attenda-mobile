@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -60,9 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppGradients.mesh),
-        child: SafeArea(
+      body: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Column(
@@ -73,44 +70,36 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Logo
                 const Center(
                   child: AttendaLogo(
-                    iconSize: 64, 
-                    showWordmark: false, 
-                    variant: AttendaLogoVariant.dark,
+                    iconSize: 64,
+                    showWordmark: false,
+                    variant: AttendaLogoVariant.light,
                   ),
                 ),
 
                 const SizedBox(height: 52),
 
                 // Heading
-                const Text('Welcome back',
-                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: Colors.white)),
+                const Text('Welcome back', style: AppTextStyles.display),
                 const SizedBox(height: 6),
-                Text('Sign in to your workspace',
-                    style: TextStyle(fontSize: 15, color: Colors.white.withValues(alpha: 0.55))),
+                const Text('Sign in to your workspace',
+                    style: AppTextStyles.body),
                 const SizedBox(height: 36),
 
                 // Error banner
                 if (_error != null) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: AppColors.danger500.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.danger500.withValues(alpha: 0.4)),
-                        ),
-                        child: Row(children: [
-                          const Icon(Icons.error_outline, color: AppColors.danger500, size: 18),
-                          const SizedBox(width: 10),
-                          Expanded(child: Text(_error!,
-                              style: const TextStyle(color: AppColors.danger500, fontSize: 13, fontWeight: FontWeight.w500))),
-                        ]),
-                      ),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.danger500.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(AppRadius.control),
                     ),
+                    child: Row(children: [
+                      const Icon(Icons.error_outline, color: AppColors.danger500, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(_error!,
+                          style: const TextStyle(color: AppColors.danger800, fontSize: 13, fontWeight: FontWeight.w500))),
+                    ]),
                   ),
                   const SizedBox(height: 20),
                 ],
@@ -126,11 +115,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         controller: _emailCtrl,
                         keyboardType: TextInputType.emailAddress,
                         textInputAction: TextInputAction.next,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           labelText: 'Work Email',
                           hintText: 'you@company.com',
-                          prefixIcon: Icon(Icons.mail_outline, size: 20, color: Colors.white.withValues(alpha: 0.5)),
+                          prefixIcon: Icon(Icons.mail_outline,
+                              size: 20, color: AppColors.gray400),
                         ),
                         validator: (v) => v != null && v.contains('@') ? null : 'Enter a valid email',
                       ),
@@ -142,15 +131,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         obscureText: _obscure,
                         textInputAction: TextInputAction.done,
                         onFieldSubmitted: (_) => _login(),
-                        style: const TextStyle(color: Colors.white),
                         decoration: InputDecoration(
                           labelText: 'Password',
-                          prefixIcon: Icon(Icons.lock_outline, size: 20, color: Colors.white.withValues(alpha: 0.5)),
+                          prefixIcon: const Icon(Icons.lock_outline,
+                              size: 20, color: AppColors.gray400),
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                               size: 20,
-                              color: Colors.white.withValues(alpha: 0.5),
+                              color: AppColors.gray400,
                             ),
                             onPressed: () => setState(() => _obscure = !_obscure),
                           ),
@@ -167,7 +156,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: TextButton(
                     onPressed: _showForgotPassword,
                     child: Text('Forgot password?',
-                        style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600)),
+                        style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w700)),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -175,10 +166,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 AppButton(label: 'Sign In', onPressed: _login, loading: _loading),
 
                 const SizedBox(height: 36),
-                Center(
+                const Center(
                   child: Text(
                     "Don't have an account? Contact your HR Admin.",
-                    style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.4)),
+                    style: AppTextStyles.caption,
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -187,7 +178,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
-      ),
     );
   }
 
@@ -200,25 +190,24 @@ class _LoginScreenState extends State<LoginScreen> {
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
         child: GlassCard(
-          borderRadius: 24,
-          padding: const EdgeInsets.all(28),
+          borderRadius: AppRadius.card,
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Reset your password',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)),
+              const Text('Reset your password', style: AppTextStyles.headline),
               const SizedBox(height: 6),
-              Text("Enter your email and we'll send a reset link.",
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
+              const Text("Enter your email and we'll send a reset link.",
+                  style: AppTextStyles.body),
               const SizedBox(height: 20),
               TextFormField(
                 controller: emailCtrl,
                 keyboardType: TextInputType.emailAddress,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Email address',
-                  prefixIcon: Icon(Icons.mail_outline, size: 20, color: Colors.white.withValues(alpha: 0.5)),
+                  prefixIcon: Icon(Icons.mail_outline,
+                      size: 20, color: AppColors.gray400),
                 ),
               ),
               const SizedBox(height: 20),

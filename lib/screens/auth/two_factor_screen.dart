@@ -68,9 +68,7 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppGradients.mesh),
-        child: SafeArea(
+      body: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Column(
@@ -79,32 +77,31 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
                 const SizedBox(height: 56),
                 const Center(
                   child: AttendaLogo(
-                    iconSize: 64, 
-                    showWordmark: false, 
-                    variant: AttendaLogoVariant.dark,
+                    iconSize: 64,
+                    showWordmark: false,
+                    variant: AttendaLogoVariant.light,
                   ),
                 ),
                 const SizedBox(height: 52),
                 const Text('Two-factor authentication',
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white)),
+                    style: AppTextStyles.display),
                 const SizedBox(height: 6),
-                Text('Enter the 6-digit code from your authenticator app',
-                    style: TextStyle(fontSize: 15, color: Colors.white.withValues(alpha: 0.55))),
+                const Text('Enter the 6-digit code from your authenticator app',
+                    style: AppTextStyles.body),
                 const SizedBox(height: 36),
                 if (_error != null) ...[
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
-                      color: AppColors.danger500.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.danger500.withValues(alpha: 0.4)),
+                      color: AppColors.danger500.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(AppRadius.control),
                     ),
                     child: Row(children: [
                       const Icon(Icons.error_outline, color: AppColors.danger500, size: 18),
                       const SizedBox(width: 10),
                       Expanded(child: Text(_error!,
-                          style: const TextStyle(color: AppColors.danger500, fontSize: 13, fontWeight: FontWeight.w500))),
+                          style: const TextStyle(color: AppColors.danger800, fontSize: 13, fontWeight: FontWeight.w500))),
                     ]),
                   ),
                   const SizedBox(height: 20),
@@ -119,13 +116,13 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
                     maxLength: 6,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     onSubmitted: (_) => _verify(),
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700, letterSpacing: 12),
+                    style: AppTextStyles.timer.copyWith(letterSpacing: 12),
                     textAlign: TextAlign.center,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       counterText: '',
                       hintText: '••••••',
-                      hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), letterSpacing: 12),
+                      hintStyle: TextStyle(
+                          color: AppColors.gray300, letterSpacing: 12),
                     ),
                   ),
                 ),
@@ -136,14 +133,15 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
                   child: TextButton(
                     onPressed: () => context.go('/login'),
                     child: Text('Back to sign in',
-                        style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600)),
+                        style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w700)),
                   ),
                 ),
               ],
             ),
           ),
         ),
-      ),
     );
   }
 }
