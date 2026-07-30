@@ -310,6 +310,22 @@ class _BalanceTile extends StatelessWidget {
   final Map<String, dynamic> balance;
   const _BalanceTile({required this.balance});
 
+  /// Caption shown when the org accrues this balance monthly — the API
+  /// annotates the row with `accrual: {monthly, carry_over_max}` only when a
+  /// policy exists for the leave type, so absence simply means no caption.
+  String? _accrualHint() {
+    final accrual = balance['accrual'];
+    if (accrual is! Map) return null;
+    final monthly = (accrual['monthly'] as num?)?.toDouble() ?? 0;
+    if (monthly <= 0) return null;
+    final carry = (accrual['carry_over_max'] as num?)?.toDouble() ?? 0;
+    String fmt(double v) => v % 1 == 0 ? v.toInt().toString() : v.toString();
+    final base =
+        'Accrues +${fmt(monthly)} day${monthly == 1 ? '' : 's'}/month';
+    if (carry <= 0) return base;
+    return '$base · carries over up to ${fmt(carry)} day${carry == 1 ? '' : 's'}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final leaveType = _leaveTypeName(balance['leave_type']);
@@ -358,6 +374,16 @@ class _BalanceTile extends StatelessWidget {
           Text('of ${entitled % 1 == 0 ? entitled.toInt() : entitled} total',
               style: AppTextStyles.caption),
         ]),
+        if (_accrualHint() != null) ...[
+          const SizedBox(height: 8),
+          Row(children: [
+            const Icon(Icons.autorenew_rounded,
+                size: 12, color: AppColors.gray400),
+            const SizedBox(width: 4),
+            Expanded(
+                child: Text(_accrualHint()!, style: AppTextStyles.caption)),
+          ]),
+        ],
       ]),
     );
   }
