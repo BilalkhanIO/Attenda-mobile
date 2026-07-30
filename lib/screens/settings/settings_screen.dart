@@ -10,6 +10,13 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    // Approvals hub entry: shown for anyone who can review corrections or see
+    // the team late summary; the role helper covers a failed capability fetch.
+    final showApprovals = auth.hasPermission('attendance.override') ||
+        auth.hasPermission('attendance.view_team') ||
+        (auth.capabilities == null && (auth.user?.isManager ?? false));
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -27,6 +34,14 @@ class SettingsScreen extends StatelessWidget {
                 () => context.push('/profile/edit')),
             _menuRow(context, Icons.shield_outlined, 'Security & 2FA',
                 () => context.push('/profile/settings/security')),
+
+            if (showApprovals) ...[
+              const SizedBox(height: 24),
+              const _SectionLabel('MANAGEMENT'),
+              const SizedBox(height: 12),
+              _menuRow(context, Icons.fact_check_outlined, 'Team Approvals',
+                  () => context.push('/profile/approvals')),
+            ],
 
             const SizedBox(height: 24),
             const _SectionLabel('PREFERENCES'),

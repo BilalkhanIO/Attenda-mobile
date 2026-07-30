@@ -228,6 +228,35 @@ class ApiService {
     return res.data['data'] as List;
   }
 
+  /// Org correction queue (requires attendance.override).
+  /// [status]: 'pending' | 'approved' | 'rejected' | 'all'.
+  Future<List<dynamic>> getCorrections({String status = 'pending'}) async {
+    final res = await _dio
+        .get('/attendance/corrections', queryParameters: {'status': status});
+    return res.data['data'] as List;
+  }
+
+  Future<Map<String, dynamic>> approveCorrection(String id, {String? note}) async {
+    final res = await _dio.put('/attendance/corrections/$id/approve', data: {
+      if (note != null && note.isNotEmpty) 'note': note,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> rejectCorrection(String id, {String? note}) async {
+    final res = await _dio.put('/attendance/corrections/$id/reject', data: {
+      if (note != null && note.isNotEmpty) 'note': note,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  /// Rolling lateness totals + policy points (requires attendance.view_team):
+  /// `{window_days, policy_configured, users: [...]}`.
+  Future<Map<String, dynamic>> getLateSummary() async {
+    final res = await _dio.get('/attendance/late-summary');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> getLeaveAndNoticeCheck() async {
     final res = await _dio.get('/attendance/leave-check');
     return res.data['data'] as Map<String, dynamic>;

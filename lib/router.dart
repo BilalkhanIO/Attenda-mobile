@@ -21,6 +21,7 @@ import '../screens/settings/appearance_screen.dart';
 import '../screens/settings/reliability_screen.dart';
 import '../screens/settings/edit_profile_screen.dart';
 import '../screens/settings/settings_screen.dart';
+import '../screens/approvals/approvals_screen.dart';
 import 'shell.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
@@ -97,6 +98,7 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
             GoRoute(path: 'settings/security', parentNavigatorKey: _rootKey, builder: (_, __) => const SecurityScreen()),
             GoRoute(path: 'settings/appearance', parentNavigatorKey: _rootKey, builder: (_, __) => const AppearanceScreen()),
             GoRoute(path: 'settings/reliability', parentNavigatorKey: _rootKey, builder: (_, __) => const ReliabilityScreen()),
+            GoRoute(path: 'approvals', parentNavigatorKey: _rootKey, builder: (_, __) => const ApprovalsScreen()),
           ],
         ),
       ],
