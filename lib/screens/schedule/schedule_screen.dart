@@ -98,7 +98,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
             child: IconButton(
               tooltip: 'Request swap',
               style: IconButton.styleFrom(
-                backgroundColor: primary.withValues(alpha: 0.15),
+                backgroundColor: primary.withValues(alpha: 0.08),
                 foregroundColor: primary,
               ),
               icon: const Icon(Icons.swap_horiz_rounded),
@@ -120,7 +120,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
         // Shifts
         RefreshIndicator(
           color: primary,
-          backgroundColor: AppColors.bgDark3,
+          backgroundColor: AppColors.surface,
           onRefresh: _load,
           child: _loading
               ? Center(child: CircularProgressIndicator(color: primary))
@@ -143,11 +143,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
                           padding: const EdgeInsets.fromLTRB(0, 8, 0, 8),
                           child: Text(
                             groupName.toUpperCase(),
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1.4,
-                              color: Colors.white.withValues(alpha: 0.45),
+                              color: AppColors.gray500,
                             ),
                           ),
                         ));
@@ -156,8 +156,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
                           final shift    = (a['shift'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
                           final date     = DateTime.parse(a['date'] as String);
                           final isToday  = groupName == 'Today';
-                          final c = parseHexColor(shift['color'] as String?,
-                              fallback: const Color(0xFF00C896));
+                          final c = parseHexColor(shift['color'] as String?);
 
                           items.add(Padding(
                             padding: const EdgeInsets.only(bottom: 8),
@@ -170,24 +169,26 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
                                 const SizedBox(width: 14),
                                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                   Text(shift['name'] as String? ?? 'Shift',
-                                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+                                      style: AppTextStyles.title),
                                   Text('${shift["start_time"] ?? "--"} – ${shift["end_time"] ?? "--"}',
-                                      style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.55), fontFamily: 'monospace')),
+                                      style: AppTextStyles.body.copyWith(
+                                          fontFeatures: [
+                                            FontFeature.tabularFigures()
+                                          ])),
                                 ])),
                                 Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                                   Text(DateFormat('EEE, d MMM').format(date),
-                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+                                      style: AppTextStyles.bodyStrong),
                                   if (isToday) ...[
                                     const SizedBox(height: 4),
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                       decoration: BoxDecoration(
-                                        color: primary.withValues(alpha: 0.2),
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(color: primary.withValues(alpha: 0.4)),
+                                        color: primary.withValues(alpha: 0.10),
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text('TODAY',
-                                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: primary, letterSpacing: 0.8)),
+                                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: primary, letterSpacing: 0.8)),
                                     ),
                                   ],
                                 ]),
@@ -198,7 +199,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
                       }
 
                       return ListView(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
                         children: items,
                       );
                     }),
@@ -220,7 +221,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
                     ),
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
                     itemCount: _swaps.length,
                     itemBuilder: (_, i) {
                       final sw     = _swaps[i];
@@ -245,11 +246,14 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
                             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                               Text(
                                 isRequester ? 'You requested a swap' : 'Swap request received',
-                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
+                                style: AppTextStyles.bodyStrong,
                               ),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(20)),
+                                decoration: BoxDecoration(
+                                    color: statusBg,
+                                    borderRadius: BorderRadius.circular(
+                                        AppRadius.control)),
                                 child: Text(status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor)),
                               ),
                             ]),
@@ -258,12 +262,15 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
                               // Show the OTHER party: target when I requested,
                               // requester when the request was sent to me.
                               'With: ${((isRequester ? sw["target"] : sw["requester"]) as Map?)?["name"] ?? "—"}',
-                              style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.55)),
+                              style: AppTextStyles.body,
                             ),
                             if (sw['rejection_reason'] != null) ...[
                               const SizedBox(height: 4),
                               Text('Reason: ${sw["rejection_reason"]}',
-                                  style: const TextStyle(fontSize: 12, color: AppColors.danger500)),
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: AppColors.danger800)),
                             ],
                           ]),
                         ),
@@ -388,11 +395,11 @@ class _SwapRequestSheetState extends State<_SwapRequestSheet> {
   }
 
   Widget _sectionLabel(String text) => Text(text,
-      style: TextStyle(
+      style: const TextStyle(
           fontSize: 11,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
           letterSpacing: 1.0,
-          color: Colors.white.withValues(alpha: 0.45)));
+          color: AppColors.gray500));
 
   Widget _dropdown({
     required String? value,
@@ -404,10 +411,13 @@ class _SwapRequestSheetState extends State<_SwapRequestSheet> {
     return DropdownButtonFormField<String>(
       initialValue: value,
       isExpanded: true,
-      dropdownColor: AppColors.bgDark3,
-      style: const TextStyle(color: Colors.white, fontSize: 13),
+      dropdownColor: AppColors.surface,
+      style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 13,
+          fontWeight: FontWeight.w500),
       hint: Text(hint,
-          style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.4))),
+          style: const TextStyle(fontSize: 13, color: AppColors.gray400)),
       items: options
           .map((a) => DropdownMenuItem<String>(
                 value: a['id'] as String?,
@@ -423,7 +433,7 @@ class _SwapRequestSheetState extends State<_SwapRequestSheet> {
     final primary = Theme.of(context).colorScheme.primary;
     return SafeArea(
       child: GlassCard(
-        borderRadius: 24,
+        borderRadius: AppRadius.card,
         padding: const EdgeInsets.all(24),
         child: SingleChildScrollView(
           child: Column(
@@ -431,10 +441,10 @@ class _SwapRequestSheetState extends State<_SwapRequestSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text('Request a Shift Swap',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)),
+                  style: AppTextStyles.headline),
               const SizedBox(height: 6),
               const Text('Pick your shift and the colleague\'s shift you want to trade. Your manager approves the swap.',
-                  style: TextStyle(fontSize: 13, color: Colors.white60)),
+                  style: AppTextStyles.body),
               const SizedBox(height: 18),
 
               if (_error != null) ...[
@@ -443,12 +453,14 @@ class _SwapRequestSheetState extends State<_SwapRequestSheet> {
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   margin: const EdgeInsets.only(bottom: 14),
                   decoration: BoxDecoration(
-                    color: AppColors.danger500.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.danger500.withValues(alpha: 0.4)),
+                    color: AppColors.danger500.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(AppRadius.control),
                   ),
                   child: Text(_error!,
-                      style: const TextStyle(fontSize: 13, color: AppColors.danger500)),
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.danger800)),
                 ),
               ],
 
@@ -480,25 +492,28 @@ class _SwapRequestSheetState extends State<_SwapRequestSheet> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                    color: AppColors.gray100,
+                    borderRadius: BorderRadius.circular(AppRadius.control),
                   ),
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Icon(Icons.lock_outline, size: 16, color: AppColors.warning500),
-                    const SizedBox(width: 8),
-                    const Expanded(
+                  child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Icon(Icons.lock_outline, size: 16, color: AppColors.warning500),
+                    SizedBox(width: 8),
+                    Expanded(
                       child: Text(
                         'Your account can\'t browse the team schedule, so a colleague can\'t be picked here. '
                         'Ask your manager to arrange the swap — they can set it up from the schedule.',
-                        style: TextStyle(fontSize: 12, height: 1.4, color: Colors.white70),
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            height: 1.4,
+                            color: AppColors.gray600),
                       ),
                     ),
                   ]),
                 )
               else if (_candidates.isEmpty)
                 const Text('No teammate shifts found in the next two weeks.',
-                    style: TextStyle(fontSize: 13, color: Colors.white54))
+                    style: AppTextStyles.body)
               else
                 _dropdown(
                   value: _targetPickId,
@@ -515,7 +530,8 @@ class _SwapRequestSheetState extends State<_SwapRequestSheet> {
                 controller: _reasonCtrl,
                 maxLines: 2,
                 maxLength: 200,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+                style: const TextStyle(
+                    color: AppColors.textPrimary, fontSize: 13),
                 decoration: const InputDecoration(
                     hintText: 'Why do you need this swap?', counterText: ''),
               ),
