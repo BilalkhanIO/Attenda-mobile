@@ -288,6 +288,17 @@ class ApiService {
     await _dio.put('/leave/requests/$id/reject', data: {'reason': reason});
   }
 
+  // ─── Org ──────────────────────────────────────────
+  /// Who's away for a date range (defaults to today server-side):
+  /// `{on_leave: [...], remote: [...], holidays: ['yyyy-MM-dd', ...]}`.
+  Future<Map<String, dynamic>> getWhosOut({String? from, String? to}) async {
+    final res = await _dio.get('/org/whos-out', queryParameters: {
+      if (from != null) 'from': from,
+      if (to != null) 'to': to,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   // ─── Shifts ───────────────────────────────────────
   Future<List<dynamic>> getMyShifts() async {
     final res = await _dio.get('/shifts/assignments/me');

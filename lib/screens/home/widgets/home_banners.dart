@@ -119,6 +119,17 @@ class NoNetworksBanner extends StatelessWidget {
       );
 }
 
+class HolidayBanner extends StatelessWidget {
+  const HolidayBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) => GlassBanner(
+        icon: Icons.celebration_outlined,
+        text: 'Today is a company holiday — no check-in required.',
+        tint: Theme.of(context).colorScheme.primary,
+      );
+}
+
 class LeaveTodayBanner extends StatelessWidget {
   /// Display-ready leave type (underscores already replaced with spaces).
   final String leaveType;

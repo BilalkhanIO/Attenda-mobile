@@ -18,6 +18,7 @@ import 'widgets/home_banners.dart';
 import 'widgets/quick_actions.dart';
 import 'widgets/shift_card.dart';
 import 'widgets/status_card.dart';
+import 'widgets/whos_out_card.dart';
 import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -33,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? _todayLeave;
   Map<String, dynamic>? _lateNotice;
   Map<String, dynamic>? _todayStatus; // from /attendance/today-status
+  Map<String, dynamic>? _whosOut; // from /org/whos-out (today)
   bool _loading = true;
   bool _actionLoading = false;
   Timer? _timer;
@@ -230,12 +232,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         api.getMyShifts(),
         api.getLeaveAndNoticeCheck().catchError((_) => <String, dynamic>{}),
         api.getTodayStatus().catchError((_) => <String, dynamic>{}),
+        // Who's out + holidays are additive UI — fail silently and keep the
+        // last good data when the fetch doesn't come back.
+        api.getWhosOut().catchError((_) => <String, dynamic>{}),
       ]);
 
       final records    = results[0] as List;
       final shifts     = results[1] as List;
       final leaveInfo  = results[2] as Map<String, dynamic>;
       final todayStatus = results[3] as Map<String, dynamic>;
+      final whosOut    = results[4] as Map<String, dynamic>;
 
       // Never overwrite good in-memory data with an empty offline response.
       if (todayStatus.isEmpty) {
@@ -292,6 +298,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           _todayLeave   = leaveInfo['leave'] as Map<String, dynamic>?;
           _lateNotice   = leaveInfo['late_notice'] as Map<String, dynamic>?;
           _todayStatus  = todayStatus;
+          if (whosOut.isNotEmpty) _whosOut = whosOut;
           _loading      = false;
         });
         _updateElapsed();
@@ -467,6 +474,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // Current time corrected for any device/server clock drift.
   DateTime get _now => DateTime.now().add(_clockOffset);
 
+  // ── Who's out / holidays (from /org/whos-out) ──────────
+  List<Map<String, dynamic>> get _whosOutLeave =>
+      (_whosOut?['on_leave'] as List?)
+          ?.whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList() ??
+      const [];
+  List<Map<String, dynamic>> get _whosOutRemote =>
+      (_whosOut?['remote'] as List?)
+          ?.whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList() ??
+      const [];
+  bool get _todayIsHoliday =>
+      ((_whosOut?['holidays'] as List?)?.whereType<String>() ??
+              const <String>[])
+          .contains(DateFormat('yyyy-MM-dd').format(DateTime.now()));
+
   void _showFlash(String msg, {required bool isBreak}) {
     _flashTimer?.cancel();
     setState(() {
@@ -608,6 +633,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     if (_vpnDetected) const VpnBanner(),
                     if (_noNetworksConfig && !_vpnDetected)
                       const NoNetworksBanner(),
+                    if (_todayIsHoliday) const HolidayBanner(),
                     if (!_loading &&
                         _todayLeave != null &&
                         _status != 'in' &&
@@ -707,6 +733,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   const SectionHeader(title: 'Your Shift'),
                   const SizedBox(height: 12),
                   _buildShiftCard(),
+                  const SizedBox(height: 20),
+                ],
+
+                // ─── Who's out today ──────────────────────
+                if (_whosOutLeave.isNotEmpty || _whosOutRemote.isNotEmpty) ...[
+                  const SectionHeader(title: "Who's out today"),
+                  const SizedBox(height: 12),
+                  WhosOutCard(onLeave: _whosOutLeave, remote: _whosOutRemote),
                   const SizedBox(height: 20),
                 ],
 
