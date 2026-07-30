@@ -108,10 +108,4 @@ class ThemeController extends ChangeNotifier {
     secondary: _palette.secondary,
     visualDensity: _visualDensity,
   );
-
-  /// Legacy `Gradient`-typed accessor — resolves to a flat accent fill so
-  /// remaining gradient call sites render solid color (minimal design).
-  LinearGradient get primaryGradient => LinearGradient(
-    colors: [_palette.primary, _palette.primary],
-  );
 }

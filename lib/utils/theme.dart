@@ -7,13 +7,10 @@ import 'package:google_fonts/google_fonts.dart';
 // whitespace-first structure. No blur, no translucency, no gradients.
 class AppColors {
   // ── Primary accent (single) ──────────────────────────
-  static const primary   = Color(0xFF059669);   // emerald 600
-  static const secondary = primary;             // single accent: alias
-  static const accent    = primary;             // single accent: alias
+  static const primary = Color(0xFF059669);   // emerald 600
 
   // ── Primary shades ────────────────────────────────────
   static const primary600 = primary;
-  static const primary500 = Color(0xFF10B981);
   static const primary100 = Color(0xFFD1FAE5);
   static const primary900 = Color(0xFF065F46);
 
@@ -40,7 +37,6 @@ class AppColors {
   static const gray400 = Color(0xFF94A3B8);
   static const gray500 = Color(0xFF64748B);
   static const gray600 = Color(0xFF475569);
-  static const gray700 = Color(0xFF334155);
   static const gray900 = Color(0xFF0F172A);
   static const white   = Color(0xFFFFFFFF);
 
@@ -51,36 +47,8 @@ class AppColors {
 
   // ── Legacy accent aliases (kept for reference compat) ─
   static const purple500 = primary;      // remote-work accent → primary
-  static const purple700 = primary900;
-  static const purple100 = primary100;
   static const teal100   = info500;      // break/info accent
   static const teal700   = info700;
-
-  // ── Legacy background aliases (now light surfaces) ────
-  static const bgDark  = background;
-  static const bgDark2 = surface;
-  static const bgDark3 = surface;
-  static const meshBot = background;
-  static const meshMid = background;
-  static const meshTop = background;
-  static const dark950 = background;
-  static const dark800 = surface;
-  static const dark700 = surface;
-
-  // ── Legacy glass aliases (now solid neutrals) ─────────
-  static const glass05     = gray50;
-  static const glass10     = gray100;
-  static const glass12     = gray100;
-  static const glass15     = gray100;
-  static const glass20     = gray200;
-  static const glassBorder = border;
-  static const glassHigh   = gray300;
-
-  // ── Legacy on-glass text aliases ──────────────────────
-  static const onGlass      = gray900;
-  static const onGlassSub   = gray700;
-  static const onGlassMuted = gray500;
-  static const onGlassDim   = gray400;
 
   // ── Text ──────────────────────────────────────────────
   static const textPrimary   = gray900;
@@ -196,24 +164,6 @@ class StatusColors {
   }
 }
 
-// ─── Legacy gradient palette (now solid fills) ────────
-// Decorative gradients are gone; each entry resolves to a flat fill so any
-// remaining `Gradient`-typed call sites render solid color.
-class AppGradients {
-  static const mesh = LinearGradient(
-    colors: [AppColors.background, AppColors.background],
-  );
-  static const primaryBtn = LinearGradient(
-    colors: [AppColors.primary, AppColors.primary],
-  );
-  static const glassCard = LinearGradient(
-    colors: [AppColors.surface, AppColors.surface],
-  );
-  static const aurora = LinearGradient(
-    colors: [AppColors.primary, AppColors.primary],
-  );
-}
-
 // ─── App Theme ────────────────────────────────────────
 class AppTheme {
   static TextTheme _buildTextTheme(ThemeData base) => GoogleFonts.dmSansTextTheme(
@@ -232,9 +182,6 @@ class AppTheme {
 
   /// The single light minimal theme.
   static ThemeData get light => build();
-
-  /// Legacy alias — same minimal theme (kept for existing call sites).
-  static ThemeData get glass => build();
 
   static ThemeData build({
     Color primary = AppColors.primary,

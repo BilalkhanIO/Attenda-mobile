@@ -405,27 +405,6 @@ Widget glassDetailRow(String label, String value,
         highlight: highlight,
         highlightColor: highlightColor);
 
-// ─── Accent Icon (legacy gradient signature) ──────────
-// Renders a flat single-color icon; the gradient's first stop is used as the
-// color so existing `Gradient`-typed call sites keep working.
-class GradientIcon extends StatelessWidget {
-  final IconData icon;
-  final double size;
-  final Gradient gradient;
-
-  const GradientIcon({
-    super.key,
-    required this.icon,
-    this.size = 24,
-    this.gradient = AppGradients.aurora,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Icon(icon, size: size, color: gradient.colors.first);
-  }
-}
-
 // ─── Confirm Dialog ───────────────────────────────────
 Future<bool?> showConfirmDialog(BuildContext context, {
   required String title,
