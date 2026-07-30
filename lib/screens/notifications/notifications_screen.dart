@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../utils/theme.dart';
@@ -144,15 +143,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.notifications_none_rounded, size: 56, color: Colors.white.withValues(alpha: 0.2)),
+                      const Icon(Icons.notifications_none_rounded,
+                          size: 56, color: AppColors.gray300),
                       const SizedBox(height: 12),
-                      Text('No notifications yet', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 15)),
+                      const Text('No notifications yet',
+                          style: AppTextStyles.body),
                     ],
                   ),
                 )
               : RefreshIndicator(
                   color: Theme.of(context).colorScheme.primary,
-                  backgroundColor: AppColors.bgDark3,
+                  backgroundColor: AppColors.surface,
                   onRefresh: () => _load(reset: true),
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
@@ -215,9 +216,8 @@ class _NotifTile extends StatelessWidget {
         padding: const EdgeInsets.only(right: 20),
         margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
-          color: AppColors.danger500.withValues(alpha: 0.25),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.danger500.withValues(alpha: 0.4)),
+          color: AppColors.danger500.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(AppRadius.card),
         ),
         child: const Icon(Icons.delete_outline_rounded, color: AppColors.danger500),
       ),
@@ -230,24 +230,15 @@ class _NotifTile extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                  child: Container(
-                    width: 40, height: 40,
-                    decoration: BoxDecoration(
-                      color: isUnread
-                          ? primary.withValues(alpha: 0.2)
-                          : Colors.white.withValues(alpha: 0.08),
-                      shape: BoxShape.circle,
-                      border: isUnread
-                          ? Border.all(color: primary.withValues(alpha: 0.4))
-                          : null,
-                    ),
-                    child: Center(child: Text(icon, style: const TextStyle(fontSize: 18))),
-                  ),
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  color: isUnread
+                      ? primary.withValues(alpha: 0.10)
+                      : AppColors.gray100,
+                  shape: BoxShape.circle,
                 ),
+                child: Center(child: Text(icon, style: const TextStyle(fontSize: 18))),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -257,21 +248,21 @@ class _NotifTile extends StatelessWidget {
                     Text(
                       notif['title'] as String? ?? '',
                       style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: isUnread ? FontWeight.w600 : FontWeight.w500,
-                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: isUnread ? FontWeight.w700 : FontWeight.w500,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       notif['body'] as String? ?? '',
-                      style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.55), height: 1.4),
+                      style: AppTextStyles.body.copyWith(height: 1.4),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 6),
                     Row(children: [
-                      Text(timeAgo, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.35))),
+                      Text(timeAgo, style: AppTextStyles.caption),
                       if (isUnread) ...[
                         const SizedBox(width: 8),
                         Container(
