@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../services/api_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
@@ -33,8 +34,40 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     'payslip_ready':     '💰',
     'shift_reminder':    '🔔',
     'late_notice':       '⏳',
-    'late_escalation':   '🚨',
+    'late_notice_ack':   '👍',
+    'late_pattern':      '📈',
+    // The server type is 'attendance_late_escalation'.
+    'attendance_late_escalation': '🚨',
+    'correction_request':  '✏️',
+    'correction_approved': '✅',
+    'correction_rejected': '❌',
+    'expense_request':     '🧾',
+    'expense_approved':    '✅',
+    'expense_rejected':    '❌',
+    'expense_reimbursed':  '💸',
+    'document_added':      '📄',
+    'document_expiring':   '⚠️',
+    'onboarding_assigned': '📝',
+    'onboarding_complete': '🎉',
+    'kudos_received':      '👏',
+    'announcement':        '📣',
+    'account_locked':      '🔒',
   };
+
+  /// Deep-link target for a notification type, or null when no screen
+  /// exists for it (unknown types keep the mark-read-only behavior).
+  static String? _routeFor(String? type) {
+    if (type == null) return null;
+    if (type == 'announcement') return '/profile/announcements';
+    if (type == 'kudos_received') return '/profile/kudos';
+    if (type == 'payslip_ready') return '/profile/payslips';
+    if (type.startsWith('expense_')) return '/profile/expenses';
+    if (type.startsWith('document_')) return '/profile/documents';
+    if (type.startsWith('onboarding_')) return '/profile/onboarding';
+    if (type.startsWith('leave_')) return '/leave';
+    if (type.startsWith('correction_')) return '/attendance';
+    return null;
+  }
 
   @override
   void initState() { super.initState(); _load(reset: true); }
@@ -170,11 +203,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           child: Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary)),
                         );
                       }
+                      final route =
+                          _routeFor(_items[index]['type'] as String?);
                       return _NotifTile(
                         notif: _items[index],
                         icon: _icons[_items[index]['type']] ?? '🔔',
                         timeAgo: _timeAgo(_items[index]['created_at'] as String?),
                         onMarkRead: () => _markRead(_items[index]['id'] as String),
+                        onOpen:
+                            route != null ? () => context.push(route) : null,
                         onDelete: () => _delete(
                           _items[index]['id'] as String,
                           _items[index]['read_at'] == null,
@@ -192,6 +229,10 @@ class _NotifTile extends StatelessWidget {
   final String icon;
   final String timeAgo;
   final VoidCallback onMarkRead;
+
+  /// Deep-link to the notification's screen; null when no target exists,
+  /// in which case tapping only marks the notification read.
+  final VoidCallback? onOpen;
   final VoidCallback onDelete;
 
   const _NotifTile({
@@ -199,6 +240,7 @@ class _NotifTile extends StatelessWidget {
     required this.icon,
     required this.timeAgo,
     required this.onMarkRead,
+    this.onOpen,
     required this.onDelete,
   });
 
@@ -226,7 +268,12 @@ class _NotifTile extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 8),
         child: GlassCard(
           tint: isUnread ? primary : null,
-          onTap: isUnread ? onMarkRead : null,
+          onTap: isUnread || onOpen != null
+              ? () {
+                  if (isUnread) onMarkRead();
+                  onOpen?.call();
+                }
+              : null,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
