@@ -385,6 +385,34 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
+  // ─── Expenses ─────────────────────────────────────
+  /// Submits an expense claim. [expenseDate] is yyyy-MM-dd and must not be in
+  /// the future; [currency] defaults to the org currency server-side.
+  Future<Map<String, dynamic>> submitExpense({
+    required double amount,
+    required String category,
+    required String description,
+    required String expenseDate, // yyyy-MM-dd
+    String? currency,
+    String? receiptUrl,
+  }) async {
+    final res = await _dio.post('/expenses', data: {
+      'amount': amount,
+      'category': category,
+      'description': description,
+      'expense_date': expenseDate,
+      if (currency != null && currency.isNotEmpty) 'currency': currency,
+      if (receiptUrl != null && receiptUrl.isNotEmpty) 'receipt_url': receiptUrl,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  /// Own expense claims, newest first.
+  Future<List<dynamic>> getMyExpenses() async {
+    final res = await _dio.get('/expenses/me');
+    return res.data['data'] as List;
+  }
+
   // ─── Performance ──────────────────────────────────
   Future<List<dynamic>> getMyReviews() async {
     final res = await _dio.get('/performance/reviews/me');

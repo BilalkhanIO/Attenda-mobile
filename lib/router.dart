@@ -22,6 +22,7 @@ import '../screens/settings/reliability_screen.dart';
 import '../screens/settings/edit_profile_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/approvals/approvals_screen.dart';
+import '../screens/expenses/expenses_screen.dart';
 import 'shell.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
@@ -93,6 +94,7 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
             GoRoute(path: 'settings', parentNavigatorKey: _rootKey, builder: (_, __) => const SettingsScreen()),
             GoRoute(path: 'edit', parentNavigatorKey: _rootKey, builder: (_, __) => const EditProfileScreen()),
             GoRoute(path: 'payslips', parentNavigatorKey: _rootKey, builder: (_, __) => const PayslipsScreen()),
+            GoRoute(path: 'expenses', parentNavigatorKey: _rootKey, builder: (_, __) => const ExpensesScreen()),
             GoRoute(path: 'performance', parentNavigatorKey: _rootKey, builder: (_, __) => const PerformanceScreen()),
             GoRoute(path: 'settings/notifications', parentNavigatorKey: _rootKey, builder: (_, __) => const NotificationSettingsScreen()),
             GoRoute(path: 'settings/security', parentNavigatorKey: _rootKey, builder: (_, __) => const SecurityScreen()),

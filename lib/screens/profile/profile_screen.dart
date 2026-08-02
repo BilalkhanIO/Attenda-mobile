@@ -64,36 +64,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 24),
             
-            // Professional Section
-            if (hasPayroll || hasPerformance) ...[
-              const SectionHeader(title: 'Professional'),
-              const SizedBox(height: 12),
-              GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 1.5,
-                children: [
-                  if (hasPayroll)
-                    _professionalCard(
-                      context,
-                      icon: Icons.receipt_long_outlined,
-                      label: 'Payslips',
-                      onTap: () => context.push('/profile/payslips'),
-                    ),
-                  if (hasPerformance)
-                    _professionalCard(
-                      context,
-                      icon: Icons.trending_up_rounded,
-                      label: 'Performance',
-                      onTap: () => context.push('/profile/performance'),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 24),
-            ],
+            // Professional Section — Expenses is available to everyone;
+            // Payslips/Performance are feature-gated.
+            const SectionHeader(title: 'Professional'),
+            const SizedBox(height: 12),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 1.5,
+              children: [
+                if (hasPayroll)
+                  _professionalCard(
+                    context,
+                    icon: Icons.receipt_long_outlined,
+                    label: 'Payslips',
+                    onTap: () => context.push('/profile/payslips'),
+                  ),
+                _professionalCard(
+                  context,
+                  icon: Icons.request_quote_outlined,
+                  label: 'Expenses',
+                  onTap: () => context.push('/profile/expenses'),
+                ),
+                if (hasPerformance)
+                  _professionalCard(
+                    context,
+                    icon: Icons.trending_up_rounded,
+                    label: 'Performance',
+                    onTap: () => context.push('/profile/performance'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 24),
 
             // Employment Details
             const SectionHeader(title: 'Employment'),
