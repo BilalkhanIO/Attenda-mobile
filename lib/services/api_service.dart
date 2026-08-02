@@ -460,6 +460,20 @@ class ApiService {
     return res.data['data'] as List;
   }
 
+  // ─── Announcements ────────────────────────────────
+  /// Published announcements targeted at me (org-wide + my department),
+  /// newest first; each row carries `my_read_at`.
+  Future<List<dynamic>> getAnnouncements() async {
+    final res = await _dio.get('/performance/announcements');
+    return res.data['data'] as List;
+  }
+
+  /// Records my read receipt. Idempotent server-side — re-reading keeps
+  /// the original read_at.
+  Future<void> markAnnouncementRead(String id) async {
+    await _dio.post('/performance/announcements/$id/read');
+  }
+
   // ─── Notification Preferences ────────────────────
   Future<Map<String, dynamic>> getNotificationPrefs() async {
     final res = await _dio.get('/users/me/notification-prefs');
