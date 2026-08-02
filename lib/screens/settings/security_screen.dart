@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_provider.dart';
@@ -24,6 +25,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
   // 2FA
   bool _saving2fa = false;
   String? _setupSecret;
+  String? _setupUri;
   final _codeCtrl = TextEditingController();
   bool _verifying = false;
 
@@ -63,7 +65,10 @@ class _SecurityScreenState extends State<SecurityScreen> {
     try {
       final data = await api.setup2fa();
       if (!mounted) return;
-      setState(() { _setupSecret = data['secret'] as String?; });
+      setState(() {
+        _setupSecret = data['secret'] as String?;
+        _setupUri = data['uri'] as String?;
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -81,7 +86,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
     try {
       await api.verify2fa(code);
       if (!mounted) return;
-      setState(() { _setupSecret = null; _codeCtrl.clear(); });
+      setState(() { _setupSecret = null; _setupUri = null; _codeCtrl.clear(); });
       context.read<AuthProvider>().refreshUser();
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('2FA enabled ✅')));
     } catch (_) {
@@ -247,6 +252,24 @@ class _SecurityScreenState extends State<SecurityScreen> {
                   const SizedBox(height: 16),
                   const Text('Scan the QR code in your authenticator app, or enter this key manually:', style: AppTextStyles.body),
                   const SizedBox(height: 12),
+                  if (_setupUri != null) ...[
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(AppRadius.control),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: QrImageView(
+                          data: _setupUri!,
+                          version: QrVersions.auto,
+                          size: 180,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
@@ -268,7 +291,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
                   const SizedBox(height: 14),
                   AppButton(label: 'Verify & Enable', loading: _verifying, onPressed: _verify2fa),
                   const SizedBox(height: 8),
-                  AppButton(label: 'Cancel', outline: true, onPressed: () => setState(() { _setupSecret = null; _codeCtrl.clear(); })),
+                  AppButton(label: 'Cancel', outline: true, onPressed: () => setState(() { _setupSecret = null; _setupUri = null; _codeCtrl.clear(); })),
                 ],
 
                 if (has2fa) ...[
