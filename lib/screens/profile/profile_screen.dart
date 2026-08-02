@@ -121,6 +121,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     label: 'Onboarding',
                     onTap: () => context.push('/profile/onboarding'),
                   ),
+                _professionalCard(
+                  context,
+                  icon: Icons.volunteer_activism_outlined,
+                  label: 'Kudos',
+                  onTap: () => context.push('/profile/kudos'),
+                ),
                 if (hasPerformance)
                   _professionalCard(
                     context,

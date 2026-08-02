@@ -494,6 +494,46 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
+  // ─── Kudos ────────────────────────────────────────
+  /// Org-wide recognition feed, newest first (latest 100 without paging).
+  Future<List<dynamic>> getKudosFeed() async {
+    final res = await _dio.get('/kudos');
+    return res.data['data'] as List;
+  }
+
+  /// My counters and recent recognitions:
+  /// `{received, given, recent_received: [...]}`.
+  Future<Map<String, dynamic>> getMyKudos() async {
+    final res = await _dio.get('/kudos/mine');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  /// Sends kudos (message 3–500 chars). 429 RATE_LIMITED at 20/day,
+  /// 422 for self-kudos.
+  Future<Map<String, dynamic>> giveKudos({
+    required String toUserId,
+    required String message,
+    String? emoji,
+  }) async {
+    final res = await _dio.post('/kudos', data: {
+      'to_user_id': toUserId,
+      'message': message,
+      if (emoji != null && emoji.isNotEmpty) 'emoji': emoji,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  /// Org member list (requires employees.view or employees.view_team —
+  /// plain employees get a 403; callers must handle the fallback).
+  Future<List<dynamic>> getOrgMembers({String? q}) async {
+    final res = await _dio.get('/users', queryParameters: {
+      'limit': 100,
+      'status': 'active',
+      if (q != null && q.isNotEmpty) 'q': q,
+    });
+    return res.data['data'] as List;
+  }
+
   // ─── Notification Preferences ────────────────────
   Future<Map<String, dynamic>> getNotificationPrefs() async {
     final res = await _dio.get('/users/me/notification-prefs');
