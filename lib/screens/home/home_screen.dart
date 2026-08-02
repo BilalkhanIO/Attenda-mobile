@@ -36,6 +36,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? _todayStatus; // from /attendance/today-status
   Map<String, dynamic>? _whosOut; // from /org/whos-out (today)
   bool _loading = true;
+  // First-load failure with nothing cached — drives the error + Retry state.
+  // Background/silent refresh failures never set this; the last good data
+  // stays on screen instead.
+  String? _loadError;
   bool _actionLoading = false;
   Timer? _timer;
   Timer? _refreshTimer;
@@ -246,7 +250,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Never overwrite good in-memory data with an empty offline response.
       if (todayStatus.isEmpty) {
         if (_todayStatus == null) await _loadFromCache();
-        if (mounted) setState(() => _loading = false);
+        if (mounted) {
+          setState(() {
+            if (_todayStatus == null) {
+              _loadError = 'Could not reach the server. Check your connection.';
+            }
+            _loading = false;
+          });
+        }
         return;
       }
 
@@ -299,16 +310,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           _lateNotice   = leaveInfo['late_notice'] as Map<String, dynamic>?;
           _todayStatus  = todayStatus;
           if (whosOut.isNotEmpty) _whosOut = whosOut;
+          _loadError    = null;
           _loading      = false;
         });
         _updateElapsed();
         // Persist for offline use
         _persistCache(todayStatus, mergedRecord.isNotEmpty ? mergedRecord : null);
       }
-    } catch (_) {
+    } catch (e) {
       // API totally failed — fall back to cache so banners still work offline.
       if (_todayStatus == null) await _loadFromCache();
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          if (_todayStatus == null) {
+            _loadError = ApiFailure.fromError(e).userMessage;
+          }
+          _loading = false;
+        });
+      }
     }
 
     try {
@@ -683,6 +702,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ]),
                 ),
 
+                // ─── First-load failure (nothing cached) ──
+                if (!_loading && _loadError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 40),
+                    child: EmptyStateWidget(
+                      icon: Icons.error_outline,
+                      title: 'Couldn\'t load',
+                      description: _loadError!,
+                      action: AppButton(
+                          label: 'Retry',
+                          onPressed: () => _load(),
+                          fullWidth: false),
+                    ),
+                  )
+                else ...[
                 // ─── Status Card ──────────────────────────
                 _loading
                     ? const SkeletonBox(
@@ -778,6 +812,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                   ]),
                 ),
+                ],
               ],
             ),
           ),

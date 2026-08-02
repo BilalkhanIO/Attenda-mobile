@@ -18,6 +18,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
   List<Map<String, dynamic>> _shifts = [];
   List<Map<String, dynamic>> _swaps  = [];
   bool _loading = true;
+  // First-load failure — drives the error + Retry state. Reloads with data
+  // already on screen fail silently and keep the last good lists.
+  String? _error;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -32,11 +35,33 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
       setState(() {
         _shifts = results[0].cast<Map<String, dynamic>>();
         _swaps  = results[1].cast<Map<String, dynamic>>();
+        _error  = null;
         _loading = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        if (_shifts.isEmpty && _swaps.isEmpty) {
+          _error = ApiFailure.fromError(e).userMessage;
+        }
+        _loading = false;
+      });
     }
+  }
+
+  Widget _errorState() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        const SizedBox(height: 80),
+        EmptyStateWidget(
+          icon: Icons.error_outline,
+          title: 'Couldn\'t load',
+          description: _error!,
+          action: AppButton(label: 'Retry', onPressed: _load, fullWidth: false),
+        ),
+      ],
+    );
   }
 
   Future<void> _openSwapSheet() async {
@@ -124,7 +149,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
           onRefresh: _load,
           child: _loading
               ? Center(child: CircularProgressIndicator(color: primary))
-              : _shifts.isEmpty
+              : _error != null
+                  ? _errorState()
+                  : _shifts.isEmpty
                   ? const EmptyStateWidget(
                       icon: Icons.calendar_today,
                       title: 'No shifts',
@@ -208,7 +235,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
         // Swaps
         _loading
             ? Center(child: CircularProgressIndicator(color: primary))
-            : _swaps.isEmpty
+            : _error != null
+                ? _errorState()
+                : _swaps.isEmpty
                 ? EmptyStateWidget(
                     icon: Icons.swap_horiz,
                     title: 'No swap requests',

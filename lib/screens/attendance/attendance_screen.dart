@@ -67,6 +67,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   // correction status and don't offer a duplicate request while one is pending.
   Map<String, Map<String, dynamic>> _correctionsByDate = {};
   bool _loading = true;
+  // First-load failure — drives the error + Retry state. Reloads with data
+  // already on screen fail silently and keep the last good records.
+  String? _error;
   DateTime _selectedMonth = DateTime.now();
 
   @override
@@ -107,10 +110,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         _records = results[0].cast<Map<String, dynamic>>();
         _overtimeByAttendance = overtime;
         _correctionsByDate = corrections;
+        _error = null;
         _loading = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        if (_records.isEmpty) {
+          _error = ApiFailure.fromError(e).userMessage;
+        }
+        _loading = false;
+      });
     }
   }
 
@@ -191,7 +201,21 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         color: primary,
         backgroundColor: AppColors.surface,
         onRefresh: _load,
-        child: SingleChildScrollView(
+        child: !_loading && _error != null
+            ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  const SizedBox(height: 80),
+                  EmptyStateWidget(
+                    icon: Icons.error_outline,
+                    title: 'Couldn\'t load',
+                    description: _error!,
+                    action: AppButton(
+                        label: 'Retry', onPressed: _load, fullWidth: false),
+                  ),
+                ],
+              )
+            : SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
           child: Column(

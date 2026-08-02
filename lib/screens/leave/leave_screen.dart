@@ -18,6 +18,9 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
   List<Map<String, dynamic>> _requests = [];
   List<Map<String, dynamic>> _balances = [];
   bool _loading = true;
+  // First-load failure — drives the error + Retry state. Reloads with data
+  // already on screen fail silently and keep the last good lists.
+  String? _error;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -32,11 +35,33 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
       setState(() {
         _requests = reqs.cast<Map<String, dynamic>>();
         _balances = bals.cast<Map<String, dynamic>>();
+        _error    = null;
         _loading  = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        if (_requests.isEmpty && _balances.isEmpty) {
+          _error = ApiFailure.fromError(e).userMessage;
+        }
+        _loading = false;
+      });
     }
+  }
+
+  Widget _errorState() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        const SizedBox(height: 80),
+        EmptyStateWidget(
+          icon: Icons.error_outline,
+          title: 'Couldn\'t load',
+          description: _error!,
+          action: AppButton(label: 'Retry', onPressed: _load, fullWidth: false),
+        ),
+      ],
+    );
   }
 
   @override
@@ -66,7 +91,9 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
         onRefresh: _load,
         child: _loading
             ? Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
-            : _requests.isEmpty
+            : _error != null
+                ? _errorState()
+                : _requests.isEmpty
                 ? EmptyStateWidget(
                     icon: Icons.beach_access,
                     title: 'No leave requests',
@@ -89,7 +116,9 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
       // Balance tab
       _loading
           ? Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
-          : _balances.isEmpty
+          : _error != null
+              ? _errorState()
+              : _balances.isEmpty
               ? const EmptyStateWidget(
                   icon: Icons.account_balance_wallet_outlined,
                   title: 'No leave balances',
