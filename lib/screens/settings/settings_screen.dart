@@ -78,13 +78,6 @@ class SettingsScreen extends StatelessWidget {
                 }
               },
             ),
-            const SizedBox(height: 20),
-            Center(
-              child: Text(
-                'Version 1.0.0 (Build 1)',
-                style: AppTextStyles.caption,
-              ),
-            ),
           ],
         ),
       ),

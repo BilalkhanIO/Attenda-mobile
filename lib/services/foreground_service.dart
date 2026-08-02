@@ -169,7 +169,9 @@ class AttendaTaskHandler extends TaskHandler {
           FlutterForegroundTask.sendDataToMain('heartbeat_lost:${ssid ?? ''}');
           await _updateNotification(
             title: 'Attenda - Left Office WiFi',
-            text: 'Reconnect within 10 minutes to stay checked in',
+            // The grace window is org-configurable server-side — keep the
+            // copy neutral instead of hardcoding a number of minutes.
+            text: 'Reconnect soon to stay checked in',
           );
           break;
 
