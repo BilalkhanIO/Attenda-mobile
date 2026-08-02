@@ -89,6 +89,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   label: 'Expenses',
                   onTap: () => context.push('/profile/expenses'),
                 ),
+                _professionalCard(
+                  context,
+                  icon: Icons.folder_outlined,
+                  label: 'Documents',
+                  onTap: () => context.push('/profile/documents'),
+                ),
                 if (hasPerformance)
                   _professionalCard(
                     context,

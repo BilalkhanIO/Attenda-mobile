@@ -435,6 +435,20 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
+  // ─── Documents ────────────────────────────────────
+  /// Own document-vault entries (contracts, IDs, visas, …), newest first.
+  Future<List<dynamic>> getMyDocuments() async {
+    final res = await _dio.get('/documents/me');
+    return res.data['data'] as List;
+  }
+
+  /// 15-minute presigned link for a document:
+  /// `{download_url, file_name, mime_type, expires_in}`.
+  Future<Map<String, dynamic>> getDocumentDownload(String id) async {
+    final res = await _dio.get('/documents/$id/download');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   // ─── Performance ──────────────────────────────────
   Future<List<dynamic>> getMyReviews() async {
     final res = await _dio.get('/performance/reviews/me');
