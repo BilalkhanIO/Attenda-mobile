@@ -11,10 +11,13 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    // Approvals hub entry: shown for anyone who can review corrections or see
-    // the team late summary; the role helper covers a failed capability fetch.
+    // Approvals hub entry: shown for anyone who can review corrections or
+    // expense claims, or see the team late summary; the role helper covers a
+    // failed capability fetch.
     final showApprovals = auth.hasPermission('attendance.override') ||
         auth.hasPermission('attendance.view_team') ||
+        auth.hasPermission('expenses.view') ||
+        auth.hasPermission('expenses.manage') ||
         (auth.capabilities == null && (auth.user?.isManager ?? false));
 
     return Scaffold(

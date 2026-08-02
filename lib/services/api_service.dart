@@ -413,6 +413,28 @@ class ApiService {
     return res.data['data'] as List;
   }
 
+  /// Org expense queue (requires expenses.view).
+  /// [status]: 'pending' | 'approved' | 'rejected' | 'reimbursed' | 'all'.
+  Future<List<dynamic>> getExpenses({String status = 'pending'}) async {
+    final res =
+        await _dio.get('/expenses', queryParameters: {'status': status});
+    return res.data['data'] as List;
+  }
+
+  Future<Map<String, dynamic>> approveExpense(String id, {String? note}) async {
+    final res = await _dio.put('/expenses/$id/approve', data: {
+      if (note != null && note.isNotEmpty) 'note': note,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> rejectExpense(String id, {String? note}) async {
+    final res = await _dio.put('/expenses/$id/reject', data: {
+      if (note != null && note.isNotEmpty) 'note': note,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   // ─── Performance ──────────────────────────────────
   Future<List<dynamic>> getMyReviews() async {
     final res = await _dio.get('/performance/reviews/me');

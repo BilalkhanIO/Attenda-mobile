@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
+import '../../services/auth_provider.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
+import '../expenses/expenses_screen.dart' show formatExpenseAmount;
 
-/// Manager approvals hub: pending attendance corrections (approve/reject
-/// with an optional note) and the rolling late-arrival summary. Reached from
-/// Settings; the entry is gated on the manager/HR capability there.
+/// Manager approvals hub: pending attendance corrections and expense claims
+/// (approve/reject with an optional note) and the rolling late-arrival
+/// summary. Reached from Settings; the entry is gated on the manager/HR
+/// capability there, and the Expenses tab additionally requires the
+/// expenses capabilities.
 class ApprovalsScreen extends StatefulWidget {
   const ApprovalsScreen({super.key});
   @override
@@ -16,11 +21,16 @@ class ApprovalsScreen extends StatefulWidget {
 
 class _ApprovalsScreenState extends State<ApprovalsScreen>
     with SingleTickerProviderStateMixin {
-  late final _tabCtrl = TabController(length: 2, vsync: this);
+  late final TabController _tabCtrl;
+  late final bool _showExpenses;
 
   List<Map<String, dynamic>> _corrections = [];
   bool _loadingCorrections = true;
   String? _correctionsError;
+
+  List<Map<String, dynamic>> _expenses = [];
+  bool _loadingExpenses = true;
+  String? _expensesError;
 
   Map<String, dynamic>? _lateSummary;
   bool _loadingLate = true;
@@ -29,7 +39,15 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
   @override
   void initState() {
     super.initState();
+    // Same gating pattern as the corrections entry in Settings, but on the
+    // expenses capabilities; the role helper covers a failed capability fetch.
+    final auth = context.read<AuthProvider>();
+    _showExpenses = auth.hasPermission('expenses.view') ||
+        auth.hasPermission('expenses.manage') ||
+        (auth.capabilities == null && (auth.user?.isManager ?? false));
+    _tabCtrl = TabController(length: _showExpenses ? 3 : 2, vsync: this);
     _loadCorrections();
+    if (_showExpenses) _loadExpenses();
     _loadLateSummary();
   }
 
@@ -56,6 +74,27 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
       setState(() {
         _correctionsError = ApiFailure.fromError(e).userMessage;
         _loadingCorrections = false;
+      });
+    }
+  }
+
+  Future<void> _loadExpenses() async {
+    setState(() {
+      _loadingExpenses = true;
+      _expensesError = null;
+    });
+    try {
+      final list = await api.getExpenses();
+      if (!mounted) return;
+      setState(() {
+        _expenses = list.cast<Map<String, dynamic>>();
+        _loadingExpenses = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _expensesError = ApiFailure.fromError(e).userMessage;
+        _loadingExpenses = false;
       });
     }
   }
@@ -91,19 +130,18 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
 
   /// Asks for an optional review note. Resolves to null when cancelled,
   /// otherwise the (possibly empty) note text.
-  Future<String?> _askNote({required bool approve}) async {
+  Future<String?> _askNote({
+    required bool approve,
+    required String title,
+    required String message,
+  }) async {
     final noteCtrl = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(approve ? 'Approve Correction' : 'Reject Correction'),
+        title: Text(title),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(
-            approve
-                ? 'The requested times will be applied to the record.'
-                : 'The employee will be notified of the rejection.',
-            style: AppTextStyles.body,
-          ),
+          Text(message, style: AppTextStyles.body),
           const SizedBox(height: 12),
           TextField(
             controller: noteCtrl,
@@ -139,7 +177,13 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
   }
 
   Future<void> _review(Map<String, dynamic> c, {required bool approve}) async {
-    final note = await _askNote(approve: approve);
+    final note = await _askNote(
+      approve: approve,
+      title: approve ? 'Approve Correction' : 'Reject Correction',
+      message: approve
+          ? 'The requested times will be applied to the record.'
+          : 'The employee will be notified of the rejection.',
+    );
     if (note == null || !mounted) return;
     try {
       final id = c['id'] as String;
@@ -155,6 +199,30 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
     }
   }
 
+  Future<void> _reviewExpense(Map<String, dynamic> claim,
+      {required bool approve}) async {
+    final note = await _askNote(
+      approve: approve,
+      title: approve ? 'Approve Expense' : 'Reject Expense',
+      message: approve
+          ? 'The claim will be approved and queued for reimbursement.'
+          : 'The employee will be notified of the rejection.',
+    );
+    if (note == null || !mounted) return;
+    try {
+      final id = claim['id'] as String;
+      if (approve) {
+        await api.approveExpense(id, note: note);
+      } else {
+        await api.rejectExpense(id, note: note);
+      }
+      _showSnack(approve ? 'Expense approved' : 'Expense rejected');
+      _loadExpenses();
+    } catch (e) {
+      _showSnack(ApiFailure.fromError(e).userMessage, isError: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
@@ -164,7 +232,11 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
         title: const Text('Team Approvals'),
         bottom: TabBar(
           controller: _tabCtrl,
-          tabs: const [Tab(text: 'Corrections'), Tab(text: 'Late Arrivals')],
+          tabs: [
+            const Tab(text: 'Corrections'),
+            if (_showExpenses) const Tab(text: 'Expenses'),
+            const Tab(text: 'Late Arrivals'),
+          ],
         ),
       ),
       body: TabBarView(controller: _tabCtrl, children: [
@@ -199,6 +271,39 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
                           ),
                         ),
         ),
+
+        // ── Expenses queue ────────────────────────────────
+        if (_showExpenses)
+          RefreshIndicator(
+            color: primary,
+            backgroundColor: AppColors.surface,
+            onRefresh: _loadExpenses,
+            child: _loadingExpenses
+                ? Center(child: CircularProgressIndicator(color: primary))
+                : _expensesError != null
+                    ? _errorState(_expensesError!, _loadExpenses)
+                    : _expenses.isEmpty
+                        ? const EmptyStateWidget(
+                            icon: Icons.receipt_long_outlined,
+                            title: 'All caught up',
+                            description: 'No pending expense claims.',
+                          )
+                        : ListView.builder(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                            itemCount: _expenses.length,
+                            itemBuilder: (_, i) => Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: ExpenseApprovalCard(
+                                claim: _expenses[i],
+                                onApprove: () =>
+                                    _reviewExpense(_expenses[i], approve: true),
+                                onReject: () =>
+                                    _reviewExpense(_expenses[i], approve: false),
+                              ),
+                            ),
+                          ),
+          ),
 
         // ── Late summary ──────────────────────────────────
         RefreshIndicator(
@@ -338,6 +443,79 @@ class CorrectionApprovalCard extends StatelessWidget {
           glassDetailRow('Requested Check Out',
               _fmtTime(correction['requested_check_out'])),
         glassDetailRow('Reason', correction['reason'] as String? ?? '—'),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(
+            child: AppButton(
+              label: 'Reject',
+              outline: true,
+              color: AppColors.danger500,
+              onPressed: onReject,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: AppButton(label: 'Approve', onPressed: onApprove),
+          ),
+        ]),
+      ]),
+    );
+  }
+}
+
+/// One pending expense claim: who, the amount, category, expense date and
+/// description, plus Approve / Reject actions.
+class ExpenseApprovalCard extends StatelessWidget {
+  final Map<String, dynamic> claim;
+  final VoidCallback? onApprove;
+  final VoidCallback? onReject;
+
+  const ExpenseApprovalCard({
+    super.key,
+    required this.claim,
+    this.onApprove,
+    this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final user = claim['user'] is Map
+        ? (claim['user'] as Map).cast<String, dynamic>()
+        : <String, dynamic>{};
+    final name = user['name'] as String? ?? 'Employee';
+    String dateLabel = '—';
+    try {
+      dateLabel = DateFormat('EEE, d MMM yyyy')
+          .format(DateTime.parse(claim['expense_date'] as String));
+    } catch (_) {}
+
+    return GlassCard(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          UserAvatar(
+              name: name, imageUrl: user['avatar_url'] as String?, size: 32),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(name,
+                  style: AppTextStyles.bodyStrong,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
+              Text(dateLabel, style: AppTextStyles.caption),
+            ]),
+          ),
+          if (user['department'] != null)
+            GlassBadge(
+                text: user['department'] as String, color: AppColors.gray500),
+        ]),
+        const SizedBox(height: 8),
+        glassDetailRow(
+          'Amount',
+          formatExpenseAmount(claim['amount'], claim['currency'] as String?),
+          highlight: true,
+        ),
+        glassDetailRow('Category', claim['category'] as String? ?? '—'),
+        glassDetailRow('Description', claim['description'] as String? ?? '—'),
         const SizedBox(height: 12),
         Row(children: [
           Expanded(
