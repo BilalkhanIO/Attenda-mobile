@@ -17,6 +17,10 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profile;
 
+  /// The Onboarding tile only appears while I have onboarding tasks —
+  /// resolved on load like the rest of this screen's async data.
+  bool _hasOnboardingTasks = false;
+
   @override
   void initState() {
     super.initState();
@@ -32,6 +36,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
     } catch (e) {
       // ignore
+    }
+    try {
+      final tasks = await api.getMyOnboardingTasks();
+      if (!mounted) return;
+      setState(() {
+        _hasOnboardingTasks = tasks.isNotEmpty;
+      });
+    } catch (e) {
+      // ignore — the tile simply stays hidden
     }
   }
 
@@ -101,6 +114,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   label: 'Announcements',
                   onTap: () => context.push('/profile/announcements'),
                 ),
+                if (_hasOnboardingTasks)
+                  _professionalCard(
+                    context,
+                    icon: Icons.fact_check_outlined,
+                    label: 'Onboarding',
+                    onTap: () => context.push('/profile/onboarding'),
+                  ),
                 if (hasPerformance)
                   _professionalCard(
                     context,

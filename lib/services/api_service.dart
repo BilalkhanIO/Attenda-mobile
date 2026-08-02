@@ -474,6 +474,26 @@ class ApiService {
     await _dio.post('/performance/announcements/$id/read');
   }
 
+  // ─── Onboarding ───────────────────────────────────
+  /// Onboarding tasks assigned to me (own onboarding and, for managers,
+  /// manager-side items for their hires) — pending first.
+  Future<List<dynamic>> getMyOnboardingTasks() async {
+    final res = await _dio.get('/onboarding/me');
+    return res.data['data'] as List;
+  }
+
+  /// Marks a pending task done. 400 INVALID_STATUS if it isn't pending.
+  Future<Map<String, dynamic>> completeOnboardingTask(String id) async {
+    final res = await _dio.put('/onboarding/tasks/$id/complete');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  /// Marks a pending task skipped. 400 INVALID_STATUS if it isn't pending.
+  Future<Map<String, dynamic>> skipOnboardingTask(String id) async {
+    final res = await _dio.put('/onboarding/tasks/$id/skip');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   // ─── Notification Preferences ────────────────────
   Future<Map<String, dynamic>> getNotificationPrefs() async {
     final res = await _dio.get('/users/me/notification-prefs');

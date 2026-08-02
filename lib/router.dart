@@ -25,6 +25,7 @@ import '../screens/approvals/approvals_screen.dart';
 import '../screens/expenses/expenses_screen.dart';
 import '../screens/documents/documents_screen.dart';
 import '../screens/announcements/announcements_screen.dart';
+import '../screens/onboarding/onboarding_screen.dart';
 import 'shell.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
@@ -99,6 +100,7 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
             GoRoute(path: 'expenses', parentNavigatorKey: _rootKey, builder: (_, __) => const ExpensesScreen()),
             GoRoute(path: 'documents', parentNavigatorKey: _rootKey, builder: (_, __) => const DocumentsScreen()),
             GoRoute(path: 'announcements', parentNavigatorKey: _rootKey, builder: (_, __) => const AnnouncementsScreen()),
+            GoRoute(path: 'onboarding', parentNavigatorKey: _rootKey, builder: (_, __) => const OnboardingScreen()),
             GoRoute(path: 'performance', parentNavigatorKey: _rootKey, builder: (_, __) => const PerformanceScreen()),
             GoRoute(path: 'settings/notifications', parentNavigatorKey: _rootKey, builder: (_, __) => const NotificationSettingsScreen()),
             GoRoute(path: 'settings/security', parentNavigatorKey: _rootKey, builder: (_, __) => const SecurityScreen()),
