@@ -1169,8 +1169,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     initialDate: selectedDate,
                     firstDate: DateTime.now().subtract(const Duration(days: 7)),
                     lastDate: DateTime.now().add(const Duration(days: 30)),
-                    builder: (c, child) =>
-                        Theme(data: AppTheme.light, child: child!),
                   );
                   if (picked != null) setDlg(() => selectedDate = picked);
                 },
@@ -1255,8 +1253,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         final picked = await showTimePicker(
                           context: ctx,
                           initialTime: selectedTime,
-                          builder: (c, child) =>
-                              Theme(data: AppTheme.light, child: child!),
                         );
                         if (picked != null) setDlg(() => selectedTime = picked);
                       },

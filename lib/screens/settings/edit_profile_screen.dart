@@ -91,7 +91,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       initialDate: _dob ?? DateTime(now.year - 25),
       firstDate: DateTime(now.year - 100),
       lastDate: now,
-      builder: (ctx, child) => Theme(data: AppTheme.light, child: child!),
     );
     if (picked != null && mounted) setState(() => _dob = picked);
   }

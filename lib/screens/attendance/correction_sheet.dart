@@ -267,7 +267,6 @@ class _OptionalTimeTile extends StatelessWidget {
         final picked = await showTimePicker(
           context: context,
           initialTime: v ?? TimeOfDay.now(),
-          builder: (c, child) => Theme(data: AppTheme.light, child: child!),
         );
         if (picked != null) onPicked(picked);
       },

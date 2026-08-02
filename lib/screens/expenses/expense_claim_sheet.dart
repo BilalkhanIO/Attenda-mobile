@@ -67,7 +67,6 @@ class _ExpenseClaimSheetState extends State<ExpenseClaimSheet> {
       initialDate: _date.isAfter(now) ? now : _date,
       firstDate: DateTime(now.year - 1),
       lastDate: now, // expense_date cannot be in the future
-      builder: (c, child) => Theme(data: AppTheme.light, child: child!),
     );
     if (picked != null) setState(() => _date = picked);
   }
