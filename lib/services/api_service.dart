@@ -140,6 +140,22 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
+  /// Remote-session approval queue (requires remote.approve).
+  /// [status]: 'pending' | 'approved' | 'rejected'.
+  Future<List<dynamic>> getRemoteSessions({String status = 'pending'}) async {
+    final res = await _dio
+        .get('/attendance/remote/sessions', queryParameters: {'status': status});
+    return res.data['data'] as List;
+  }
+
+  Future<void> approveRemoteSession(String id) async {
+    await _dio.put('/attendance/remote/sessions/$id/approve');
+  }
+
+  Future<void> rejectRemoteSession(String id) async {
+    await _dio.put('/attendance/remote/sessions/$id/reject');
+  }
+
   Future<Map<String, dynamic>> reportIpEvent(String ip, {String? ssid, bool? countAwayAsBreak, String? awayShiftBreakId}) async {
     final res = await _dio.post('/attendance/ip-event', data: {
       'ip':    ip,
@@ -353,6 +369,25 @@ class ApiService {
   Future<List<dynamic>> getMyOvertimeRequests() async {
     final res = await _dio.get('/overtime/requests/me');
     return res.data['data'] as List;
+  }
+
+  /// Org overtime queue (requires overtime.manage).
+  /// [status]: 'pending' | 'approved' | 'rejected'.
+  Future<List<dynamic>> getOvertimeRequests({String status = 'pending'}) async {
+    final res =
+        await _dio.get('/overtime/requests', queryParameters: {'status': status});
+    return res.data['data'] as List;
+  }
+
+  Future<Map<String, dynamic>> approveOvertime(String id) async {
+    final res = await _dio.put('/overtime/requests/$id/approve');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> rejectOvertime(String id, String reason) async {
+    final res =
+        await _dio.put('/overtime/requests/$id/reject', data: {'reason': reason});
+    return res.data['data'] as Map<String, dynamic>;
   }
 
   Future<List<dynamic>> getSwapRequests() async {
