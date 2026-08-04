@@ -10,6 +10,19 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    // Approvals hub entry: shown for anyone who can review corrections,
+    // leave, expense claims, overtime or remote sessions, or see the team
+    // late summary; the role helper covers a failed capability fetch.
+    final showApprovals = auth.hasPermission('attendance.override') ||
+        auth.hasPermission('attendance.view_team') ||
+        auth.hasPermission('leave.approve') ||
+        auth.hasPermission('expenses.view') ||
+        auth.hasPermission('expenses.manage') ||
+        auth.hasPermission('overtime.manage') ||
+        auth.hasPermission('remote.approve') ||
+        (auth.capabilities == null && (auth.user?.isManager ?? false));
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -17,7 +30,7 @@ class SettingsScreen extends StatelessWidget {
         centerTitle: true,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -27,6 +40,14 @@ class SettingsScreen extends StatelessWidget {
                 () => context.push('/profile/edit')),
             _menuRow(context, Icons.shield_outlined, 'Security & 2FA',
                 () => context.push('/profile/settings/security')),
+
+            if (showApprovals) ...[
+              const SizedBox(height: 24),
+              const _SectionLabel('MANAGEMENT'),
+              const SizedBox(height: 12),
+              _menuRow(context, Icons.fact_check_outlined, 'Team Approvals',
+                  () => context.push('/profile/approvals')),
+            ],
 
             const SizedBox(height: 24),
             const _SectionLabel('PREFERENCES'),
@@ -57,16 +78,6 @@ class SettingsScreen extends StatelessWidget {
                 }
               },
             ),
-            const SizedBox(height: 20),
-            Center(
-              child: Text(
-                'Version 1.0.0 (Build 1)',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.white.withValues(alpha: 0.25),
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -80,22 +91,15 @@ class SettingsScreen extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         onTap: onTap,
         child: Row(children: [
-          GradientIcon(
-            icon: icon,
-            size: 20,
-            gradient: Theme.of(context).colorScheme.primary == AppColors.primary
-                ? AppGradients.aurora
-                : LinearGradient(colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primary.withValues(alpha: 0.8)]),
-          ),
+          Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
           const SizedBox(width: 14),
           Expanded(
               child: Text(label,
                   style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white))),
-          Icon(Icons.chevron_right,
-              color: Colors.white.withValues(alpha: 0.25), size: 18),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textPrimary))),
+          const Icon(Icons.chevron_right, color: AppColors.gray300, size: 18),
         ]),
       ),
     );
@@ -113,9 +117,9 @@ class _SectionLabel extends StatelessWidget {
       child: Text(label,
           style: const TextStyle(
               fontSize: 11,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
               letterSpacing: 1.0,
-              color: Color(0x66FFFFFF))),
+              color: AppColors.gray500)),
     );
   }
 }

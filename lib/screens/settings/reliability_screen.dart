@@ -153,7 +153,7 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                           : Icons.warning_amber_rounded,
                   size: 32,
                   color: _loading
-                      ? Colors.white54
+                      ? AppColors.gray400
                       : allOk
                           ? AppColors.success500
                           : AppColors.warning500,
@@ -169,14 +169,12 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                             : allOk
                                 ? 'Tracking is set up correctly'
                                 : 'Tracking may be unreliable',
-                        style: const TextStyle(
-                            color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                        style: AppTextStyles.title,
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      const Text(
                         'These settings keep auto check-in working while your screen is off.',
-                        style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.55), fontSize: 12),
+                        style: AppTextStyles.body,
                       ),
                     ],
                   ),
@@ -203,8 +201,7 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                     Icon(Icons.phone_android, size: 16, color: Theme.of(context).colorScheme.primary),
                     const SizedBox(width: 8),
                     const Text('Using Samsung, Xiaomi, Huawei or OnePlus?',
-                        style: TextStyle(
-                            color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                        style: AppTextStyles.bodyStrong),
                   ]),
                   const SizedBox(height: 8),
                   Text(
@@ -213,8 +210,7 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                     'Battery (or Apps → Attenda → Battery) and set Attenda to '
                     '"Unrestricted" / "No restrictions", and disable "Put unused apps '
                     'to sleep" for Attenda.',
-                    style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.6), fontSize: 12, height: 1.5),
+                    style: AppTextStyles.body.copyWith(height: 1.5),
                   ),
                 ],
               ),
@@ -232,16 +228,14 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
       child: GlassCard(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(children: [
-          Icon(icon, size: 20, color: Colors.white.withValues(alpha: 0.6)),
+          Icon(icon, size: 20, color: AppColors.gray500),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  Text(title,
-                      style: const TextStyle(
-                          color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                  Text(title, style: AppTextStyles.bodyStrong),
                   const SizedBox(width: 8),
                   Icon(
                     result.ok ? Icons.check_circle : Icons.error_outline,
@@ -250,9 +244,7 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                   ),
                 ]),
                 const SizedBox(height: 3),
-                Text(result.detail,
-                    style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.5), fontSize: 11.5)),
+                Text(result.detail, style: AppTextStyles.caption),
               ],
             ),
           ),

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ui';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +11,14 @@ import '../../services/api_service.dart';
 import '../../services/wifi_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
+import 'widgets/break_banners.dart';
+import 'widgets/break_control.dart';
+import 'widgets/disconnect_card.dart';
+import 'widgets/home_banners.dart';
+import 'widgets/quick_actions.dart';
+import 'widgets/shift_card.dart';
+import 'widgets/status_card.dart';
+import 'widgets/whos_out_card.dart';
 import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -27,7 +34,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? _todayLeave;
   Map<String, dynamic>? _lateNotice;
   Map<String, dynamic>? _todayStatus; // from /attendance/today-status
+  Map<String, dynamic>? _whosOut; // from /org/whos-out (today)
   bool _loading = true;
+  // First-load failure with nothing cached — drives the error + Retry state.
+  // Background/silent refresh failures never set this; the last good data
+  // stays on screen instead.
+  String? _loadError;
   bool _actionLoading = false;
   Timer? _timer;
   Timer? _refreshTimer;
@@ -85,7 +97,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             final lateMins = (_todayRecord?['late_minutes'] as num?)?.toInt() ?? 0;
             if (lateMins > 0) {
               _showFlash(
-                'You checked in ${_formatMinutesHours(lateMins)} late today',
+                'You checked in ${formatMinutesHours(lateMins)} late today',
                 isBreak: false,
               );
             } else {
@@ -167,10 +179,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _showSnack(String msg, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w600)),
-      backgroundColor: isError ? AppColors.danger500 : AppColors.bgDark3,
+      content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w500)),
+      backgroundColor: isError ? AppColors.danger500 : AppColors.gray900,
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.control)),
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 90),
       duration: const Duration(seconds: 3),
     ));
@@ -223,17 +236,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         api.getMyShifts(),
         api.getLeaveAndNoticeCheck().catchError((_) => <String, dynamic>{}),
         api.getTodayStatus().catchError((_) => <String, dynamic>{}),
+        // Who's out + holidays are additive UI — fail silently and keep the
+        // last good data when the fetch doesn't come back.
+        api.getWhosOut().catchError((_) => <String, dynamic>{}),
       ]);
 
       final records    = results[0] as List;
       final shifts     = results[1] as List;
       final leaveInfo  = results[2] as Map<String, dynamic>;
       final todayStatus = results[3] as Map<String, dynamic>;
+      final whosOut    = results[4] as Map<String, dynamic>;
 
       // Never overwrite good in-memory data with an empty offline response.
       if (todayStatus.isEmpty) {
         if (_todayStatus == null) await _loadFromCache();
-        if (mounted) setState(() => _loading = false);
+        if (mounted) {
+          setState(() {
+            if (_todayStatus == null) {
+              _loadError = 'Could not reach the server. Check your connection.';
+            }
+            _loading = false;
+          });
+        }
         return;
       }
 
@@ -285,16 +309,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           _todayLeave   = leaveInfo['leave'] as Map<String, dynamic>?;
           _lateNotice   = leaveInfo['late_notice'] as Map<String, dynamic>?;
           _todayStatus  = todayStatus;
+          if (whosOut.isNotEmpty) _whosOut = whosOut;
+          _loadError    = null;
           _loading      = false;
         });
         _updateElapsed();
         // Persist for offline use
         _persistCache(todayStatus, mergedRecord.isNotEmpty ? mergedRecord : null);
       }
-    } catch (_) {
+    } catch (e) {
       // API totally failed — fall back to cache so banners still work offline.
       if (_todayStatus == null) await _loadFromCache();
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          if (_todayStatus == null) {
+            _loadError = ApiFailure.fromError(e).userMessage;
+          }
+          _loading = false;
+        });
+      }
     }
 
     try {
@@ -417,13 +450,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  String _formatMinutesHours(int minutes) {
-    if (minutes < 60) return '${minutes}m';
-    final h = minutes ~/ 60;
-    final m = minutes % 60;
-    return m == 0 ? '${h}h' : '${h}h ${m}m';
-  }
-
   int get _livePreCheckinLateMins {
     final shift = (_todayStatus?['shift'] as Map?)?.cast<String, dynamic>();
     final start = _parseLocal(shift?['shift_start_utc']);
@@ -467,6 +493,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // Current time corrected for any device/server clock drift.
   DateTime get _now => DateTime.now().add(_clockOffset);
 
+  // ── Who's out / holidays (from /org/whos-out) ──────────
+  List<Map<String, dynamic>> get _whosOutLeave =>
+      (_whosOut?['on_leave'] as List?)
+          ?.whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList() ??
+      const [];
+  List<Map<String, dynamic>> get _whosOutRemote =>
+      (_whosOut?['remote'] as List?)
+          ?.whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList() ??
+      const [];
+  bool get _todayIsHoliday =>
+      ((_whosOut?['holidays'] as List?)?.whereType<String>() ??
+              const <String>[])
+          .contains(DateFormat('yyyy-MM-dd').format(DateTime.now()));
+
   void _showFlash(String msg, {required bool isBreak}) {
     _flashTimer?.cancel();
     setState(() {
@@ -498,7 +542,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (late > maxLate) { maxLate = late; breakName = b['name'] as String?; }
     }
     if (maxLate <= 0 || breakName == null) return null;
-    return 'Welcome back — you were ${_formatMinutesHours(maxLate)} late from $breakName';
+    return 'Welcome back — you were ${formatMinutesHours(maxLate)} late from $breakName';
   }
 
   @override
@@ -519,14 +563,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         bottom: false,
         child: RefreshIndicator(
           color: primary,
-          backgroundColor: AppColors.bgDark3,
+          backgroundColor: AppColors.surface,
           onRefresh: () async {
             await _load(silent: true);
             await WifiAttendanceService().checkAndReport();
           },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -538,19 +582,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('$greeting,',
-                                style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0.2,
-                                    color:
-                                        Colors.white.withValues(alpha: 0.65))),
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.gray500)),
                             const SizedBox(height: 2),
                             Text(user.name.split(' ').first,
-                                style: const TextStyle(
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -0.8,
-                                    color: Colors.white)),
+                                style: AppTextStyles.display),
                           ]),
                       Row(children: [
                         // Notification bell
@@ -559,59 +597,45 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             await context.push('/home/notifications');
                             _load(silent: true);
                           },
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                              child: Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.15)),
-                                ),
-                                child: Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      Icon(Icons.notifications_none_rounded,
-                                          size: 22,
-                                          color: Colors.white
-                                              .withValues(alpha: 0.8)),
-                                      if (_unreadNotifs > 0)
-                                        Positioned(
-                                          top: 12,
-                                          right: 12,
-                                          child: Container(
-                                            width: 8,
-                                            height: 8,
-                                            decoration: BoxDecoration(
-                                                color: AppColors.primary,
-                                                shape: BoxShape.circle,
-                                                border: Border.all(color: AppColors.bgDark, width: 1.5)),
-                                          ),
-                                        ),
-                                    ]),
-                              ),
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.control),
+                              border: Border.all(color: AppColors.border),
                             ),
+                            child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  const Icon(Icons.notifications_none_rounded,
+                                      size: 22, color: AppColors.gray600),
+                                  if (_unreadNotifs > 0)
+                                    Positioned(
+                                      top: 12,
+                                      right: 12,
+                                      child: Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                            color: AppColors.primary,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                                color: AppColors.surface,
+                                                width: 1.5)),
+                                      ),
+                                    ),
+                                ]),
                           ),
                         ),
                         const SizedBox(width: 12),
                         GestureDetector(
                           onTap: () => context.go('/profile'),
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3), width: 1.5),
-                            ),
-                            child: UserAvatar(
-                              name: user.name,
-                              imageUrl: _todayStatus?['user']?['avatar_url'] as String?,
-                              size: 40,
-                            ),
+                          child: UserAvatar(
+                            name: user.name,
+                            imageUrl: _todayStatus?['user']?['avatar_url'] as String?,
+                            size: 40,
                           ),
                         ),
                       ]),
@@ -621,57 +645,89 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
                 // ─── Banners ──────────────────────────────
                 AnimatedSize(
-                  duration: const Duration(milliseconds: 280),
-                  curve: Curves.easeOutCubic,
+                  duration: AppMotion.duration,
+                  curve: AppMotion.curve,
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    if (_offline) _offlineBanner(),
-                    if (_vpnDetected) _vpnBanner(),
-                    if (_noNetworksConfig && !_vpnDetected) _noNetworksBanner(),
+                    if (_offline) const OfflineBanner(),
+                    if (_vpnDetected) const VpnBanner(),
+                    if (_noNetworksConfig && !_vpnDetected)
+                      const NoNetworksBanner(),
+                    if (_todayIsHoliday) const HolidayBanner(),
                     if (!_loading &&
                         _todayLeave != null &&
                         _status != 'in' &&
                         _status != 'late' &&
                         _status != 'out')
-                      _leaveTodayBanner(),
+                      LeaveTodayBanner(
+                          leaveType:
+                              (_todayLeave?['leave_type'] as String? ?? 'leave')
+                                  .replaceAll('_', ' ')),
                     if (!_loading &&
                         _lateNotice != null &&
                         _status != 'in' &&
                         _status != 'late' &&
                         _status != 'out')
-                      _lateNoticeBanner(),
+                      LateNoticeBanner(
+                          expectedTime:
+                              _lateNotice?['expected_time'] as String? ?? '',
+                          isAcknowledged:
+                              (_lateNotice?['status'] as String? ?? 'pending') ==
+                                  'acknowledged',
+                          onCancel: _cancelLateNotice),
                     // ── Break alert banners (from today-status) ──
                     if (!_loading && _checkedIn) ..._breakAlertBanners(),
                     // ── Pre-check-in live late counter ───────────
                     if (!_loading && !_checkedIn && !_checkedOut)
-                      _preCheckinLateBanner(),
+                      PreCheckinLateBanner(
+                          lateMinutes: _livePreCheckinLateMins > 0
+                              ? _livePreCheckinLateMins
+                              : ((_todayStatus?['pre_checkin_late_minutes']
+                                          as num?)
+                                      ?.toInt() ??
+                                  0)),
                     // ── Flash: welcome back from break ───────────
                     if (_breakWelcomeBack != null)
-                      _flashBanner(_breakWelcomeBack!, AppColors.warning500,
-                          Icons.celebration_outlined),
+                      FlashBanner(
+                          text: _breakWelcomeBack!,
+                          tint: AppColors.warning500,
+                          icon: Icons.celebration_outlined,
+                          onDismiss: _dismissFlash),
                     // ── Flash: late arrival notice ────────────────
                     if (_lateArrivalFlash != null)
-                      _flashBanner(_lateArrivalFlash!, AppColors.warning500,
-                          Icons.access_alarm),
+                      FlashBanner(
+                          text: _lateArrivalFlash!,
+                          tint: AppColors.warning500,
+                          icon: Icons.access_alarm,
+                          onDismiss: _dismissFlash),
                   ]),
                 ),
 
+                // ─── First-load failure (nothing cached) ──
+                if (!_loading && _loadError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 40),
+                    child: EmptyStateWidget(
+                      icon: Icons.error_outline,
+                      title: 'Couldn\'t load',
+                      description: _loadError!,
+                      action: AppButton(
+                          label: 'Retry',
+                          onPressed: () => _load(),
+                          fullWidth: false),
+                    ),
+                  )
+                else ...[
                 // ─── Status Card ──────────────────────────
                 _loading
                     ? const SkeletonBox(
-                        width: double.infinity, height: 160, radius: 28)
+                        width: double.infinity, height: 160, radius: 16)
                     : AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 300),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
+                        duration: AppMotion.duration,
+                        switchInCurve: AppMotion.curve,
+                        switchOutCurve: AppMotion.curve,
                         transitionBuilder: (child, animation) => FadeTransition(
                           opacity: animation,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0, 0.05),
-                              end: Offset.zero,
-                            ).animate(animation),
-                            child: child,
-                          ),
+                          child: child,
                         ),
                         child: KeyedSubtree(
                           key: ValueKey(
@@ -690,7 +746,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 // shouldn't start a new break while the session is at risk).
                 if (!_loading && _checkedIn &&
                     (!_autoCheckoutRisk || _isOnBreak)) ...[
-                  _buildBreakControl(),
+                  BreakControl(
+                    isOnBreak: _isOnBreak,
+                    actionLoading: _actionLoading,
+                    onEndBreak: _endBreak,
+                    onTakeBreak: _showBreakTypeSheet,
+                  ),
                   const SizedBox(height: 20),
                 ],
 
@@ -709,6 +770,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   const SizedBox(height: 20),
                 ],
 
+                // ─── Who's out today ──────────────────────
+                if (_whosOutLeave.isNotEmpty || _whosOutRemote.isNotEmpty) ...[
+                  const SectionHeader(title: "Who's out today"),
+                  const SizedBox(height: 12),
+                  WhosOutCard(onLeave: _whosOutLeave, remote: _whosOutRemote),
+                  const SizedBox(height: 20),
+                ],
+
                 // ─── Date + WiFi status ───────────────────
                 GlassCard(
                   padding:
@@ -722,26 +791,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         DateFormat('EEEE, d MMMM yyyy').format(DateTime.now()),
                         style: const TextStyle(
                             fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white),
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textPrimary),
                       ),
                     ),
                     Icon(Icons.wifi_rounded,
                         size: 15,
                         color: _noNetworksConfig
-                            ? Colors.white.withValues(alpha: 0.3)
+                            ? AppColors.gray300
                             : AppColors.success500),
                     const SizedBox(width: 4),
                     Text(
                       _noNetworksConfig
                           ? 'Auto check-in off'
                           : 'Auto check-in on',
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontSize: 11,
-                          color: Colors.white.withValues(alpha: 0.45)),
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.gray500),
                     ),
                   ]),
                 ),
+                ],
               ],
             ),
           ),
@@ -752,109 +823,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   // ─── Banner Widgets ────────────────────────────────────
 
-  // Temporary flash banner shown for 5 s after a WiFi event, then fades out.
-  Widget _flashBanner(String text, Color tint, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
-        tint: tint,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(children: [
-          Icon(icon, color: tint, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(text,
-                style: TextStyle(
-                    fontSize: 13, color: tint, fontWeight: FontWeight.w600)),
-          ),
-          GestureDetector(
-            onTap: () => setState(() { _breakWelcomeBack = null; _lateArrivalFlash = null; }),
-            child: Icon(Icons.close, size: 16, color: tint.withValues(alpha: 0.5)),
-          ),
-        ]),
-      ),
-    );
-  }
+  void _dismissFlash() =>
+      setState(() { _breakWelcomeBack = null; _lateArrivalFlash = null; });
 
-  Widget _offlineBanner() => _glassBanner(
-        icon: Icons.cloud_off_rounded,
-        text: "You're offline — showing the last synced data.",
-        tint: AppColors.warning500,
-      );
-
-  Widget _vpnBanner() => _glassBanner(
-        icon: Icons.vpn_lock,
-        text: 'VPN detected — auto check-in is disabled. Use QR scan instead.',
-        tint: AppColors.warning500,
-        action: TextButton(
-          onPressed: () => context.push('/attendance/qr'),
-          child: const Text('QR Scan',
-              style: TextStyle(
-                  color: AppColors.warning500, fontWeight: FontWeight.w700)),
-        ),
-      );
-
-  Widget _noNetworksBanner() => _glassBanner(
-        icon: Icons.wifi_off,
-        text:
-            "Auto check-in is off — your admin hasn't added any office networks yet.",
-        tint: Colors.white,
-      );
-
-  Widget _leaveTodayBanner() {
-    final leaveType =
-        (_todayLeave?['leave_type'] as String? ?? 'leave').replaceAll('_', ' ');
-    return _glassBanner(
-      icon: Icons.beach_access,
-      text: 'You have approved $leaveType today. No check-in required.',
-      tint: Theme.of(context).colorScheme.primary,
-    );
-  }
-
-  Widget _lateNoticeBanner() {
-    final expectedTime = _lateNotice?['expected_time'] as String? ?? '';
-    final noticeStatus = _lateNotice?['status'] as String? ?? 'pending';
-    final isAcked = noticeStatus == 'acknowledged';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
-        tint: isAcked ? AppColors.success500 : AppColors.warning500,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(children: [
-          Icon(isAcked ? Icons.check_circle_outline : Icons.schedule,
-              color: isAcked ? AppColors.success500 : AppColors.warning500,
-              size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-              child: Text(
-            isAcked
-                ? 'Late notice acknowledged — expected by $expectedTime'
-                : 'Late arrival notice submitted — expected by $expectedTime',
-            style: TextStyle(
-              fontSize: 13,
-              color: isAcked ? AppColors.success500 : AppColors.warning500,
-              fontWeight: FontWeight.w500,
-            ),
-          )),
-          GestureDetector(
-            onTap: () async {
-              final id = _lateNotice?['id'] as String?;
-              if (id == null) return;
-              try {
-                await api.cancelLateNotice(id);
-                if (!mounted) return;
-                setState(() => _lateNotice = null);
-                _showSnack('Late notice cancelled');
-              } catch (e) {
-                _showSnack(ApiFailure.fromError(e).userMessage, isError: true);
-              }
-            },
-            child: Icon(Icons.close,
-                size: 16, color: Colors.white.withValues(alpha: 0.4)),
-          ),
-        ]),
-      ),
-    );
+  Future<void> _cancelLateNotice() async {
+    final id = _lateNotice?['id'] as String?;
+    if (id == null) return;
+    try {
+      await api.cancelLateNotice(id);
+      if (!mounted) return;
+      setState(() => _lateNotice = null);
+      _showSnack('Late notice cancelled');
+    } catch (e) {
+      _showSnack(ApiFailure.fromError(e).userMessage, isError: true);
+    }
   }
 
   // ─── Break alert banners from today-status ─────────────────
@@ -972,12 +954,50 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     }
 
-    if (_pendingReminderName != null) return [_deferredReminderBanner()];
-    if (lateReturningOffWifi != null) return [_overdueOffWifiBanner(lateReturningOffWifi)];
-    if (lateReturningOnWifi  != null) return [_overdueOnWifiBanner(lateReturningOnWifi)];
-    if (activeBreak          != null) return [_activeBreakBanner(activeBreak)];
-    if (windowOpenNotStarted != null) return [_windowOpenBanner(windowOpenNotStarted)];
-    if (imminentBreak        != null) return [_imminentBreakBanner(imminentBreak)];
+    if (_pendingReminderName != null) {
+      return [
+        DeferredReminderBanner(
+          name: _pendingReminderName ?? 'your break',
+          deduct: _pendingReminderDeduct,
+          onTakeNow: _actionLoading ? null : _showBreakTypeSheet,
+          onDismiss: () => setState(() => _pendingReminderName = null),
+        )
+      ];
+    }
+    if (lateReturningOffWifi != null) {
+      final end = _parseLocal(lateReturningOffWifi['break_end_utc']);
+      return [
+        OverdueOffWifiBanner(
+          name: lateReturningOffWifi['name'] as String? ?? 'Break',
+          overdueLabel: end != null ? _countup(end) : '—',
+        )
+      ];
+    }
+    if (lateReturningOnWifi != null) {
+      return [
+        OverdueOnWifiBanner(
+            name: lateReturningOnWifi['name'] as String? ?? 'Break')
+      ];
+    }
+    if (activeBreak != null) return [_activeBreakBanner(activeBreak)];
+    if (windowOpenNotStarted != null) {
+      final end = _parseLocal(windowOpenNotStarted['break_end_utc']);
+      return [
+        WindowOpenBanner(
+          name: windowOpenNotStarted['name'] as String? ?? 'Break',
+          remaining: end != null ? _countdown(end) : '—',
+        )
+      ];
+    }
+    if (imminentBreak != null) {
+      final start = _parseLocal(imminentBreak['break_start_utc']);
+      return [
+        ImminentBreakBanner(
+          name: imminentBreak['name'] as String? ?? 'Break',
+          countdown: start != null ? _countdown(start) : '—',
+        )
+      ];
+    }
     return [];
   }
 
@@ -1005,36 +1025,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return '$m:$s';
   }
 
-  Widget _imminentBreakBanner(Map<String, dynamic> b) {
-    final name  = b['name'] as String? ?? 'Break';
-    final start = _parseLocal(b['break_start_utc']);
-    final label = start != null ? _countdown(start) : '—';
-    return _glassBanner(
-      icon: Icons.timer_outlined,
-      text: '$name starts in $label — wrap up',
-      tint: Theme.of(context).colorScheme.primary,
-    );
-  }
-
-  // Window is open but the employee hasn't tapped Start Break yet.
-  // They are still at their desk — do NOT say "return to office".
-  Widget _windowOpenBanner(Map<String, dynamic> b) {
-    final name = b['name'] as String? ?? 'Break';
-    final end  = _parseLocal(b['break_end_utc']);
-    final remaining = end != null ? _countdown(end) : '—';
-    return _glassBanner(
-      icon: Icons.free_breakfast_outlined,
-      text: '$name is now — $remaining left in the window',
-      tint: AppColors.warning500,
-    );
-  }
-
+  // Dispatches an active policy break to the right banner: an auto-started
+  // break the employee hasn't acknowledged yet gets the actionable banner,
+  // everything else gets the plain countdown banner.
   Widget _activeBreakBanner(Map<String, dynamic> b) {
     final linked = b['linked_break_record'] as Map<String, dynamic>?;
     final autoStarted = linked?['auto_started'] as bool? ?? false;
     final breakId = linked?['id'] as String?;
     if (autoStarted && breakId != null && !_acknowledgedAutoBreaks.contains(breakId)) {
-      return _autoStartedBreakBanner(b, breakId);
+      return AutoStartedBreakBanner(
+        name: b['name'] as String? ?? 'Break',
+        reminderMins: (b['reminder_after_mins'] as num?)?.toInt() ?? 30,
+        deductIfSkipped: b['deduct_if_skipped'] as bool? ?? true,
+        onAcknowledge: () =>
+            setState(() => _acknowledgedAutoBreaks.add(breakId)),
+        onTakeLater: _actionLoading ? null : () => _takeBreakLater(b, breakId),
+      );
     }
 
     final name = b['name'] as String? ?? 'Break';
@@ -1057,321 +1063,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     }
 
-    final label = breakEnd != null ? _countdown(breakEnd) : '—';
-    return _glassBanner(
-      icon: Icons.free_breakfast,
-      text: '$name — $label remaining',
-      tint: AppColors.teal100,
-    );
-  }
-
-  Widget _overdueOffWifiBanner(Map<String, dynamic> b) {
-    final name  = b['name'] as String? ?? 'Break';
-    final end   = _parseLocal(b['break_end_utc']);
-    final label = end != null ? _countup(end) : '—';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
-        tint: AppColors.danger500,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(children: [
-          const Icon(Icons.running_with_errors, color: AppColors.danger500, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('$name — return to office!',
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.danger500, fontWeight: FontWeight.w700)),
-              const Text('You are away from the office past your break time',
-                  style: TextStyle(fontSize: 12, color: AppColors.danger500)),
-            ]),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.danger500.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.danger500.withValues(alpha: 0.5)),
-            ),
-            child: Text('+$label',
-                style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w800,
-                    color: AppColors.danger500, fontFamily: 'monospace')),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  Widget _overdueOnWifiBanner(Map<String, dynamic> b) {
-    final name = b['name'] as String? ?? 'Break';
-    return _glassBanner(
-      icon: Icons.alarm_on_rounded,
-      text: '$name time is up — please tap End Break',
-      tint: AppColors.warning500,
-    );
-  }
-
-  Widget _autoStartedBreakBanner(Map<String, dynamic> b, String breakId) {
-    final name = b['name'] as String? ?? 'Break';
-    final reminderMins = (b['reminder_after_mins'] as num?)?.toInt() ?? 30;
-    final deductIfSkipped = b['deduct_if_skipped'] as bool? ?? true;
-    final subtext = deductIfSkipped
-        ? 'Deferring will set a ${reminderMins}m reminder; skipping deducts this time'
-        : 'Deferring sets a ${reminderMins}m reminder — no pay impact';
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
-        tint: AppColors.teal100,
-        padding: const EdgeInsets.all(14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Icon(Icons.free_breakfast, color: AppColors.teal100, size: 18),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('$name has started',
-                    style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.teal100,
-                        fontWeight: FontWeight.w700)),
-                Text(subtext,
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.teal100.withValues(alpha: 0.75))),
-              ]),
-            ),
-          ]),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _acknowledgedAutoBreaks.add(breakId)),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 9),
-                  decoration: BoxDecoration(
-                    color: AppColors.teal100.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border:
-                        Border.all(color: AppColors.teal100.withValues(alpha: 0.4)),
-                  ),
-                  child: const Text("I'm on it",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.teal100)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: GestureDetector(
-                onTap: _actionLoading ? null : () => _takeBreakLater(b, breakId),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 9),
-                  decoration: BoxDecoration(
-                    color: AppColors.warning500.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: AppColors.warning500.withValues(alpha: 0.4)),
-                  ),
-                  child: const Text('Take it later',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.warning500)),
-                ),
-              ),
-            ),
-          ]),
-        ]),
-      ),
-    );
-  }
-
-  Widget _deferredReminderBanner() {
-    final name = _pendingReminderName ?? 'your break';
-    final deduct = _pendingReminderDeduct;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
-        tint: AppColors.warning500,
-        padding: const EdgeInsets.all(14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Icon(Icons.alarm, color: AppColors.warning500, size: 18),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text('Time to take $name',
-                    style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.warning500,
-                        fontWeight: FontWeight.w700)),
-                if (deduct)
-                  const Text('Skipping will deduct this time from your pay',
-                      style: TextStyle(
-                          fontSize: 11, color: AppColors.warning500)),
-              ]),
-            ),
-          ]),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: _actionLoading ? null : _showBreakTypeSheet,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 9),
-                  decoration: BoxDecoration(
-                    color: AppColors.warning500.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: AppColors.warning500.withValues(alpha: 0.5)),
-                  ),
-                  child: const Text('Take it now',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.warning500)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () => setState(() => _pendingReminderName = null),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(12),
-                  border:
-                      Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                ),
-                child: const Text('Dismiss',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white54)),
-              ),
-            ),
-          ]),
-        ]),
-      ),
-    );
-  }
-
-  // ─── Pre-check-in live late counter ────────────────────
-
-  Widget _preCheckinLateBanner() {
-    final lateMin = _livePreCheckinLateMins > 0
-        ? _livePreCheckinLateMins
-        : ((_todayStatus?['pre_checkin_late_minutes'] as num?)?.toInt() ?? 0);
-    if (lateMin <= 0) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
-        tint: AppColors.warning500,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(children: [
-          const Icon(Icons.access_alarm, color: AppColors.warning500, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-              child: Text(
-            'You are currently ${_formatMinutesHours(lateMin)} late',
-            style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.warning500,
-                fontWeight: FontWeight.w600),
-          )),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.warning500.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                  color: AppColors.warning500.withValues(alpha: 0.5)),
-            ),
-            child: Text('+${_formatMinutesHours(lateMin)}',
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.warning500,
-                    fontFamily: 'monospace')),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  Widget _glassBanner(
-      {required IconData icon,
-      required String text,
-      required Color tint,
-      Widget? action}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
-        tint: tint,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(children: [
-          Icon(icon, color: tint, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-              child: Text(text,
-                  style: TextStyle(
-                      fontSize: 13, color: tint, fontWeight: FontWeight.w500))),
-          if (action != null) action,
-        ]),
-      ),
-    );
-  }
-
-  Widget _timePickerTile(
-    BuildContext ctx, {
-    required String label,
-    required TimeOfDay value,
-    required ValueChanged<TimeOfDay> onPicked,
-  }) {
-    return GestureDetector(
-      onTap: () async {
-        final picked = await showTimePicker(
-          context: ctx,
-          initialTime: value,
-          builder: (c, child) => Theme(data: AppTheme.glass, child: child!),
-        );
-        if (picked != null) onPicked(picked);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-        ),
-        child: Row(children: [
-          Text(label,
-              style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.white.withValues(alpha: 0.45),
-                  fontWeight: FontWeight.w700)),
-          const Spacer(),
-          Flexible(
-            child: Text(value.format(ctx),
-                textAlign: TextAlign.end,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white)),
-          ),
-        ]),
-      ),
+    return ActiveBreakBanner(
+      name: name,
+      remaining: breakEnd != null ? _countdown(breakEnd) : '—',
     );
   }
 
@@ -1413,16 +1107,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => AlertDialog(
-          backgroundColor: AppColors.bgDark3,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Row(children: [
             Icon(Icons.assignment_outlined,
                 color: Theme.of(context).colorScheme.primary, size: 22),
-            SizedBox(width: 8),
-            Flexible(
-                child: Text('Report / Request',
-                    style: TextStyle(color: Colors.white, fontSize: 16))),
+            const SizedBox(width: 8),
+            const Flexible(
+                child: Text('Report / Request', style: AppTextStyles.title)),
           ]),
           content: SingleChildScrollView(
               child: Column(
@@ -1430,11 +1120,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ── Request type chips ──────────────────────
-              Text('Request Type',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white.withValues(alpha: 0.6))),
+              const Text('Request Type', style: AppTextStyles.captionStrong),
               const SizedBox(height: 8),
               Wrap(
                   spacing: 6,
@@ -1448,32 +1134,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             horizontal: 12, vertical: 7),
                         decoration: BoxDecoration(
                           color: sel
-                              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.25)
-                              : Colors.white.withValues(alpha: 0.06),
-                          borderRadius: BorderRadius.circular(10),
+                              ? Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withValues(alpha: 0.10)
+                              : AppColors.surface,
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.control),
                           border: Border.all(
                               color: sel
                                   ? Theme.of(context).colorScheme.primary
-                                  : Colors.white.withValues(alpha: 0.15)),
+                                  : AppColors.border),
                         ),
                         child: Text(t['label']!,
                             style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                                fontWeight:
+                                    sel ? FontWeight.w700 : FontWeight.w500,
                                 color: sel
                                     ? Theme.of(context).colorScheme.primary
-                                    : Colors.white.withValues(alpha: 0.7))),
+                                    : AppColors.gray600)),
                       ),
                     );
                   }).toList()),
               const SizedBox(height: 16),
 
               // ── Date picker ──────────────────────────────
-              Text('Date',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white.withValues(alpha: 0.6))),
+              const Text('Date', style: AppTextStyles.captionStrong),
               const SizedBox(height: 6),
               GestureDetector(
                 onTap: () async {
@@ -1482,8 +1169,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     initialDate: selectedDate,
                     firstDate: DateTime.now().subtract(const Duration(days: 7)),
                     lastDate: DateTime.now().add(const Duration(days: 30)),
-                    builder: (c, child) =>
-                        Theme(data: AppTheme.glass, child: child!),
                   );
                   if (picked != null) setDlg(() => selectedDate = picked);
                 },
@@ -1491,10 +1176,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10),
-                    border:
-                        Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.control),
+                    border: Border.all(color: AppColors.border),
                   ),
                   child: Row(children: [
                     Icon(Icons.calendar_today,
@@ -1503,13 +1187,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     Text(fmtDateDisplay(selectedDate),
                         style: const TextStyle(
                             fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white)),
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary)),
                     const Spacer(),
-                    Text('Change',
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.white.withValues(alpha: 0.4))),
+                    const Text('Change', style: AppTextStyles.caption),
                   ]),
                 ),
               ),
@@ -1519,11 +1200,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               if (requestType == 'leave' || requestType == 'mid_shift_leave')
                 ...(() {
                   return [
-                    Text('Leave Type',
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white.withValues(alpha: 0.6))),
+                    const Text('Leave Type', style: AppTextStyles.captionStrong),
                     const SizedBox(height: 6),
                     Wrap(
                         spacing: 6,
@@ -1537,22 +1214,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   horizontal: 10, vertical: 6),
                               decoration: BoxDecoration(
                                 color: sel
-                                    ? AppColors.teal700.withValues(alpha: 0.3)
-                                    : Colors.white.withValues(alpha: 0.06),
-                                borderRadius: BorderRadius.circular(8),
+                                    ? AppColors.teal100.withValues(alpha: 0.10)
+                                    : AppColors.surface,
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.control),
                                 border: Border.all(
                                     color: sel
                                         ? AppColors.teal100
-                                        : Colors.white.withValues(alpha: 0.15)),
+                                        : AppColors.border),
                               ),
                               child: Text(l['label']!,
                                   style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                      fontWeight: sel
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
                                       color: sel
-                                          ? AppColors.teal100
-                                          : Colors.white
-                                              .withValues(alpha: 0.6))),
+                                          ? AppColors.teal700
+                                          : AppColors.gray600)),
                             ),
                           );
                         }).toList()),
@@ -1567,19 +1246,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ? 'Expected Arrival Time'
                       : 'Expected Departure Time';
                   return [
-                    Text(label,
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white.withValues(alpha: 0.6))),
+                    Text(label, style: AppTextStyles.captionStrong),
                     const SizedBox(height: 6),
                     GestureDetector(
                       onTap: () async {
                         final picked = await showTimePicker(
                           context: ctx,
                           initialTime: selectedTime,
-                          builder: (c, child) =>
-                              Theme(data: AppTheme.glass, child: child!),
                         );
                         if (picked != null) setDlg(() => selectedTime = picked);
                       },
@@ -1587,10 +1260,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 11),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.2)),
+                          color: AppColors.surface,
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.control),
+                          border: Border.all(color: AppColors.border),
                         ),
                         child: Row(children: [
                           Icon(Icons.access_time,
@@ -1599,13 +1272,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           Text(selectedTime.format(ctx),
                               style: const TextStyle(
                                   fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white)),
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary)),
                           const Spacer(),
-                          Text('Tap to change',
-                              style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.white.withValues(alpha: 0.4))),
+                          const Text('Tap to change',
+                              style: AppTextStyles.caption),
                         ]),
                       ),
                     ),
@@ -1614,16 +1285,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 })(),
 
               if (requestType == 'mid_shift_leave') ...[
-                Text('Leave Window',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white.withValues(alpha: 0.6))),
+                const Text('Leave Window', style: AppTextStyles.captionStrong),
                 const SizedBox(height: 6),
                 Row(children: [
                   Expanded(
-                    child: _timePickerTile(
-                      ctx,
+                    child: TimePickerTile(
                       label: 'Start',
                       value: selectedTime,
                       onPicked: (picked) => setDlg(() => selectedTime = picked),
@@ -1631,8 +1297,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _timePickerTile(
-                      ctx,
+                    child: TimePickerTile(
                       label: 'End',
                       value: selectedEndTime,
                       onPicked: (picked) => setDlg(() => selectedEndTime = picked),
@@ -1643,22 +1308,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ],
 
               // ── Reason ───────────────────────────────────
-              Text('Reason',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white.withValues(alpha: 0.6))),
+              const Text('Reason', style: AppTextStyles.captionStrong),
               const SizedBox(height: 6),
               TextField(
                 controller: reasonCtrl,
                 maxLines: 3,
                 maxLength: 200,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-                decoration: InputDecoration(
+                style: const TextStyle(
+                    color: AppColors.textPrimary, fontSize: 13),
+                decoration: const InputDecoration(
                   hintText: 'Briefly describe the reason…',
-                  hintStyle: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.35),
-                      fontSize: 13),
                 ),
               ),
             ],
@@ -1666,15 +1325,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('Cancel',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5))),
+              child: const Text('Cancel',
+                  style: TextStyle(color: AppColors.gray500)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: Theme.of(context).colorScheme.primary,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
+                    borderRadius: BorderRadius.circular(AppRadius.control)),
               ),
               onPressed: () async {
                 final reason = reasonCtrl.text.trim();
@@ -1829,90 +1488,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // More than 10 min away — show next break time
       return {
         'icon': Icons.schedule,
-        'color': Colors.white.withValues(alpha: 0.45),
+        'color': AppColors.gray500,
         'text': '$name at ${DateFormat('hh:mm a').format(breakStart)}',
       };
     }
     return null;
-  }
-
-  // ─── Disconnect (left office WiFi) Card ────────────────
-
-  Widget _buildDisconnectCard() {
-    final ssid = _disconnectSsid;
-    final countdown = _disconnectCountdown;
-    final expired = _graceExpired;
-    return GlassCard(
-      tint: AppColors.warning500,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          const Icon(Icons.wifi_off_rounded,
-              size: 28, color: AppColors.warning500),
-          const SizedBox(width: 12),
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text(expired ? 'Grace Period Ended' : 'Left Office WiFi',
-                    style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white)),
-                Text(
-                  ssid != null && ssid.isNotEmpty
-                      ? 'No longer on "$ssid"'
-                      : 'WiFi connection lost',
-                  style: TextStyle(
-                      fontSize: 13, color: Colors.white.withValues(alpha: 0.6)),
-                ),
-              ])),
-        ]),
-        const SizedBox(height: 16),
-        // Prominent grace countdown
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: AppColors.warning500.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(16),
-            border:
-                Border.all(color: AppColors.warning500.withValues(alpha: 0.3)),
-          ),
-          child: Column(children: [
-            Text(
-              expired ? '00:00' : (countdown.isNotEmpty ? countdown : '--:--'),
-              style: const TextStyle(
-                fontSize: 34,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-                fontFamily: 'monospace',
-                letterSpacing: 1,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              expired ? 'checking you out…' : 'until auto check-out',
-              style: TextStyle(
-                  fontSize: 12, color: Colors.white.withValues(alpha: 0.6)),
-            ),
-          ]),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          expired
-              ? 'You\'ve been checked out. Reconnect to office WiFi and you\'ll be checked back in automatically.'
-              : 'Reconnect to office WiFi to stay checked in. If you can\'t, scan the office QR code.',
-          style: TextStyle(
-              fontSize: 12, color: Colors.white.withValues(alpha: 0.55)),
-        ),
-        const SizedBox(height: 12),
-        AppButton(
-          label: 'Scan QR Code',
-          icon: Icons.qr_code_scanner,
-          onPressed: () => context.push('/attendance/qr'),
-        ),
-      ]),
-    );
   }
 
   // ─── Status Card ───────────────────────────────────────
@@ -1921,7 +1501,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // When the employee is actively on a break and loses WiFi, leaving the
     // office is expected — don't replace the status card with the disconnect
     // card. The break banner handles the "overdue + off WiFi" case instead.
-    if (_autoCheckoutRisk && !_isOnBreak) return _buildDisconnectCard();
+    if (_autoCheckoutRisk && !_isOnBreak) {
+      return DisconnectCard(
+        ssid: _disconnectSsid,
+        countdown: _disconnectCountdown,
+        expired: _graceExpired,
+      );
+    }
 
     Color cardTint;
     IconData cardIcon;
@@ -1976,102 +1562,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         hoursLabel = '${hoursWorked.toStringAsFixed(1)}h worked';
       }
 
-      return GlassCard(
-        tint: Colors.white,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(Icons.check_circle_outline,
-                size: 28, color: Colors.white.withValues(alpha: 0.5)),
-            const SizedBox(width: 12),
-            Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  const Text('Work Day Complete',
-                      style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white)),
-                  if (wasAutoOut)
-                    Text('Auto checked-out by system',
-                        style: TextStyle(
-                            fontSize: 12,
-                            color:
-                                AppColors.warning500.withValues(alpha: 0.9))),
-                ])),
-            if (hoursLabel.isNotEmpty)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(hoursLabel,
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white)),
-              ),
-          ]),
-          const SizedBox(height: 12),
-          Divider(color: Colors.white.withValues(alpha: 0.15), height: 1),
-          const SizedBox(height: 12),
-          Row(children: [
-            _infoChip(Icons.login, 'In', checkInFmt),
-            const SizedBox(width: 16),
-            _infoChip(Icons.logout, 'Out', checkOutFmt),
-            if (breakMins > 0) ...[
-              const SizedBox(width: 16),
-              _infoChip(Icons.free_breakfast, 'Break', '${breakMins}m'),
-            ],
-            if (overtimeHours > 0) ...[
-              const SizedBox(width: 16),
-              _infoChip(Icons.more_time, 'Overtime', '${overtimeHours.toStringAsFixed(1)}h'),
-            ],
-            if (extraOfficeMins > 0) ...[
-              const SizedBox(width: 16),
-              _infoChip(Icons.schedule, 'Extra', '${extraOfficeMins}m'),
-            ],
-          ]),
-          if (canRequestOvertime) ...[
-            const SizedBox(height: 14),
-            OutlinedButton.icon(
-              onPressed: _actionLoading
-                  ? null
-                  : () async {
-                      setState(() => _actionLoading = true);
-                      try {
-                        await api.requestOvertime(
-                          attendanceId: _todayRecord!['id'] as String,
-                          reason: 'Worked ${extraOfficeMins}m after shift end',
-                        );
-                        _showSnack('Overtime request sent');
-                      } catch (e) {
-                        _showSnack(ApiFailure.fromError(e).userMessage,
-                            isError: true);
-                      } finally {
-                        if (mounted) setState(() => _actionLoading = false);
-                      }
-                    },
-              icon: const Icon(Icons.more_time, size: 18),
-              label: const Text('Request Overtime'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.teal100,
-                side: BorderSide(color: AppColors.teal100.withValues(alpha: 0.5)),
-                minimumSize: const Size(double.infinity, 46),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-            ),
-          ],
-        ]),
+      return CheckedOutCard(
+        checkInFmt: checkInFmt,
+        checkOutFmt: checkOutFmt,
+        hoursLabel: hoursLabel,
+        breakMins: breakMins,
+        overtimeHours: overtimeHours,
+        extraOfficeMins: extraOfficeMins,
+        wasAutoOut: wasAutoOut,
+        canRequestOvertime: canRequestOvertime,
+        actionLoading: _actionLoading,
+        onRequestOvertime: () => _requestOvertime(extraOfficeMins),
       );
     } else if (_checkedIn) {
       // ── CheckedIn hero: ring layout ───────────────────────
       final lateMins = _asInt(_todayRecord?['late_minutes']) ?? 0;
       final isLate = _status == 'late' || lateMins > 0;
       final hasNotice = _todayRecord?['late_notice_id'] != null;
-      final ringTint = isLate ? AppColors.warning500 : const Color(0xFF34E0A1);
+      final ringTint = isLate ? AppColors.warning500 : AppColors.success500;
 
       final shiftStart = _getShiftStartMins();
       final shiftEnd = _getShiftEndMins();
@@ -2087,169 +1595,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           : '--:--';
       final checkInType = _todayRecord?['check_in_type'] as String?;
 
-      return GlassCard(
-        tint: ringTint,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // ── Top row: ring on left, info on right ──────────
-          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-            _ShiftRing(
-              pct: shiftPct,
-              center: Icon(
-                isLate ? Icons.running_with_errors : Icons.check_circle_rounded,
-                color: ringTint,
-                size: 30,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  // Status badge
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: ringTint.withValues(alpha: 0.20),
-                      borderRadius: BorderRadius.circular(20),
-                      border:
-                          Border.all(color: ringTint.withValues(alpha: 0.5), width: 1.2),
-                    ),
-                    child: Text(
-                      isLate ? 'Checked In · Late' : 'Checked In',
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: ringTint),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  // Big elapsed timer
-                  Text(
-                    _elapsedDisplay,
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  // "Working since HH:MM" subtitle
-                  Text(
-                    'Working since $checkInTime',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white.withValues(alpha: 0.55)),
-                  ),
-                ])),
-          ]),
-
-          // ── Divider + info chips ───────────────────────────
-          if (checkInStr != null) ...[
-            const SizedBox(height: 12),
-            Divider(color: Colors.white.withValues(alpha: 0.15), height: 1),
-            const SizedBox(height: 12),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              _infoChip(Icons.login, 'Checked in', checkInTime),
-              if (checkInType != null)
-                _infoChip(
-                    Icons.wifi, 'Method', _formatCheckInType(checkInType)),
-            ]),
-          ],
-
-          // ── Break status row ───────────────────────────────
-          Builder(builder: (context) {
-            final breakInfo = _computeBreakInfo();
-            if (breakInfo == null) return const SizedBox.shrink();
-            return Column(children: [
-              const SizedBox(height: 8),
-              Divider(color: Colors.white.withValues(alpha: 0.12), height: 1),
-              const SizedBox(height: 8),
-              Row(children: [
-                Icon(breakInfo['icon'] as IconData,
-                    size: 14, color: breakInfo['color'] as Color),
-                const SizedBox(width: 6),
-                Expanded(
-                    child: Text(
-                  breakInfo['text'] as String,
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: breakInfo['color'] as Color,
-                      fontWeight: FontWeight.w600),
-                )),
-              ]),
-            ]);
-          }),
-
-          // ── Late info ──────────────────────────────────────
-          if (lateMins > 0) ...[
-            const SizedBox(height: 8),
-            Text(
-              '${_formatMinutesHours(lateMins)} late${hasNotice ? ' · pre-announced' : ''}',
-              style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.warning500.withValues(alpha: 0.9),
-                  fontWeight: FontWeight.w600),
-            ),
-          ],
-
-          // ── QR + Check Out buttons ────────────────────────
-          const SizedBox(height: 16),
-          Row(children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _actionLoading
-                    ? null
-                    : () => context.push('/attendance/qr'),
-                icon: const Icon(Icons.qr_code_scanner, size: 16),
-                label: const Text('Scan QR'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-                  minimumSize: const Size(0, 42),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: AppButton(
-                label: 'Check Out',
-                icon: Icons.logout,
-                color: AppColors.danger500,
-                loading: _actionLoading,
-                onPressed: _actionLoading
-                    ? null
-                    : () async {
-                        final confirmed = await showConfirmDialog(
-                          context,
-                          title: 'Check Out?',
-                          message: 'Are you sure you want to check out?',
-                          confirmLabel: 'Check Out',
-                          isDanger: true,
-                        );
-                        if (confirmed == true) {
-                          setState(() => _actionLoading = true);
-                          try {
-                            await api.checkOut();
-                            // Notifies both main isolate and background service
-                            await WifiAttendanceService().onManualCheckOut();
-                            await _load();
-                            _showSnack('Checked out ✅');
-                          } catch (e) {
-                            _showSnack(ApiFailure.fromError(e).userMessage,
-                                isError: true);
-                          } finally {
-                            if (mounted) setState(() => _actionLoading = false);
-                          }
-                        }
-                      },
-              ),
-            ),
-          ]),
-        ]),
+      return CheckedInCard(
+        ringTint: ringTint,
+        isLate: isLate,
+        shiftPct: shiftPct,
+        elapsedDisplay: _elapsedDisplay,
+        checkInTime: checkInTime,
+        hasCheckIn: checkInStr != null,
+        checkInTypeLabel:
+            checkInType != null ? _formatCheckInType(checkInType) : null,
+        breakInfo: _computeBreakInfo(),
+        lateMins: lateMins,
+        hasNotice: hasNotice,
+        actionLoading: _actionLoading,
+        onCheckOut: _confirmCheckOut,
       );
     } else if (_status == 'leave') {
       cardTint = Theme.of(context).colorScheme.primary;
@@ -2262,7 +1621,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final expected = period == 'morning' ? 'Afternoon' : 'Morning';
       cardTint = AppColors.teal700;
       cardIcon = Icons.calendar_today;
-      iconColor = AppColors.teal100.withValues(alpha: 0.9);
+      iconColor = AppColors.teal100;
       statusTitle = 'Half-Day Leave';
       statusSub = period.isNotEmpty
           ? '$expected half — you may still check in'
@@ -2270,78 +1629,69 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } else {
       cardTint = Colors.white;
       cardIcon = Icons.radio_button_unchecked;
-      iconColor = Colors.white.withValues(alpha: 0.4);
+      iconColor = AppColors.gray400;
       statusTitle = 'Not Checked In';
       statusSub = _noNetworksConfig
           ? 'Scan QR code to check in — WiFi auto-detection not set up'
           : 'Connect to office WiFi for auto check-in, or scan QR code';
     }
 
-    return GlassCard(
+    return StatusInfoCard(
       tint: cardTint,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(cardIcon, size: 28, color: iconColor),
-          const SizedBox(width: 12),
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text(statusTitle,
-                    style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white)),
-                Text(statusSub,
-                    style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.white.withValues(alpha: 0.6))),
-              ])),
-        ]),
-
-        // Check-in actions
-        if (!_checkedIn &&
-            !_checkedOut &&
-            !_isRemote &&
-            _status != 'leave') ...[
-          const SizedBox(height: 16),
-          AppButton(
-            label: 'Scan QR Code',
-            icon: Icons.qr_code_scanner,
-            onPressed: () => context.push('/attendance/qr'),
-          ),
-          const SizedBox(height: 8),
-          if (_lateNotice == null || _lateNotice!['status'] == 'cancelled')
-            OutlinedButton.icon(
-              onPressed: _showLateNoticeDialog,
-              icon: const Icon(Icons.schedule, size: 16),
-              label: const Text('Report Late Arrival'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.warning500,
-                side: BorderSide(
-                    color: AppColors.warning500.withValues(alpha: 0.6)),
-                minimumSize: const Size(double.infinity, 42),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-        ],
-
-        // Remote activity button
-        if (_isRemote &&
-            _remoteSession != null &&
-            _remoteSession!['status'] == 'approved') ...[
-          const SizedBox(height: 12),
-          AppButton(
-            label: 'View My Activity',
-            icon: Icons.chat_bubble_outline,
-            outline: true,
-            onPressed: () =>
-                context.push('/home/remote/detail?id=${_remoteSession!['id']}'),
-          ),
-        ],
-      ]),
+      icon: cardIcon,
+      iconColor: iconColor,
+      title: statusTitle,
+      subtitle: statusSub,
+      showCheckInActions:
+          !_checkedIn && !_checkedOut && !_isRemote && _status != 'leave',
+      showReportLate:
+          _lateNotice == null || _lateNotice!['status'] == 'cancelled',
+      onReportLate: _showLateNoticeDialog,
+      remoteDetailId: _isRemote &&
+              _remoteSession != null &&
+              _remoteSession!['status'] == 'approved'
+          ? _remoteSession!['id']?.toString()
+          : null,
     );
+  }
+
+  Future<void> _confirmCheckOut() async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Check Out?',
+      message: 'Are you sure you want to check out?',
+      confirmLabel: 'Check Out',
+      isDanger: true,
+    );
+    if (confirmed == true) {
+      setState(() => _actionLoading = true);
+      try {
+        await api.checkOut();
+        // Notifies both main isolate and background service
+        await WifiAttendanceService().onManualCheckOut();
+        await _load();
+        _showSnack('Checked out ✅');
+      } catch (e) {
+        _showSnack(ApiFailure.fromError(e).userMessage, isError: true);
+      } finally {
+        if (mounted) setState(() => _actionLoading = false);
+      }
+    }
+  }
+
+  Future<void> _requestOvertime(int extraOfficeMins) async {
+    setState(() => _actionLoading = true);
+    try {
+      await api.requestOvertime(
+        attendanceId: _todayRecord!['id'] as String,
+        reason: 'Worked ${extraOfficeMins}m after shift end',
+      );
+      _showSnack('Overtime request sent');
+    } catch (e) {
+      _showSnack(ApiFailure.fromError(e).userMessage, isError: true);
+    } finally {
+      if (mounted) setState(() => _actionLoading = false);
+    }
   }
 
   String _formatCheckInType(String type) {
@@ -2422,10 +1772,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     final chosen = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
-      backgroundColor: AppColors.bgDark3,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (_) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const SizedBox(height: 12),
@@ -2433,16 +1779,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             width: 36,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
+              color: AppColors.gray300,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
           const SizedBox(height: 16),
-          const Text('Start a Break',
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white)),
+          const Text('Start a Break', style: AppTextStyles.title),
           const SizedBox(height: 8),
           ...types.map((t) {
                 final state = t['state'] as String? ?? '';
@@ -2451,20 +1793,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         !(t['subtitle'] as String? ?? '').contains('window open'));
                 final isNow  = (t['subtitle'] as String? ?? '').contains('window open');
                 final subtitleColor = isLate
-                    ? AppColors.warning500
+                    ? AppColors.warning800
                     : isNow
-                        ? AppColors.teal100
-                        : Colors.white.withValues(alpha: 0.45);
+                        ? AppColors.teal700
+                        : AppColors.gray500;
                 return ListTile(
                   leading: Icon(t['icon'] as IconData,
                       color: isLate ? AppColors.warning500 : AppColors.teal100,
                       size: 22),
                   title: Text(t['label'] as String,
                       style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w600)),
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w700)),
                   subtitle: t['subtitle'] != null
                       ? Text(t['subtitle'] as String,
-                          style: TextStyle(color: subtitleColor, fontSize: 12))
+                          style: TextStyle(color: subtitleColor, fontSize: 11))
                       : null,
                   onTap: () => Navigator.pop(context, t),
                 );
@@ -2507,30 +1850,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  // A standalone break control shown beneath the status card (never inside it).
-  Widget _buildBreakControl() {
-    if (_isOnBreak) {
-      return AppButton(
-        label: 'End Break',
-        icon: Icons.play_arrow_rounded,
-        color: AppColors.teal700,
-        loading: _actionLoading,
-        onPressed: _actionLoading ? null : _endBreak,
-      );
-    }
-    return OutlinedButton.icon(
-      onPressed: _actionLoading ? null : _showBreakTypeSheet,
-      icon: const Icon(Icons.free_breakfast_outlined, size: 18),
-      label: const Text('Take a Break'),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.teal100,
-        side: BorderSide(color: AppColors.teal100.withValues(alpha: 0.5)),
-        minimumSize: const Size(double.infinity, 48),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      ),
-    );
-  }
-
   // ─── Shift time helpers ────────────────────────────────
 
   int _getShiftStartMins() {
@@ -2559,216 +1878,53 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return 17 * 60 + 30; // default 17:30
   }
 
-  Widget _infoChip(IconData icon, String label, String value) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 12, color: Colors.white.withValues(alpha: 0.4)),
-        const SizedBox(width: 4),
-        Text(label,
-            style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-                color: Colors.white.withValues(alpha: 0.45))),
-      ]),
-      const SizedBox(height: 2),
-      Text(value,
-          style: const TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
-    ]);
-  }
-
   // ─── Quick Actions ─────────────────────────────────────
 
   Widget _buildQuickActions(BuildContext context) {
     final auth = context.read<AuthProvider>();
     final actions = [
-      _QuickAction(
+      QuickAction(
         icon: Icons.beach_access_outlined,
         label: 'Report /\nRequest',
         color: Theme.of(context).colorScheme.primary,
         onTap: _showAttendanceRequestDialog,
       ),
       if (auth.hasFeature('remote_work') && !_checkedIn && !_checkedOut && !_isRemote)
-        _QuickAction(
+        QuickAction(
           icon: Icons.home_outlined,
           label: 'Work\nRemote',
           color: AppColors.purple500,
           onTap: () => context.push('/home/remote'),
         ),
       if (auth.hasFeature('shifts'))
-        _QuickAction(
+        QuickAction(
           icon: Icons.calendar_today_outlined,
           label: 'My\nSchedule',
-          color: AppColors.teal100.withValues(alpha: 0.8),
+          color: AppColors.teal100,
           onTap: () => context.go('/schedule'),
         ),
       if (auth.hasFeature('payroll'))
-        _QuickAction(
+        QuickAction(
           icon: Icons.receipt_long_outlined,
           label: 'My\nPayslips',
           color: AppColors.warning500,
           onTap: () => context.go('/profile'),
         ),
     ];
-    return Row(
-      children: actions
-          .map((a) => Expanded(
-                  child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: GestureDetector(
-                  onTap: a.onTap,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 14, horizontal: 8),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              a.color.withValues(alpha: 0.22),
-                              a.color.withValues(alpha: 0.1)
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          border:
-                              Border.all(color: a.color.withValues(alpha: 0.3)),
-                        ),
-                        child: Column(children: [
-                          Icon(a.icon, color: a.color, size: 24),
-                          const SizedBox(height: 6),
-                          Text(a.label,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: a.color,
-                                  height: 1.3)),
-                        ]),
-                      ),
-                    ),
-                  ),
-                ),
-              )))
-          .toList(),
-    );
+    return QuickActionsRow(actions: actions);
   }
 
   // ─── Shift Card ────────────────────────────────────────
 
   Widget _buildShiftCard() {
     final shift = (_nextShift!['shift'] as Map?)?.cast<String, dynamic>();
-    final dateStr = _nextShift!['date'] as String?;
-    final shiftName = shift?['name'] as String? ?? 'Shift';
-    final startTime = shift?['start_time'] as String? ?? '--:--';
-    final endTime = shift?['end_time'] as String? ?? '--:--';
-    final shiftColor = parseHexColor(shift?['color'] as String?,
-        fallback: const Color(0xFFF15153));
-
-    return GlassCard(
-      child: Row(children: [
-        Container(
-          width: 4,
-          height: 52,
-          decoration: BoxDecoration(
-              color: shiftColor, borderRadius: BorderRadius.circular(2)),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(shiftName,
-              style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white)),
-          const SizedBox(height: 3),
-          Text('$startTime – $endTime',
-              style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.white.withValues(alpha: 0.55),
-                  fontFamily: 'monospace')),
-        ])),
-        if (dateStr != null)
-          Text(DateFormat('EEE, d MMM').format(DateTime.parse(dateStr)),
-              style: TextStyle(
-                  fontSize: 12, color: Colors.white.withValues(alpha: 0.55))),
-      ]),
+    return ShiftCard(
+      shiftName: shift?['name'] as String? ?? 'Shift',
+      startTime: shift?['start_time'] as String? ?? '--:--',
+      endTime: shift?['end_time'] as String? ?? '--:--',
+      shiftColor: parseHexColor(shift?['color'] as String?,
+          fallback: const Color(0xFFF15153)),
+      dateStr: _nextShift!['date'] as String?,
     );
   }
-}
-
-class _QuickAction {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  const _QuickAction(
-      {required this.icon,
-      required this.label,
-      required this.color,
-      required this.onTap});
-}
-
-// ─── Shift Progress Ring ────────────────────────────────
-
-class _ShiftRing extends StatelessWidget {
-  final double pct;
-  final Widget center;
-  const _ShiftRing({required this.pct, required this.center});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 100,
-      height: 100,
-      child: Stack(alignment: Alignment.center, children: [
-        CustomPaint(
-          size: const Size(100, 100),
-          painter: _RingPainter(pct: pct),
-        ),
-        center,
-      ]),
-    );
-  }
-}
-
-class _RingPainter extends CustomPainter {
-  final double pct;
-  const _RingPainter({required this.pct});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2 - 9;
-    final trackPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.12)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 9
-      ..strokeCap = StrokeCap.round;
-    canvas.drawCircle(center, radius, trackPaint);
-
-    if (pct > 0) {
-      final sweepAngle = 2 * 3.14159265 * pct;
-      final rect = Rect.fromCircle(center: center, radius: radius);
-      final gradient = SweepGradient(
-        startAngle: -3.14159265 / 2,
-        endAngle: -3.14159265 / 2 + sweepAngle,
-        colors: const [Color(0xFF00C896), Color(0xFF00E5FF)],
-      );
-      final arcPaint = Paint()
-        ..shader = gradient.createShader(rect)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 9
-        ..strokeCap = StrokeCap.round;
-      canvas.drawArc(rect, -3.14159265 / 2, sweepAngle, false, arcPaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_RingPainter old) => old.pct != pct;
 }

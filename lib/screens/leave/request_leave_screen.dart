@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -75,7 +74,6 @@ class _RequestLeaveScreenState extends State<RequestLeaveScreen> {
       initialDate: (isStart ? _start : _end) ?? DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
-      builder: (ctx, child) => Theme(data: AppTheme.glass, child: child!),
     );
     if (picked == null) return;
     setState(() { if (isStart) {
@@ -87,10 +85,8 @@ class _RequestLeaveScreenState extends State<RequestLeaveScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: AppColors.meshBot,
-    body: Container(
-      decoration: const BoxDecoration(gradient: AppGradients.mesh),
-      child: SafeArea(
+    backgroundColor: AppColors.background,
+    body: SafeArea(
         child: Column(
           children: [
             // Header
@@ -98,17 +94,17 @@ class _RequestLeaveScreenState extends State<RequestLeaveScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
               child: Row(children: [
                 IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  icon: const Icon(Icons.arrow_back,
+                      color: AppColors.textPrimary),
                   onPressed: () => context.pop(),
                 ),
-                const Text('Request Leave',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
+                const Text('Request Leave', style: AppTextStyles.headline),
               ]),
             ),
             // Body
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   // Leave Type
                   _sectionLabel('Leave Type'),
@@ -117,29 +113,26 @@ class _RequestLeaveScreenState extends State<RequestLeaveScreen> {
                     for (final t in ['annual', 'sick', 'wfh', 'unpaid', 'emergency'])
                       GestureDetector(
                         onTap: () => setState(() => _type = t),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: _type == t
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Colors.white.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: _type == t ? Theme.of(context).colorScheme.primary : Colors.white.withValues(alpha: 0.2),
-                                ),
-                              ),
-                              child: Text(
-                                t.toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: _type == t ? Colors.white : Colors.white.withValues(alpha: 0.7),
-                                ),
-                              ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _type == t
+                                ? Theme.of(context).colorScheme.primary
+                                : AppColors.surface,
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.control),
+                            border: _type == t
+                                ? null
+                                : Border.all(color: AppColors.border),
+                          ),
+                          child: Text(
+                            t.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: _type == t
+                                  ? Colors.white
+                                  : AppColors.gray600,
                             ),
                           ),
                         ),
@@ -155,7 +148,10 @@ class _RequestLeaveScreenState extends State<RequestLeaveScreen> {
                       const SizedBox(width: 12),
                       const Expanded(
                         child: Text('Half-Day Leave',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textPrimary)),
                       ),
                       Switch(
                         value: _isHalfDay,
@@ -179,17 +175,19 @@ class _RequestLeaveScreenState extends State<RequestLeaveScreen> {
                               decoration: BoxDecoration(
                                 color: _halfPeriod == val
                                     ? Theme.of(context).colorScheme.primary
-                                    : Colors.white.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: _halfPeriod == val ? Theme.of(context).colorScheme.primary : Colors.white.withValues(alpha: 0.2),
-                                ),
+                                    : AppColors.gray100,
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.control),
                               ),
                               child: Center(
                                 child: Text(label, style: TextStyle(
                                   fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: _halfPeriod == val ? Colors.white : Colors.white.withValues(alpha: 0.6),
+                                  fontWeight: _halfPeriod == val
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: _halfPeriod == val
+                                      ? Colors.white
+                                      : AppColors.gray600,
                                 )),
                               ),
                             ),
@@ -213,7 +211,7 @@ class _RequestLeaveScreenState extends State<RequestLeaveScreen> {
                   if (_workingDays > 0) ...[
                     const SizedBox(height: 8),
                     Text('${_isHalfDay ? '½' : _workingDays.toInt()} working day${!_isHalfDay && _workingDays != 1 ? 's' : ''}',
-                        style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600)),
+                        style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700)),
                   ],
                   const SizedBox(height: 20),
 
@@ -223,7 +221,6 @@ class _RequestLeaveScreenState extends State<RequestLeaveScreen> {
                   TextFormField(
                     controller: _reasonCtrl,
                     maxLines: 3,
-                    style: const TextStyle(color: Colors.white),
                     decoration: const InputDecoration(hintText: 'Brief reason for leave...'),
                   ),
                   const SizedBox(height: 28),
@@ -234,39 +231,31 @@ class _RequestLeaveScreenState extends State<RequestLeaveScreen> {
           ],
         ),
       ),
-    ),
   );
 
-  Widget _sectionLabel(String text) =>
-      Text(text, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white));
+  Widget _sectionLabel(String text) => Text(text, style: AppTextStyles.title);
 
   Widget _dateTile(String label, DateTime? val, VoidCallback onTap) => GestureDetector(
     onTap: onTap,
-    child: ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.55), fontWeight: FontWeight.w500)),
-            const SizedBox(height: 4),
-            Text(
-              val != null ? DateFormat('d MMM yyyy').format(val) : 'Select date',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: val != null ? Colors.white : Colors.white.withValues(alpha: 0.4),
-              ),
-            ),
-          ]),
-        ),
+    child: Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.control),
+        border: Border.all(color: AppColors.border),
       ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: AppTextStyles.caption),
+        const SizedBox(height: 4),
+        Text(
+          val != null ? DateFormat('d MMM yyyy').format(val) : 'Select date',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: val != null ? AppColors.textPrimary : AppColors.gray400,
+          ),
+        ),
+      ]),
     ),
   );
 }

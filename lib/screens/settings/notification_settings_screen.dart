@@ -1,8 +1,8 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
+import '../../utils/theme.dart';
 import '../../widgets/common.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
@@ -70,36 +70,37 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
       body: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             // Back header
             Row(children: [
               GestureDetector(
                 onTap: () => context.pop(),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(15),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
-                      width: 42, height: 42,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(15),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-                      ),
-                      child: Icon(Icons.arrow_back, color: Colors.white.withValues(alpha: 0.8), size: 20),
-                    ),
+                child: Container(
+                  width: 42, height: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.control),
+                    border: Border.all(color: AppColors.border),
                   ),
+                  child: const Icon(Icons.arrow_back,
+                      color: AppColors.gray600, size: 20),
                 ),
               ),
               const SizedBox(width: 14),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Notifications', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
-                if (_saving) Text('Saving…', style: TextStyle(fontSize: 12, color: primary.withValues(alpha: 0.8))),
+                const Text('Notifications', style: AppTextStyles.headline),
+                if (_saving)
+                  Text('Saving…',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: primary)),
               ]),
             ]),
             const SizedBox(height: 8),
-            Text('Choose which notifications you receive.', style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.5))),
+            const Text('Choose which notifications you receive.',
+                style: AppTextStyles.body),
             const SizedBox(height: 20),
             if (_loading)
               Center(child: CircularProgressIndicator(color: primary))
@@ -117,22 +118,20 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                           Container(
                             width: 40, height: 40,
                             decoration: BoxDecoration(
-                              color: primary.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: primary.withValues(alpha: 0.3)),
+                              color: primary.withValues(alpha: 0.08),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.control),
                             ),
                             child: Icon(icon, color: primary, size: 18),
                           ),
                           const SizedBox(width: 14),
                           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
-                            Text(sub, style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5))),
+                            Text(label, style: AppTextStyles.bodyStrong),
+                            Text(sub, style: AppTextStyles.caption),
                           ])),
                           Switch(
                             value: _prefs[key] ?? true,
                             onChanged: (v) => _toggle(key, v),
-                            activeThumbColor: primary,
-                            activeTrackColor: primary.withValues(alpha: 0.3),
                           ),
                         ]),
                       ),

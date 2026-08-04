@@ -1,11 +1,9 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'services/auth_provider.dart';
 import 'services/theme_controller.dart';
 import 'utils/theme.dart';
-import 'widgets/common.dart';
 
 class AppShell extends StatelessWidget {
   final Widget child;
@@ -37,12 +35,9 @@ class AppShell extends StatelessWidget {
     final tabs = _getTabs(context);
     final idx = _currentIndex(context, tabs);
     return Scaffold(
-      backgroundColor: AppColors.bgDark,
+      backgroundColor: AppColors.background,
       extendBody: true,
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppGradients.mesh),
-        child: child,
-      ),
+      body: child,
       bottomNavigationBar: _AuroraNavDock(tabs: tabs, currentIndex: idx),
     );
   }
@@ -60,85 +55,73 @@ class _AuroraNavDock extends StatelessWidget {
     final bottom = MediaQuery.of(context).padding.bottom;
     
     return Padding(
-      // Floating dock — 12px margin from screen edges
       padding: EdgeInsets.fromLTRB(16, 0, 16, (bottom > 0 ? bottom : 12)),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(30),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-          child: Container(
-            height: 72,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.20), width: 1.2),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.35),
-                  blurRadius: 40,
-                  offset: const Offset(0, 12),
-                ),
-              ],
+      child: Container(
+        height: 72,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.gray900.withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
             ),
-            child: Row(
-              children: List.generate(tabs.length, (i) {
-                final tab    = tabs[i];
-                final active = currentIndex == i;
-                return Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => context.go(tab.path),
-                    child: Container(
-                      color: Colors.transparent, // Ensure full hit area
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          AnimatedScale(
-                            scale: active ? 1.0 : 0.85,
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeOutBack,
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 300),
-                              transitionBuilder: (Widget child, Animation<double> animation) {
-                                return FadeTransition(
-                                  opacity: animation,
-                                  child: ScaleTransition(scale: animation, child: child),
-                                );
-                              },
-                              child: active
-                                  ? GradientIcon(
-                                      key: const ValueKey('active'),
-                                      icon: tab.activeIcon,
-                                      size: 28,
-                                      gradient: themeController.primaryGradient,
-                                    )
-                                  : Icon(
-                                      tab.icon,
-                                      key: const ValueKey('inactive'),
-                                      color: Colors.white.withValues(alpha: 0.45),
-                                      size: 24,
-                                    ),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          AnimatedDefaultTextStyle(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeOutCubic,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-                              color: active ? palette.primary : Colors.white.withValues(alpha: 0.4),
-                            ),
-                            child: Text(tab.label),
-                          ),
-                        ],
+          ],
+        ),
+        child: Row(
+          children: List.generate(tabs.length, (i) {
+            final tab    = tabs[i];
+            final active = currentIndex == i;
+            return Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => context.go(tab.path),
+                child: Container(
+                  color: Colors.transparent, // Ensure full hit area
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      AnimatedSwitcher(
+                        duration: AppMotion.duration,
+                        switchInCurve: AppMotion.curve,
+                        switchOutCurve: AppMotion.curve,
+                        transitionBuilder:
+                            (Widget child, Animation<double> animation) {
+                          return FadeTransition(opacity: animation, child: child);
+                        },
+                        child: active
+                            ? Icon(
+                                tab.activeIcon,
+                                key: const ValueKey('active'),
+                                color: palette.primary,
+                                size: 24,
+                              )
+                            : Icon(
+                                tab.icon,
+                                key: const ValueKey('inactive'),
+                                color: AppColors.gray400,
+                                size: 24,
+                              ),
                       ),
-                    ),
+                      const SizedBox(height: 4),
+                      AnimatedDefaultTextStyle(
+                        duration: AppMotion.duration,
+                        curve: AppMotion.curve,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                          color: active ? palette.primary : AppColors.gray500,
+                        ),
+                        child: Text(tab.label),
+                      ),
+                    ],
                   ),
-                );
-              }),
-            ),
-          ),
+                ),
+              ),
+            );
+          }),
         ),
       ),
     );

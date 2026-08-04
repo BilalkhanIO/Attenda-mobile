@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_failure.dart';
@@ -51,7 +50,7 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 32),
                     child: Text(_error ?? 'Failed to load activity',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
+                        style: AppTextStyles.body),
                   ),
                   const SizedBox(height: 12),
                   AppButton(label: 'Retry', onPressed: _load, fullWidth: false),
@@ -68,7 +67,7 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
     final status    = _session?['status'] as String? ?? 'pending';
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Session summary
         GlassCard(
@@ -78,9 +77,9 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(
                 date != null ? DateFormat('EEEE, d MMMM yyyy').format(DateTime.parse(date)) : 'Today',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
+                style: AppTextStyles.title,
               ),
-              Text(duration, style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.55))),
+              Text(duration, style: AppTextStyles.body),
             ])),
             _statusChip(status),
           ]),
@@ -93,13 +92,17 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
             tint: AppColors.purple500,
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Row(children: [
-                Icon(Icons.auto_awesome, size: 14, color: AppColors.purple100),
+                Icon(Icons.auto_awesome, size: 14, color: AppColors.primary900),
                 SizedBox(width: 6),
                 Text('AI Day Summary',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.purple100)),
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primary900)),
               ]),
               const SizedBox(height: 6),
-              Text(aiSummary, style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.85))),
+              Text(aiSummary,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textPrimary)),
             ]),
           ),
           const SizedBox(height: 16),
@@ -139,39 +142,35 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
       child: GlassCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+            Text(label, style: AppTextStyles.bodyStrong),
             if (sentAt != null)
               Text(DateFormat('HH:mm').format(DateTime.parse(sentAt).toLocal()),
-                  style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.45))),
+                  style: AppTextStyles.caption),
           ]),
           const SizedBox(height: 8),
 
           if (replyText != null) ...[
             // Reply bubble
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.07),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-                  ),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      Text('Your reply',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.5))),
-                      if (repliedAt != null)
-                        Text(DateFormat('HH:mm').format(DateTime.parse(repliedAt).toLocal()),
-                            style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.4))),
-                    ]),
-                    const SizedBox(height: 4),
-                    Text(replyText, style: const TextStyle(fontSize: 13, color: Colors.white)),
-                  ]),
-                ),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.gray100,
+                borderRadius: BorderRadius.circular(AppRadius.control),
               ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  const Text('Your reply', style: AppTextStyles.caption),
+                  if (repliedAt != null)
+                    Text(DateFormat('HH:mm').format(DateTime.parse(repliedAt).toLocal()),
+                        style: AppTextStyles.caption),
+                ]),
+                const SizedBox(height: 4),
+                Text(replyText,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary)),
+              ]),
             ),
 
             // AI interpretation
@@ -182,26 +181,24 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
                 padding: const EdgeInsets.all(10),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   const Row(children: [
-                    Icon(Icons.auto_awesome, size: 12, color: AppColors.purple100),
+                    Icon(Icons.auto_awesome, size: 12, color: AppColors.primary900),
                     SizedBox(width: 4),
                     Text('AI Interpretation',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.purple100)),
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primary900)),
                   ]),
                   const SizedBox(height: 6),
                   if (taskSummary != null)
-                    Text('Working on: $taskSummary',
-                        style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.8))),
+                    Text('Working on: $taskSummary', style: AppTextStyles.body),
                   if (blockers != null) ...[
                     const SizedBox(height: 3),
-                    Text('Blockers: $blockers',
-                        style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.8))),
+                    Text('Blockers: $blockers', style: AppTextStyles.body),
                   ],
                   if (sentiment != null) ...[
                     const SizedBox(height: 3),
                     Row(children: [
-                      Text('Mood: ', style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.8), fontWeight: FontWeight.w600)),
+                      const Text('Mood: ', style: AppTextStyles.bodyStrong),
                       Text('${_sentimentEmoji(sentiment)} $sentiment',
-                          style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.8))),
+                          style: AppTextStyles.body),
                     ]),
                   ],
                 ]),
@@ -212,11 +209,15 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
               Icon(Icons.warning_amber_rounded, size: 15, color: AppColors.danger500),
               SizedBox(width: 6),
               Text('No reply — manager was notified',
-                  style: TextStyle(fontSize: 12, color: AppColors.danger500)),
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.danger800)),
             ]),
           ] else ...[
             Text('Waiting for your WhatsApp reply…',
-                style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.4), fontStyle: FontStyle.italic)),
+                style: AppTextStyles.caption
+                    .copyWith(fontStyle: FontStyle.italic)),
           ],
         ]),
       ),
@@ -234,9 +235,8 @@ class _RemoteDetailScreenState extends State<RemoteDetailScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppRadius.control),
       ),
       child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
     );

@@ -1,11 +1,13 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:provider/provider.dart';
 import '../utils/theme.dart';
 import '../services/theme_controller.dart';
 
-// ─── Glass Card ───────────────────────────────────────
+// ─── Card ─────────────────────────────────────────────
+// Solid surface, hairline border, one soft shadow. The `blurSigma` parameter
+// is retained for call-site compatibility but no longer has any effect —
+// the minimal design uses no blur or translucency.
 class GlassCard extends StatelessWidget {
   final Widget child;
   final EdgeInsets? padding;
@@ -19,58 +21,53 @@ class GlassCard extends StatelessWidget {
     required this.child,
     this.padding,
     this.onTap,
-    this.blurSigma = 20,
-    this.borderRadius = 28,
+    this.blurSigma = 0,
+    this.borderRadius = AppRadius.card,
     this.tint,
   });
 
   @override
   Widget build(BuildContext context) {
     final inner = Padding(
-      padding: padding ?? const EdgeInsets.all(16),
+      padding: padding ?? const EdgeInsets.all(AppSpacing.card),
       child: child,
     );
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
-        child: Container(
-          decoration: BoxDecoration(
-            color: tint != null ? null : Colors.white.withValues(alpha: 0.12),
-            gradient: tint != null
-                ? LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [tint!.withValues(alpha: 0.20), tint!.withValues(alpha: 0.08)],
-                  )
-                : null,
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.18), width: 1.0),
-            boxShadow: [
-              BoxShadow(
-                color: (tint ?? Colors.black).withValues(alpha: tint != null ? 0.15 : 0.12),
-                blurRadius: tint != null ? 24 : 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: onTap != null
-              ? InkWell(
-                  onTap: onTap,
-                  borderRadius: BorderRadius.circular(borderRadius),
-                  splashColor: Colors.white.withValues(alpha: 0.06),
-                  highlightColor: Colors.white.withValues(alpha: 0.04),
-                  child: inner,
-                )
-              : inner,
-        ),
+    final radius = BorderRadius.circular(borderRadius);
+    // A white "tint" used to mean a neutral glass card — render it as the
+    // plain solid surface.
+    final tint = this.tint == Colors.white ? null : this.tint;
+    return Container(
+      decoration: BoxDecoration(
+        // Tinted cards (banners, notices): ≤10% alpha fill, no border.
+        color: tint != null ? tint.withValues(alpha: 0.08) : AppColors.surface,
+        borderRadius: radius,
+        border: tint != null ? null : Border.all(color: AppColors.border),
+        boxShadow: tint != null
+            ? null
+            : [
+                BoxShadow(
+                  color: AppColors.gray900.withValues(alpha: 0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
+      child: onTap != null
+          ? Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: radius,
+                child: inner,
+              ),
+            )
+          : inner,
     );
   }
 }
 
-// ─── Glass Badge ─────────────────────────────────────
-// Semi-transparent notification or info chip on glass background
+// ─── Badge ────────────────────────────────────────────
+// Flat tinted chip: ≤10% alpha background, no border.
 class GlassBadge extends StatelessWidget {
   final String text;
   final Color color;
@@ -79,28 +76,21 @@ class GlassBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.18),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withValues(alpha: 0.4)),
-          ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            if (icon != null) ...[Icon(icon, size: 11, color: color), const SizedBox(width: 4)],
-            Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
-          ]),
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppRadius.control),
       ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (icon != null) ...[Icon(icon, size: 11, color: color), const SizedBox(width: 4)],
+        Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+      ]),
     );
   }
 }
 
-// ─── App Card (light mode fallback) ──────────────────
+// ─── App Card ─────────────────────────────────────────
 class AppCard extends StatelessWidget {
   final Widget child;
   final EdgeInsets? padding;
@@ -131,7 +121,7 @@ class StatusBadge extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: small ? 8 : 10, vertical: small ? 3 : 5),
       decoration: BoxDecoration(
         color: StatusColors.bg(status),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppRadius.control),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -140,7 +130,7 @@ class StatusBadge extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             StatusColors.label(status),
-            style: TextStyle(fontSize: small ? 10 : 11, fontWeight: FontWeight.w600, color: StatusColors.fg(status)),
+            style: TextStyle(fontSize: small ? 10 : 11, fontWeight: FontWeight.w700, color: StatusColors.fg(status)),
           ),
         ],
       ),
@@ -167,10 +157,9 @@ class UserAvatar extends StatelessWidget {
     return Container(
       width: size, height: size,
       decoration: BoxDecoration(
-        gradient: imageUrl == null ? themeController.primaryGradient : null,
-        color: imageUrl != null ? Colors.transparent : null,
+        color: imageUrl != null ? Colors.transparent : themeController.palette.primary,
         borderRadius: BorderRadius.circular(size / 2),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 2),
+        border: Border.all(color: AppColors.border),
         image: imageUrl != null
             ? DecorationImage(image: NetworkImage(imageUrl!), fit: BoxFit.cover)
             : null,
@@ -199,13 +188,15 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeController = context.watch<ThemeController>();
     final themePrimary = Theme.of(context).colorScheme.primary;
-    final customColor = color;
-    
+    final fill = color ?? themePrimary;
+
     final buttonChild = loading
-        ? const SizedBox(width: 18, height: 18,
-            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+        ? SizedBox(width: 18, height: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: outline ? fill : Colors.white,
+            ))
         : Row(mainAxisSize: MainAxisSize.min, children: [
             if (icon != null) ...[Icon(icon, size: 16), const SizedBox(width: 8)],
             Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
@@ -217,53 +208,35 @@ class AppButton extends StatelessWidget {
         child: OutlinedButton(
           onPressed: loading ? null : onPressed,
           style: OutlinedButton.styleFrom(
-            foregroundColor: customColor ?? themePrimary,
-            side: BorderSide(color: (customColor ?? themePrimary).withValues(alpha: 0.6)),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            foregroundColor: fill,
+            side: const BorderSide(color: AppColors.border),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
           ),
           child: buttonChild,
         ),
       );
     }
 
-    // Gradient primary button with glow
-    final gradient = customColor != null
-        ? LinearGradient(colors: [customColor, customColor])
-        : themeController.primaryGradient;
-
     return SizedBox(
       width: fullWidth ? double.infinity : null, height: 50,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: loading || onPressed == null ? null : gradient,
-          color: loading || onPressed == null ? Colors.white12 : null,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: (onPressed != null && !loading) ? [
-            BoxShadow(
-              color: (customColor ?? themeController.palette.primary).withValues(alpha: 0.4),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ] : null,
+      child: ElevatedButton(
+        onPressed: loading ? null : onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: fill,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: AppColors.gray200,
+          disabledForegroundColor: AppColors.gray500,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
+          elevation: 0,
+          shadowColor: Colors.transparent,
         ),
-        child: ElevatedButton(
-          onPressed: loading ? null : onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            elevation: 0,
-            padding: EdgeInsets.zero,
-          ),
-          child: buttonChild,
-        ),
+        child: buttonChild,
       ),
     );
   }
 }
 
-// ─── Shimmer Skeleton (dark) ──────────────────────────
+// ─── Shimmer Skeleton ─────────────────────────────────
 class SkeletonBox extends StatelessWidget {
   final double width;
   final double height;
@@ -273,12 +246,12 @@ class SkeletonBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: Colors.white.withValues(alpha: 0.07),
-      highlightColor: Colors.white.withValues(alpha: 0.18),
+      baseColor: AppColors.gray200,
+      highlightColor: AppColors.gray100,
       child: Container(
         width: width, height: height,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.07),
+          color: AppColors.gray200,
           borderRadius: BorderRadius.circular(radius),
         ),
       ),
@@ -297,10 +270,7 @@ class SectionHeader extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: const TextStyle(
-          fontSize: 16, fontWeight: FontWeight.w800,
-          color: Colors.white, letterSpacing: 0.2,
-        )),
+        Text(title, style: AppTextStyles.title),
         if (trailing != null) trailing!,
       ],
     );
@@ -324,35 +294,28 @@ class KpiChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: EdgeInsets.symmetric(
-              horizontal: compact ? 8 : 12, vertical: compact ? 8 : 12),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.14),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withValues(alpha: 0.28), width: 1.0),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(value,
-                  style: TextStyle(
-                      fontSize: compact ? 18 : 22,
-                      fontWeight: FontWeight.w800,
-                      color: color)),
-              const SizedBox(height: 2),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: compact ? 9 : 10,
-                      fontWeight: FontWeight.w600,
-                      color: color.withValues(alpha: 0.75))),
-            ],
-          ),
-        ),
+    return Container(
+      padding: EdgeInsets.symmetric(
+          horizontal: compact ? 8 : 12, vertical: compact ? 8 : 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadius.control),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(value,
+              style: TextStyle(
+                  fontSize: compact ? 18 : 24,
+                  fontWeight: FontWeight.w700,
+                  color: color)),
+          const SizedBox(height: 2),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.gray500)),
+        ],
       ),
     );
   }
@@ -370,30 +333,23 @@ class EmptyStateWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(AppSpacing.x8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  width: 60, height: 60,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                  ),
-                  child: Icon(icon, color: Colors.white.withValues(alpha: 0.6), size: 28),
-                ),
+            Container(
+              width: 60, height: 60,
+              decoration: BoxDecoration(
+                color: AppColors.gray100,
+                borderRadius: BorderRadius.circular(AppRadius.card),
               ),
+              child: Icon(icon, color: AppColors.gray400, size: 28),
             ),
-            const SizedBox(height: 16),
-            Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+            const SizedBox(height: AppSpacing.x4),
+            Text(title, style: AppTextStyles.title),
             const SizedBox(height: 6),
-            Text(description, textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.55))),
-            if (action != null) ...[const SizedBox(height: 20), action!],
+            Text(description, textAlign: TextAlign.center, style: AppTextStyles.body),
+            if (action != null) ...[const SizedBox(height: AppSpacing.x5), action!],
           ],
         ),
       ),
@@ -401,7 +357,7 @@ class EmptyStateWidget extends StatelessWidget {
   }
 }
 
-// ─── Glass Info Row ───────────────────────────────────
+// ─── Detail Row ───────────────────────────────────────
 class GlassDetailRow extends StatelessWidget {
   final String label;
   final String value;
@@ -423,21 +379,17 @@ class GlassDetailRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.onGlassMuted)),
-          const SizedBox(width: 12),
+          Text(label, style: AppTextStyles.body),
+          const SizedBox(width: AppSpacing.x3),
           Expanded(
             child: Text(value,
                 textAlign: TextAlign.end,
                 style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: highlight ? FontWeight.w700 : FontWeight.w600,
+                    fontSize: 13,
+                    fontWeight: highlight ? FontWeight.w700 : FontWeight.w500,
                     color: highlight
                         ? (highlightColor ?? Theme.of(context).colorScheme.primary)
-                        : AppColors.onGlass)),
+                        : AppColors.textPrimary)),
           ),
         ],
       ),
@@ -452,39 +404,6 @@ Widget glassDetailRow(String label, String value,
         value: value,
         highlight: highlight,
         highlightColor: highlightColor);
-
-// ─── Gradient Icon ─────────────────────────────────────
-class GradientIcon extends StatelessWidget {
-  final IconData icon;
-  final double size;
-  final Gradient gradient;
-
-  const GradientIcon({
-    super.key,
-    required this.icon,
-    this.size = 24,
-    this.gradient = AppGradients.aurora,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ShaderMask(
-      child: SizedBox(
-        width: size * 1.2,
-        height: size * 1.2,
-        child: Icon(
-          icon,
-          size: size,
-          color: Colors.white,
-        ),
-      ),
-      shaderCallback: (Rect bounds) {
-        final Rect rect = Rect.fromLTRB(0, 0, bounds.width, bounds.height);
-        return gradient.createShader(rect);
-      },
-    );
-  }
-}
 
 // ─── Confirm Dialog ───────────────────────────────────
 Future<bool?> showConfirmDialog(BuildContext context, {
@@ -501,13 +420,13 @@ Future<bool?> showConfirmDialog(BuildContext context, {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx, false),
-          child: Text('Cancel', style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
+          child: const Text('Cancel', style: TextStyle(color: AppColors.gray500)),
         ),
         ElevatedButton(
           onPressed: () => Navigator.pop(ctx, true),
           style: ElevatedButton.styleFrom(
             backgroundColor: isDanger ? AppColors.danger500 : Theme.of(context).colorScheme.primary,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
           ),
           child: Text(confirmLabel),
         ),

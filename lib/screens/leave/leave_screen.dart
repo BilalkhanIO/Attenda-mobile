@@ -18,6 +18,9 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
   List<Map<String, dynamic>> _requests = [];
   List<Map<String, dynamic>> _balances = [];
   bool _loading = true;
+  // First-load failure — drives the error + Retry state. Reloads with data
+  // already on screen fail silently and keep the last good lists.
+  String? _error;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -32,11 +35,33 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
       setState(() {
         _requests = reqs.cast<Map<String, dynamic>>();
         _balances = bals.cast<Map<String, dynamic>>();
+        _error    = null;
         _loading  = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        if (_requests.isEmpty && _balances.isEmpty) {
+          _error = ApiFailure.fromError(e).userMessage;
+        }
+        _loading = false;
+      });
     }
+  }
+
+  Widget _errorState() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        const SizedBox(height: 80),
+        EmptyStateWidget(
+          icon: Icons.error_outline,
+          title: 'Couldn\'t load',
+          description: _error!,
+          action: AppButton(label: 'Retry', onPressed: _load, fullWidth: false),
+        ),
+      ],
+    );
   }
 
   @override
@@ -62,11 +87,13 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
       // Requests tab
       RefreshIndicator(
         color: Theme.of(context).colorScheme.primary,
-        backgroundColor: AppColors.bgDark3,
+        backgroundColor: AppColors.surface,
         onRefresh: _load,
         child: _loading
             ? Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
-            : _requests.isEmpty
+            : _error != null
+                ? _errorState()
+                : _requests.isEmpty
                 ? EmptyStateWidget(
                     icon: Icons.beach_access,
                     title: 'No leave requests',
@@ -78,7 +105,7 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
                     ),
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
                     itemCount: _requests.length,
                     itemBuilder: (_, i) => Padding(
                       padding: const EdgeInsets.only(bottom: 8),
@@ -89,7 +116,9 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
       // Balance tab
       _loading
           ? Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
-          : _balances.isEmpty
+          : _error != null
+              ? _errorState()
+              : _balances.isEmpty
               ? const EmptyStateWidget(
                   icon: Icons.account_balance_wallet_outlined,
                   title: 'No leave balances',
@@ -102,7 +131,7 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
                   final remainingInt = totalRemaining % 1 == 0 ? totalRemaining.toInt().toString() : totalRemaining.toStringAsFixed(1);
 
                   return ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
                     children: [
                       // ── Balance summary glass card ──
                       GlassCard(
@@ -113,11 +142,11 @@ class _LeaveScreenState extends State<LeaveScreen> with SingleTickerProviderStat
                           Expanded(
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text('TOTAL REMAINING',
-                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: Theme.of(context).colorScheme.primary)),
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: Theme.of(context).colorScheme.primary)),
                               const SizedBox(height: 8),
                               Text(
                                 'You have $remainingInt days of leave left for ${DateTime.now().year}.',
-                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white, height: 1.4),
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textPrimary, height: 1.4),
                               ),
                             ]),
                           ),
@@ -175,13 +204,13 @@ class _LeaveRequestTile extends StatelessWidget {
           Expanded(
             child: Row(children: [
               Text(leaveType.toUpperCase(),
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.5, color: Colors.white)),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.5, color: AppColors.textPrimary)),
               if (isHalf) ...[
                 const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: AppColors.teal100,
+                    color: AppColors.info100,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Text('HALF-DAY', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: AppColors.teal700)),
@@ -191,18 +220,24 @@ class _LeaveRequestTile extends StatelessWidget {
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(20)),
+            decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(AppRadius.control)),
             child: Text(status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: fgColor)),
           ),
         ]),
         const SizedBox(height: 8),
         Text('${DateFormat('MMM d').format(start)} – ${DateFormat('MMM d, yyyy').format(end)}',
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white)),
+            style: AppTextStyles.title),
         Text('${days == 0.5 ? '½' : days.toInt()} working day${days != 1 ? 's' : ''}',
-            style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.55))),
+            style: AppTextStyles.body),
         if (reason != null) ...[
           const SizedBox(height: 6),
-          Text('Reason: $reason', style: const TextStyle(fontSize: 12, color: AppColors.danger500)),
+          Text('Reason: $reason',
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.danger800)),
         ],
         if (status == 'pending') ...[
           const SizedBox(height: 12),
@@ -251,8 +286,8 @@ class _LeaveRing extends StatelessWidget {
       child: Stack(alignment: Alignment.center, children: [
         CustomPaint(size: const Size(90, 90), painter: _RingPainter(pct: pct)),
         Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
-          Text(label, style: TextStyle(fontSize: 9, color: Colors.white.withValues(alpha: 0.5))),
+          Text(value, style: AppTextStyles.timer),
+          Text(label, style: AppTextStyles.caption),
         ]),
       ]),
     );
@@ -272,7 +307,7 @@ class _RingPainter extends CustomPainter {
     canvas.drawCircle(
       c, r,
       Paint()
-        ..color = Colors.white.withValues(alpha: 0.12)
+        ..color = AppColors.gray200
         ..style = PaintingStyle.stroke
         ..strokeWidth = 8
         ..strokeCap = StrokeCap.round,
@@ -282,18 +317,13 @@ class _RingPainter extends CustomPainter {
     if (pct > 0) {
       final sweep = 2 * math.pi * pct.clamp(0.0, 1.0);
       final arcRect = Rect.fromCircle(center: c, radius: r);
-      final grad = SweepGradient(
-        startAngle: -math.pi / 2,
-        endAngle: -math.pi / 2 + sweep,
-        colors: const [Color(0xFF00C896), Color(0xFF00E5FF)],
-      );
       canvas.drawArc(
         arcRect,
         -math.pi / 2,
         sweep,
         false,
         Paint()
-          ..shader = grad.createShader(arcRect)
+          ..color = AppColors.primary
           ..style = PaintingStyle.stroke
           ..strokeWidth = 8
           ..strokeCap = StrokeCap.round,
@@ -309,6 +339,22 @@ class _BalanceTile extends StatelessWidget {
   final Map<String, dynamic> balance;
   const _BalanceTile({required this.balance});
 
+  /// Caption shown when the org accrues this balance monthly — the API
+  /// annotates the row with `accrual: {monthly, carry_over_max}` only when a
+  /// policy exists for the leave type, so absence simply means no caption.
+  String? _accrualHint() {
+    final accrual = balance['accrual'];
+    if (accrual is! Map) return null;
+    final monthly = (accrual['monthly'] as num?)?.toDouble() ?? 0;
+    if (monthly <= 0) return null;
+    final carry = (accrual['carry_over_max'] as num?)?.toDouble() ?? 0;
+    String fmt(double v) => v % 1 == 0 ? v.toInt().toString() : v.toString();
+    final base =
+        'Accrues +${fmt(monthly)} day${monthly == 1 ? '' : 's'}/month';
+    if (carry <= 0) return base;
+    return '$base · carries over up to ${fmt(carry)} day${carry == 1 ? '' : 's'}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final leaveType = _leaveTypeName(balance['leave_type']);
@@ -323,9 +369,9 @@ class _BalanceTile extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text(leaveType.toUpperCase(),
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.5, color: Colors.white)),
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5, color: AppColors.textPrimary)),
           Text('${remaining % 1 == 0 ? remaining.toInt() : remaining} days left',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.primary)),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.primary)),
         ]),
         const SizedBox(height: 14),
         Stack(
@@ -334,25 +380,18 @@ class _BalanceTile extends StatelessWidget {
               height: 6,
               width: double.infinity,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.08),
+                color: AppColors.gray100,
                 borderRadius: BorderRadius.circular(3),
               ),
             ),
             AnimatedContainer(
-              duration: const Duration(milliseconds: 800),
-              curve: Curves.easeOutCubic,
+              duration: AppMotion.duration,
+              curve: AppMotion.curve,
               height: 6,
               width: MediaQuery.of(context).size.width * 0.7 * pct, // approximate
               decoration: BoxDecoration(
-                gradient: AppGradients.aurora,
+                color: Theme.of(context).colorScheme.primary,
                 borderRadius: BorderRadius.circular(3),
-                boxShadow: [
-                  BoxShadow(
-                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
               ),
             ),
           ],
@@ -360,10 +399,20 @@ class _BalanceTile extends StatelessWidget {
         const SizedBox(height: 10),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text('${used % 1 == 0 ? used.toInt() : used} used',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.45))),
+              style: AppTextStyles.caption),
           Text('of ${entitled % 1 == 0 ? entitled.toInt() : entitled} total',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.45))),
+              style: AppTextStyles.caption),
         ]),
+        if (_accrualHint() != null) ...[
+          const SizedBox(height: 8),
+          Row(children: [
+            const Icon(Icons.autorenew_rounded,
+                size: 12, color: AppColors.gray400),
+            const SizedBox(width: 4),
+            Expanded(
+                child: Text(_accrualHint()!, style: AppTextStyles.caption)),
+          ]),
+        ],
       ]),
     );
   }

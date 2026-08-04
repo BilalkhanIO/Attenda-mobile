@@ -140,6 +140,22 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
+  /// Remote-session approval queue (requires remote.approve).
+  /// [status]: 'pending' | 'approved' | 'rejected'.
+  Future<List<dynamic>> getRemoteSessions({String status = 'pending'}) async {
+    final res = await _dio
+        .get('/attendance/remote/sessions', queryParameters: {'status': status});
+    return res.data['data'] as List;
+  }
+
+  Future<void> approveRemoteSession(String id) async {
+    await _dio.put('/attendance/remote/sessions/$id/approve');
+  }
+
+  Future<void> rejectRemoteSession(String id) async {
+    await _dio.put('/attendance/remote/sessions/$id/reject');
+  }
+
   Future<Map<String, dynamic>> reportIpEvent(String ip, {String? ssid, bool? countAwayAsBreak, String? awayShiftBreakId}) async {
     final res = await _dio.post('/attendance/ip-event', data: {
       'ip':    ip,
@@ -204,6 +220,59 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
+  // ─── Attendance Corrections ───────────────────────
+  /// Requests a correction of a past day's times ("forgot to check out").
+  /// [requestedCheckIn]/[requestedCheckOut] are ISO 8601 with offset;
+  /// at least one must be provided. [reason] must be 5+ characters.
+  Future<Map<String, dynamic>> submitCorrection({
+    required String date, // yyyy-MM-dd
+    String? requestedCheckIn,
+    String? requestedCheckOut,
+    required String reason,
+  }) async {
+    final res = await _dio.post('/attendance/corrections', data: {
+      'date': date,
+      if (requestedCheckIn != null) 'requested_check_in': requestedCheckIn,
+      if (requestedCheckOut != null) 'requested_check_out': requestedCheckOut,
+      'reason': reason,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> getMyCorrections() async {
+    final res = await _dio.get('/attendance/corrections/me');
+    return res.data['data'] as List;
+  }
+
+  /// Org correction queue (requires attendance.override).
+  /// [status]: 'pending' | 'approved' | 'rejected' | 'all'.
+  Future<List<dynamic>> getCorrections({String status = 'pending'}) async {
+    final res = await _dio
+        .get('/attendance/corrections', queryParameters: {'status': status});
+    return res.data['data'] as List;
+  }
+
+  Future<Map<String, dynamic>> approveCorrection(String id, {String? note}) async {
+    final res = await _dio.put('/attendance/corrections/$id/approve', data: {
+      if (note != null && note.isNotEmpty) 'note': note,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> rejectCorrection(String id, {String? note}) async {
+    final res = await _dio.put('/attendance/corrections/$id/reject', data: {
+      if (note != null && note.isNotEmpty) 'note': note,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  /// Rolling lateness totals + policy points (requires attendance.view_team):
+  /// `{window_days, policy_configured, users: [...]}`.
+  Future<Map<String, dynamic>> getLateSummary() async {
+    final res = await _dio.get('/attendance/late-summary');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> getLeaveAndNoticeCheck() async {
     final res = await _dio.get('/attendance/leave-check');
     return res.data['data'] as Map<String, dynamic>;
@@ -264,6 +333,17 @@ class ApiService {
     await _dio.put('/leave/requests/$id/reject', data: {'reason': reason});
   }
 
+  // ─── Org ──────────────────────────────────────────
+  /// Who's away for a date range (defaults to today server-side):
+  /// `{on_leave: [...], remote: [...], holidays: ['yyyy-MM-dd', ...]}`.
+  Future<Map<String, dynamic>> getWhosOut({String? from, String? to}) async {
+    final res = await _dio.get('/org/whos-out', queryParameters: {
+      if (from != null) 'from': from,
+      if (to != null) 'to': to,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   // ─── Shifts ───────────────────────────────────────
   Future<List<dynamic>> getMyShifts() async {
     final res = await _dio.get('/shifts/assignments/me');
@@ -289,6 +369,25 @@ class ApiService {
   Future<List<dynamic>> getMyOvertimeRequests() async {
     final res = await _dio.get('/overtime/requests/me');
     return res.data['data'] as List;
+  }
+
+  /// Org overtime queue (requires overtime.manage).
+  /// [status]: 'pending' | 'approved' | 'rejected'.
+  Future<List<dynamic>> getOvertimeRequests({String status = 'pending'}) async {
+    final res =
+        await _dio.get('/overtime/requests', queryParameters: {'status': status});
+    return res.data['data'] as List;
+  }
+
+  Future<Map<String, dynamic>> approveOvertime(String id) async {
+    final res = await _dio.put('/overtime/requests/$id/approve');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> rejectOvertime(String id, String reason) async {
+    final res =
+        await _dio.put('/overtime/requests/$id/reject', data: {'reason': reason});
+    return res.data['data'] as Map<String, dynamic>;
   }
 
   Future<List<dynamic>> getSwapRequests() async {
@@ -321,6 +420,70 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
+  // ─── Expenses ─────────────────────────────────────
+  /// Submits an expense claim. [expenseDate] is yyyy-MM-dd and must not be in
+  /// the future; [currency] defaults to the org currency server-side.
+  Future<Map<String, dynamic>> submitExpense({
+    required double amount,
+    required String category,
+    required String description,
+    required String expenseDate, // yyyy-MM-dd
+    String? currency,
+    String? receiptUrl,
+  }) async {
+    final res = await _dio.post('/expenses', data: {
+      'amount': amount,
+      'category': category,
+      'description': description,
+      'expense_date': expenseDate,
+      if (currency != null && currency.isNotEmpty) 'currency': currency,
+      if (receiptUrl != null && receiptUrl.isNotEmpty) 'receipt_url': receiptUrl,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  /// Own expense claims, newest first.
+  Future<List<dynamic>> getMyExpenses() async {
+    final res = await _dio.get('/expenses/me');
+    return res.data['data'] as List;
+  }
+
+  /// Org expense queue (requires expenses.view).
+  /// [status]: 'pending' | 'approved' | 'rejected' | 'reimbursed' | 'all'.
+  Future<List<dynamic>> getExpenses({String status = 'pending'}) async {
+    final res =
+        await _dio.get('/expenses', queryParameters: {'status': status});
+    return res.data['data'] as List;
+  }
+
+  Future<Map<String, dynamic>> approveExpense(String id, {String? note}) async {
+    final res = await _dio.put('/expenses/$id/approve', data: {
+      if (note != null && note.isNotEmpty) 'note': note,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> rejectExpense(String id, {String? note}) async {
+    final res = await _dio.put('/expenses/$id/reject', data: {
+      if (note != null && note.isNotEmpty) 'note': note,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  // ─── Documents ────────────────────────────────────
+  /// Own document-vault entries (contracts, IDs, visas, …), newest first.
+  Future<List<dynamic>> getMyDocuments() async {
+    final res = await _dio.get('/documents/me');
+    return res.data['data'] as List;
+  }
+
+  /// 15-minute presigned link for a document:
+  /// `{download_url, file_name, mime_type, expires_in}`.
+  Future<Map<String, dynamic>> getDocumentDownload(String id) async {
+    final res = await _dio.get('/documents/$id/download');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   // ─── Performance ──────────────────────────────────
   Future<List<dynamic>> getMyReviews() async {
     final res = await _dio.get('/performance/reviews/me');
@@ -329,6 +492,80 @@ class ApiService {
 
   Future<List<dynamic>> getMyGoals() async {
     final res = await _dio.get('/performance/goals');
+    return res.data['data'] as List;
+  }
+
+  // ─── Announcements ────────────────────────────────
+  /// Published announcements targeted at me (org-wide + my department),
+  /// newest first; each row carries `my_read_at`.
+  Future<List<dynamic>> getAnnouncements() async {
+    final res = await _dio.get('/performance/announcements');
+    return res.data['data'] as List;
+  }
+
+  /// Records my read receipt. Idempotent server-side — re-reading keeps
+  /// the original read_at.
+  Future<void> markAnnouncementRead(String id) async {
+    await _dio.post('/performance/announcements/$id/read');
+  }
+
+  // ─── Onboarding ───────────────────────────────────
+  /// Onboarding tasks assigned to me (own onboarding and, for managers,
+  /// manager-side items for their hires) — pending first.
+  Future<List<dynamic>> getMyOnboardingTasks() async {
+    final res = await _dio.get('/onboarding/me');
+    return res.data['data'] as List;
+  }
+
+  /// Marks a pending task done. 400 INVALID_STATUS if it isn't pending.
+  Future<Map<String, dynamic>> completeOnboardingTask(String id) async {
+    final res = await _dio.put('/onboarding/tasks/$id/complete');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  /// Marks a pending task skipped. 400 INVALID_STATUS if it isn't pending.
+  Future<Map<String, dynamic>> skipOnboardingTask(String id) async {
+    final res = await _dio.put('/onboarding/tasks/$id/skip');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  // ─── Kudos ────────────────────────────────────────
+  /// Org-wide recognition feed, newest first (latest 100 without paging).
+  Future<List<dynamic>> getKudosFeed() async {
+    final res = await _dio.get('/kudos');
+    return res.data['data'] as List;
+  }
+
+  /// My counters and recent recognitions:
+  /// `{received, given, recent_received: [...]}`.
+  Future<Map<String, dynamic>> getMyKudos() async {
+    final res = await _dio.get('/kudos/mine');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  /// Sends kudos (message 3–500 chars). 429 RATE_LIMITED at 20/day,
+  /// 422 for self-kudos.
+  Future<Map<String, dynamic>> giveKudos({
+    required String toUserId,
+    required String message,
+    String? emoji,
+  }) async {
+    final res = await _dio.post('/kudos', data: {
+      'to_user_id': toUserId,
+      'message': message,
+      if (emoji != null && emoji.isNotEmpty) 'emoji': emoji,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  /// Org member list (requires employees.view or employees.view_team —
+  /// plain employees get a 403; callers must handle the fallback).
+  Future<List<dynamic>> getOrgMembers({String? q}) async {
+    final res = await _dio.get('/users', queryParameters: {
+      'limit': 100,
+      'status': 'active',
+      if (q != null && q.isNotEmpty) 'q': q,
+    });
     return res.data['data'] as List;
   }
 

@@ -142,11 +142,11 @@ class _AttendaIconPainter extends CustomPainter {
       Paint()..color = AppColors.primary,
     );
 
-    // ── Badge background (dark halo) ─────────────────────────
+    // ── Badge background halo ────────────────────────────────
     canvas.drawCircle(
       const Offset(33, 33),
       7,
-      Paint()..color = isDark ? AppColors.bgDark2 : const Color(0xFFF8FAFC),
+      Paint()..color = isDark ? const Color(0xFF081D24) : const Color(0xFFF8FAFC),
     );
 
     // ── Green badge fill ─────────────────────────────────────

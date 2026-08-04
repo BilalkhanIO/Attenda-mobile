@@ -1,5 +1,5 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../services/api_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
@@ -34,8 +34,40 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     'payslip_ready':     '💰',
     'shift_reminder':    '🔔',
     'late_notice':       '⏳',
-    'late_escalation':   '🚨',
+    'late_notice_ack':   '👍',
+    'late_pattern':      '📈',
+    // The server type is 'attendance_late_escalation'.
+    'attendance_late_escalation': '🚨',
+    'correction_request':  '✏️',
+    'correction_approved': '✅',
+    'correction_rejected': '❌',
+    'expense_request':     '🧾',
+    'expense_approved':    '✅',
+    'expense_rejected':    '❌',
+    'expense_reimbursed':  '💸',
+    'document_added':      '📄',
+    'document_expiring':   '⚠️',
+    'onboarding_assigned': '📝',
+    'onboarding_complete': '🎉',
+    'kudos_received':      '👏',
+    'announcement':        '📣',
+    'account_locked':      '🔒',
   };
+
+  /// Deep-link target for a notification type, or null when no screen
+  /// exists for it (unknown types keep the mark-read-only behavior).
+  static String? _routeFor(String? type) {
+    if (type == null) return null;
+    if (type == 'announcement') return '/profile/announcements';
+    if (type == 'kudos_received') return '/profile/kudos';
+    if (type == 'payslip_ready') return '/profile/payslips';
+    if (type.startsWith('expense_')) return '/profile/expenses';
+    if (type.startsWith('document_')) return '/profile/documents';
+    if (type.startsWith('onboarding_')) return '/profile/onboarding';
+    if (type.startsWith('leave_')) return '/leave';
+    if (type.startsWith('correction_')) return '/attendance';
+    return null;
+  }
 
   @override
   void initState() { super.initState(); _load(reset: true); }
@@ -144,15 +176,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.notifications_none_rounded, size: 56, color: Colors.white.withValues(alpha: 0.2)),
+                      const Icon(Icons.notifications_none_rounded,
+                          size: 56, color: AppColors.gray300),
                       const SizedBox(height: 12),
-                      Text('No notifications yet', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 15)),
+                      const Text('No notifications yet',
+                          style: AppTextStyles.body),
                     ],
                   ),
                 )
               : RefreshIndicator(
                   color: Theme.of(context).colorScheme.primary,
-                  backgroundColor: AppColors.bgDark3,
+                  backgroundColor: AppColors.surface,
                   onRefresh: () => _load(reset: true),
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
@@ -169,11 +203,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           child: Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary)),
                         );
                       }
+                      final route =
+                          _routeFor(_items[index]['type'] as String?);
                       return _NotifTile(
                         notif: _items[index],
                         icon: _icons[_items[index]['type']] ?? '🔔',
                         timeAgo: _timeAgo(_items[index]['created_at'] as String?),
                         onMarkRead: () => _markRead(_items[index]['id'] as String),
+                        onOpen:
+                            route != null ? () => context.push(route) : null,
                         onDelete: () => _delete(
                           _items[index]['id'] as String,
                           _items[index]['read_at'] == null,
@@ -191,6 +229,10 @@ class _NotifTile extends StatelessWidget {
   final String icon;
   final String timeAgo;
   final VoidCallback onMarkRead;
+
+  /// Deep-link to the notification's screen; null when no target exists,
+  /// in which case tapping only marks the notification read.
+  final VoidCallback? onOpen;
   final VoidCallback onDelete;
 
   const _NotifTile({
@@ -198,6 +240,7 @@ class _NotifTile extends StatelessWidget {
     required this.icon,
     required this.timeAgo,
     required this.onMarkRead,
+    this.onOpen,
     required this.onDelete,
   });
 
@@ -215,9 +258,8 @@ class _NotifTile extends StatelessWidget {
         padding: const EdgeInsets.only(right: 20),
         margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
-          color: AppColors.danger500.withValues(alpha: 0.25),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.danger500.withValues(alpha: 0.4)),
+          color: AppColors.danger500.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(AppRadius.card),
         ),
         child: const Icon(Icons.delete_outline_rounded, color: AppColors.danger500),
       ),
@@ -226,28 +268,24 @@ class _NotifTile extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 8),
         child: GlassCard(
           tint: isUnread ? primary : null,
-          onTap: isUnread ? onMarkRead : null,
+          onTap: isUnread || onOpen != null
+              ? () {
+                  if (isUnread) onMarkRead();
+                  onOpen?.call();
+                }
+              : null,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                  child: Container(
-                    width: 40, height: 40,
-                    decoration: BoxDecoration(
-                      color: isUnread
-                          ? primary.withValues(alpha: 0.2)
-                          : Colors.white.withValues(alpha: 0.08),
-                      shape: BoxShape.circle,
-                      border: isUnread
-                          ? Border.all(color: primary.withValues(alpha: 0.4))
-                          : null,
-                    ),
-                    child: Center(child: Text(icon, style: const TextStyle(fontSize: 18))),
-                  ),
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  color: isUnread
+                      ? primary.withValues(alpha: 0.10)
+                      : AppColors.gray100,
+                  shape: BoxShape.circle,
                 ),
+                child: Center(child: Text(icon, style: const TextStyle(fontSize: 18))),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -257,21 +295,21 @@ class _NotifTile extends StatelessWidget {
                     Text(
                       notif['title'] as String? ?? '',
                       style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: isUnread ? FontWeight.w600 : FontWeight.w500,
-                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: isUnread ? FontWeight.w700 : FontWeight.w500,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       notif['body'] as String? ?? '',
-                      style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.55), height: 1.4),
+                      style: AppTextStyles.body.copyWith(height: 1.4),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 6),
                     Row(children: [
-                      Text(timeAgo, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.35))),
+                      Text(timeAgo, style: AppTextStyles.caption),
                       if (isUnread) ...[
                         const SizedBox(width: 8),
                         Container(

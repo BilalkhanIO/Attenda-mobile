@@ -39,7 +39,7 @@ class _RemoteWorkScreenState extends State<RemoteWorkScreen> {
     backgroundColor: Colors.transparent,
     appBar: AppBar(title: const Text('Work Remote Today')),
     body: SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Info banner
         const GlassCard(
@@ -50,13 +50,16 @@ class _RemoteWorkScreenState extends State<RemoteWorkScreen> {
             SizedBox(width: 12),
             Expanded(child: Text(
               'Your manager will be notified. AI will check in with you via WhatsApp at shift start.',
-              style: TextStyle(fontSize: 13, color: AppColors.purple100),
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.primary900),
             )),
           ]),
         ),
         const SizedBox(height: 24),
 
-        const Text('Duration', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+        const Text('Duration', style: AppTextStyles.title),
         const SizedBox(height: 12),
 
         for (final (val, label, desc, icon) in [
@@ -72,14 +75,14 @@ class _RemoteWorkScreenState extends State<RemoteWorkScreen> {
                 tint: _duration == val ? AppColors.purple500 : null,
                 child: Row(children: [
                   Icon(icon,
-                      color: _duration == val ? AppColors.purple500 : Colors.white.withValues(alpha: 0.5),
+                      color: _duration == val
+                          ? AppColors.purple500
+                          : AppColors.gray400,
                       size: 22),
                   const SizedBox(width: 14),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(label, style: TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w700,
-                        color: _duration == val ? Colors.white : Colors.white.withValues(alpha: 0.8))),
-                    Text(desc, style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5))),
+                    Text(label, style: AppTextStyles.title),
+                    Text(desc, style: AppTextStyles.body),
                   ])),
                   if (_duration == val)
                     const Icon(Icons.check_circle, color: AppColors.purple500),

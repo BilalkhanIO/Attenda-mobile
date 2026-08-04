@@ -67,14 +67,14 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                     children: [
                       const Icon(Icons.error_outline, size: 48, color: AppColors.danger500),
                       const SizedBox(height: 16),
-                      Text(_error!, style: const TextStyle(color: Colors.white)),
+                      Text(_error!, style: AppTextStyles.body),
                       const SizedBox(height: 24),
                       AppButton(label: 'Retry', onPressed: _load, fullWidth: false),
                     ],
                   ),
                 )
               : ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                   children: [
                     const SectionHeader(title: 'My Reviews'),
                     const SizedBox(height: 12),
@@ -102,10 +102,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(DateFormat('MMMM yyyy').format(DateTime(year, month)),
-                                          style: const TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w700,
-                                              color: Colors.white)),
+                                          style: AppTextStyles.title),
                                       if (submitted && score != null)
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -113,12 +110,12 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                                             color: (double.tryParse(score.toString()) ?? 0) >= 80
                                                 ? AppColors.success100
                                                 : AppColors.warning100,
-                                            borderRadius: BorderRadius.circular(20),
+                                            borderRadius: BorderRadius.circular(AppRadius.control),
                                           ),
                                           child: Text('$score/100',
                                               style: TextStyle(
                                                   fontSize: 13,
-                                                  fontWeight: FontWeight.w800,
+                                                  fontWeight: FontWeight.w700,
                                                   color: (double.tryParse(score.toString()) ?? 0) >= 80
                                                       ? AppColors.success700
                                                       : AppColors.warning800)),
@@ -134,7 +131,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                                   if (r['notes'] != null) ...[
                                     const SizedBox(height: 6),
                                     Text(r['notes'] as String,
-                                        style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.55)),
+                                        style: AppTextStyles.body,
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis),
                                   ],
@@ -142,7 +139,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                                   Padding(
                                     padding: const EdgeInsets.only(top: 4),
                                     child: Text('Review pending',
-                                        style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.4))),
+                                        style: AppTextStyles.body),
                                   ),
                               ])),
                         );
@@ -169,19 +166,15 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                                   Expanded(
                                     child: Text(g['title'] as String? ?? '—',
-                                        style: const TextStyle(
-                                            fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
+                                        style: AppTextStyles.bodyStrong),
                                   ),
                                   Text('${g['weight']}%',
-                                      style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white.withValues(alpha: 0.5))),
+                                      style: AppTextStyles.body),
                                 ]),
                                 if (g['description'] != null) ...[
                                   const SizedBox(height: 4),
                                   Text(g['description'] as String,
-                                      style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5)),
+                                      style: AppTextStyles.caption,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis),
                                 ],
@@ -193,7 +186,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                                       child: LinearProgressIndicator(
                                         value: completion / 100,
                                         minHeight: 6,
-                                        backgroundColor: Colors.white.withValues(alpha: 0.12),
+                                        backgroundColor: AppColors.gray100,
                                         valueColor: AlwaysStoppedAnimation<Color>(
                                           completion >= 100
                                               ? AppColors.success500
@@ -206,14 +199,13 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                                   ),
                                   const SizedBox(width: 10),
                                   Text('$completion%',
-                                      style: const TextStyle(
-                                          fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+                                      style: AppTextStyles.bodyStrong),
                                 ]),
                                 if (targetDate != null) ...[
                                   const SizedBox(height: 6),
                                   Text(
                                     'Due ${DateFormat('MMM d, yyyy').format(DateTime.parse(targetDate))}',
-                                    style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.4)),
+                                    style: AppTextStyles.caption,
                                   ),
                                 ],
                               ])),

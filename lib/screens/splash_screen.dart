@@ -44,9 +44,8 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppGradients.mesh),
-        child: Center(
+      backgroundColor: AppColors.background,
+      body: Center(
           child: AnimatedBuilder(
             animation: _controller,
             builder: (context, child) {
@@ -59,11 +58,10 @@ class _SplashScreenState extends State<SplashScreen>
               );
             },
             child: const AttendaLogo(
-                iconSize: 80, 
+                iconSize: 80,
                 showWordmark: false,
-                variant: AttendaLogoVariant.dark),
+                variant: AttendaLogoVariant.light),
           ),
-        ),
       ),
     );
   }

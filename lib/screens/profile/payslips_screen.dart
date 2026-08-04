@@ -62,7 +62,7 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
                     children: [
                       const Icon(Icons.error_outline, size: 48, color: AppColors.danger500),
                       const SizedBox(height: 16),
-                      Text(_error!, style: const TextStyle(color: Colors.white)),
+                      Text(_error!, style: AppTextStyles.body),
                       const SizedBox(height: 24),
                       AppButton(label: 'Retry', onPressed: _load, fullWidth: false),
                     ],
@@ -75,7 +75,7 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
                       description: 'Your payslips will appear here once payroll is processed.',
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                       itemCount: _payslips.length,
                       itemBuilder: (context, i) {
                         final p = _payslips[i];
@@ -94,16 +94,16 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
                                 height: 44,
                                 decoration: BoxDecoration(
                                   color: ready
-                                      ? AppColors.success500.withValues(alpha: 0.2)
-                                      : Colors.white.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                      color: ready
-                                          ? AppColors.success500.withValues(alpha: 0.4)
-                                          : Colors.white.withValues(alpha: 0.15)),
+                                      ? AppColors.success500
+                                          .withValues(alpha: 0.10)
+                                      : AppColors.gray100,
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.control),
                                 ),
                                 child: Icon(Icons.receipt_long,
-                                    color: ready ? AppColors.success500 : Colors.white.withValues(alpha: 0.4),
+                                    color: ready
+                                        ? AppColors.success500
+                                        : AppColors.gray400,
                                     size: 20),
                               ),
                               const SizedBox(width: 14),
@@ -112,24 +112,21 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                     Text(DateFormat('MMMM yyyy').format(DateTime(year, month)),
-                                        style: const TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
-                                            color: Colors.white)),
+                                        style: AppTextStyles.title),
                                     Text(ready ? 'Ready to download' : 'Processing',
                                         style: TextStyle(
-                                            fontSize: 12,
-                                            color: ready ? AppColors.success500 : Colors.white.withValues(alpha: 0.4))),
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w500,
+                                            color: ready
+                                                ? AppColors.success700
+                                                : AppColors.gray500)),
                                   ])),
                               Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
                                     if (gross != null)
                                       Text('\$$gross',
-                                          style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w800,
-                                              color: Colors.white)),
+                                          style: AppTextStyles.title),
                                     if (ready)
                                       GestureDetector(
                                         onTap: () async {
