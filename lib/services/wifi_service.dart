@@ -17,6 +17,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
@@ -25,6 +26,7 @@ import 'package:network_info_plus/network_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../services/api_service.dart';
+import 'attendance_location.dart';
 import 'foreground_service.dart'; // shared constants + startForegroundCallback
 
 // ─── Offline-queue models ─────────────────────────────────────────────────────
@@ -35,18 +37,37 @@ class OfflineEvent {
   final DateTime         timestamp;
   final String?          payload;
   final String?          ssid;
-  OfflineEvent({required this.type, required this.timestamp, this.payload, this.ssid});
+  final String?          idempotencyKey;
+  final bool             requiresReview;
+  final AttendanceLocationEvidence? location;
+  final Map<String, dynamic>? clockProof;
+  OfflineEvent({required this.type, required this.timestamp, this.payload, this.ssid, this.idempotencyKey, this.requiresReview = false, this.location, this.clockProof});
   Map<String, dynamic> toJson() => {
     'type':      type.name,
     'timestamp': timestamp.toIso8601String(),
     'payload':   payload,
     'ssid':      ssid,
+    'idempotency_key': idempotencyKey,
+    'requires_review': requiresReview,
+    if (clockProof != null) 'clock_proof': clockProof,
+    if (location != null) ...location!.toJson(),
   };
   factory OfflineEvent.fromJson(Map<String, dynamic> j) => OfflineEvent(
     type:      OfflineEventType.values.firstWhere((e) => e.name == j['type']),
     timestamp: DateTime.parse(j['timestamp'] as String),
     payload:   j['payload'] as String?,
     ssid:      j['ssid']    as String?,
+    idempotencyKey: j['idempotency_key'] as String?,
+    requiresReview: j['requires_review'] as bool? ?? false,
+    clockProof: (j['clock_proof'] as Map?)?.cast<String, dynamic>(),
+    location: j['latitude'] is num && j['longitude'] is num
+        ? AttendanceLocationEvidence(
+            latitude: (j['latitude'] as num).toDouble(),
+            longitude: (j['longitude'] as num).toDouble(),
+            accuracyM: (j['accuracy_m'] as num?)?.toDouble() ?? 0,
+            isMocked: j['is_mocked'] as bool? ?? false,
+          )
+        : null,
   );
 }
 
@@ -55,6 +76,24 @@ class WifiAttendanceService {
   static final WifiAttendanceService _instance = WifiAttendanceService._();
   factory WifiAttendanceService() => _instance;
   WifiAttendanceService._();
+
+  static String newIdempotencyKey() {
+    final bytes = List<int>.generate(16, (_) => Random.secure().nextInt(256));
+    return bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+  }
+
+  Future<void> queueManualCheckIn({required String idempotencyKey, required DateTime timestamp, AttendanceLocationEvidence? location, Map<String, dynamic>? clockProof}) async {
+    if (!Hive.isBoxOpen(kQueueBox)) await Hive.openBox(kQueueBox);
+    final box = Hive.box(kQueueBox);
+    final key = 'checkin:$idempotencyKey';
+    await box.put(key, jsonEncode(OfflineEvent(
+      type: OfflineEventType.checkIn,
+      timestamp: timestamp,
+      idempotencyKey: idempotencyKey,
+      location: location,
+      clockProof: clockProof,
+    ).toJson()));
+  }
 
   final _networkInfo  = NetworkInfo();
   final _connectivity = Connectivity();
@@ -337,6 +376,9 @@ class WifiAttendanceService {
           _startFgHeartbeat();
           await _fgHeartbeat(ip: ip, ssid: ssid);
           break;
+        case 'manual_checkin_required':
+          onStatusChange?.call('manual_checkin_required');
+          break;
         case 'no_networks_configured':
           noNetworksConfigured = true;
           onStatusChange?.call('no_networks');
@@ -375,6 +417,9 @@ class WifiAttendanceService {
   // Connectivity listener
   // ─────────────────────────────────────────────────────────────────────────
   void _onConnectivityChanged(List<ConnectivityResult> results) async {
+    if (!results.contains(ConnectivityResult.none)) {
+      await syncOfflineQueue();
+    }
     if (results.contains(ConnectivityResult.wifi)) {
       await checkAndReport();
     } else {
@@ -413,15 +458,36 @@ class WifiAttendanceService {
         final raw = box.get(key) as String?;
         if (raw == null) continue;
         final event = OfflineEvent.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+        if (event.requiresReview) continue;
         // Skip and discard events older than a full shift — replaying stale
         // check-ins across days creates wrong records, but same-day events
         // must survive long offline stretches (e.g. doze + poor signal).
         if (DateTime.now().difference(event.timestamp) > const Duration(hours: 12)) {
-          await box.delete(key);
+          await box.put(key, jsonEncode(OfflineEvent(
+            type: event.type,
+            timestamp: event.timestamp,
+            payload: event.payload,
+            ssid: event.ssid,
+            idempotencyKey: event.idempotencyKey,
+            requiresReview: true,
+            location: event.location,
+            clockProof: event.clockProof,
+          ).toJson()));
+          if (event.type == OfflineEventType.checkIn) onStatusChange?.call('offline_checkin_review');
           continue;
         }
         if (event.type == OfflineEventType.checkIn) {
-          await api.checkIn(type: 'manual');
+          await api.checkIn(
+            type: 'manual',
+            idempotencyKey: event.idempotencyKey,
+            clientEventAt: event.timestamp,
+            offline: true,
+            latitude: event.location?.latitude,
+            longitude: event.location?.longitude,
+            accuracyM: event.location?.accuracyM,
+            isMocked: event.location?.isMocked,
+            clockProof: event.clockProof,
+          );
         } else if (event.type == OfflineEventType.ipMatch &&
             (event.payload != null || event.ssid != null)) {
           await api.reportIpEvent(event.payload ?? '', ssid: event.ssid);
@@ -429,6 +495,29 @@ class WifiAttendanceService {
         await box.delete(key);
       } catch (e) {
         final code = (e as dynamic)?.response?.statusCode as int?;
+        String? apiCode;
+        try {
+          final data = (e as dynamic).response?.data;
+          if (data is Map) apiCode = data['code'] as String?;
+        } catch (_) {}
+        if (code == 409 && apiCode == 'OFFLINE_CHECKIN_REVIEW') {
+          final raw = box.get(key) as String?;
+          if (raw != null) {
+            final event = OfflineEvent.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+            await box.put(key, jsonEncode(OfflineEvent(
+              type: event.type,
+              timestamp: event.timestamp,
+              payload: event.payload,
+              ssid: event.ssid,
+              idempotencyKey: event.idempotencyKey,
+              requiresReview: true,
+              location: event.location,
+              clockProof: event.clockProof,
+            ).toJson()));
+          }
+          onStatusChange?.call('offline_checkin_review');
+          continue;
+        }
         if (code != null && code >= 400 && code < 500) await box.delete(key);
         continue;
       }

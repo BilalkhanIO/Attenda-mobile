@@ -86,8 +86,10 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text('My Documents'),
-        centerTitle: true,
+        title: const AppPageTitle(
+          title: 'Documents',
+          subtitle: 'Your shared HR files and records',
+        ),
       ),
       body: RefreshIndicator(
         color: primary,
@@ -178,8 +180,7 @@ class DocumentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
     final title = doc['title'] as String? ?? doc['file_name'] as String? ?? '—';
-    final uploader =
-        doc['uploader'] is Map ? doc['uploader'] as Map : const {};
+    final uploader = doc['uploader'] is Map ? doc['uploader'] as Map : const {};
     final uploaderName = uploader['name'] as String?;
     final uploadedByOther = uploader['id'] != null &&
         currentUserId != null &&

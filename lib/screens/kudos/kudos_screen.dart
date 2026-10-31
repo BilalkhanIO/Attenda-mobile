@@ -34,8 +34,7 @@ class _KudosScreenState extends State<KudosScreen> {
       _error = null;
     });
     try {
-      final results =
-          await Future.wait([api.getKudosFeed(), api.getMyKudos()]);
+      final results = await Future.wait([api.getKudosFeed(), api.getMyKudos()]);
       if (!mounted) return;
       setState(() {
         _feed = (results[0] as List).cast<Map<String, dynamic>>();
@@ -88,10 +87,13 @@ class _KudosScreenState extends State<KudosScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text('Kudos'),
-        centerTitle: true,
+        title: const AppPageTitle(
+          title: 'Kudos',
+          subtitle: 'Recognize great work across your team',
+        ),
         actions: [
           IconButton(
+            tooltip: 'Give kudos',
             icon: const Icon(Icons.add_circle_outline),
             onPressed: _giveKudos,
           ),
@@ -233,35 +235,34 @@ class KudosCard extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 5,
                 children: [
-                  Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 5,
-                    children: [
-                      Text(giverName, style: AppTextStyles.bodyStrong),
-                      const Icon(Icons.arrow_forward,
-                          size: 12, color: AppColors.gray400),
-                      Text(recipientName, style: AppTextStyles.bodyStrong),
-                    ],
+                  Text(giverName, style: AppTextStyles.bodyStrong),
+                  const Icon(Icons.arrow_forward,
+                      size: 12, color: AppColors.gray400),
+                  Text(recipientName, style: AppTextStyles.bodyStrong),
+                ],
+              ),
+              const SizedBox(height: 3),
+              Row(children: [
+                if (department != null && department.isNotEmpty) ...[
+                  Flexible(
+                    child: Text(department,
+                        style: AppTextStyles.caption,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
                   ),
-                  const SizedBox(height: 3),
-                  Row(children: [
-                    if (department != null && department.isNotEmpty) ...[
-                      Flexible(
-                        child: Text(department,
-                            style: AppTextStyles.caption,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis),
-                      ),
-                      const SizedBox(width: 6),
-                      Text('·', style: AppTextStyles.caption),
-                      const SizedBox(width: 6),
-                    ],
-                    Text(timeAgo, style: AppTextStyles.caption),
-                  ]),
-                ]),
+                  const SizedBox(width: 6),
+                  Text('·', style: AppTextStyles.caption),
+                  const SizedBox(width: 6),
+                ],
+                Text(timeAgo, style: AppTextStyles.caption),
+              ]),
+            ]),
           ),
           if (emoji != null && emoji.isNotEmpty) ...[
             const SizedBox(width: 8),

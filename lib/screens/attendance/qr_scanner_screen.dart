@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
+import '../../services/attendance_location.dart';
 import '../../services/wifi_service.dart';
 import '../../utils/theme.dart';
 
@@ -55,7 +56,18 @@ class _QrScannerScreenState extends State<QrScannerScreen> with TickerProviderSt
     final code = barcode!.rawValue!;
 
     try {
-      final result = await api.checkIn(type: 'qr', qrCode: code);
+      final status = await api.getTodayStatus();
+      final location = await captureAttendanceLocation(enabled: status['location_capture_enabled'] == true);
+      if (status['location_required'] == true && location == null) {
+        throw const ValidationFailure(serverMessage: 'Allow precise location and turn on Location Services to check in.');
+      }
+      final result = await api.checkIn(
+        type: 'qr', qrCode: code,
+        latitude: location?.latitude,
+        longitude: location?.longitude,
+        accuracyM: location?.accuracyM,
+        isMocked: location?.isMocked,
+      );
       if (!mounted) return;
       final action = result['action'] as String?;
 

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
+import '../../services/auth_provider.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
 import 'correction_sheet.dart';
@@ -29,9 +32,9 @@ DateTime? _parseDateTime(dynamic v) {
 }
 
 int _totalBreakMinutes(Map<String, dynamic> record) {
-  final breaks = (record['break_records'] as List?)
-          ?.cast<Map<String, dynamic>>() ??
-      const <Map<String, dynamic>>[];
+  final breaks =
+      (record['break_records'] as List?)?.cast<Map<String, dynamic>>() ??
+          const <Map<String, dynamic>>[];
   if (breaks.isEmpty) return _asInt(record['break_minutes']) ?? 0;
 
   var total = 0;
@@ -140,8 +143,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         reason: 'Worked ${extra}m beyond shift end',
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Overtime request sent for approval')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Overtime request sent for approval')));
       _load();
     } catch (e) {
       if (!mounted) return;
@@ -188,12 +191,27 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
+    final canAskAi =
+        context.watch<AuthProvider>().hasPermission('analytics.ai_chat');
+    final monthStart = DateFormat('yyyy-MM-dd')
+        .format(DateTime(_selectedMonth.year, _selectedMonth.month));
+    final monthEnd = DateFormat('yyyy-MM-dd')
+        .format(DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0));
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('My Attendance'),
         actions: [
+          if (canAskAi)
+            IconButton(
+              tooltip: 'Ask AI about this month',
+              onPressed: () => context.push('/home/ai', extra: {
+                'prompt':
+                    'Summarize my attendance from $monthStart through $monthEnd. Report exact late and absent days, and only give total hours if the records are complete.',
+              }),
+              icon: const Icon(Icons.auto_awesome_outlined),
+            ),
           IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)
         ],
       ),
@@ -216,124 +234,126 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 ],
               )
             : SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Month selector
-              SizedBox(
-                height: 44,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: 6,
-                  itemBuilder: (_, i) {
-                    final m =
-                        DateTime(DateTime.now().year, DateTime.now().month - i);
-                    final selected = m.month == _selectedMonth.month &&
-                        m.year == _selectedMonth.year;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: GestureDetector(
-                        onTap: () => setState(() => _selectedMonth = m),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: selected ? primary : AppColors.surface,
-                            borderRadius:
-                                BorderRadius.circular(AppRadius.control),
-                            border: selected
-                                ? null
-                                : Border.all(color: AppColors.border),
-                          ),
-                          child: Text(
-                            DateFormat('MMM yyyy').format(m),
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: selected
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              color: selected
-                                  ? Colors.white
-                                  : AppColors.gray600,
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Month selector
+                    SizedBox(
+                      height: 44,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: 6,
+                        itemBuilder: (_, i) {
+                          final m = DateTime(
+                              DateTime.now().year, DateTime.now().month - i);
+                          final selected = m.month == _selectedMonth.month &&
+                              m.year == _selectedMonth.year;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: GestureDetector(
+                              onTap: () => setState(() => _selectedMonth = m),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: selected ? primary : AppColors.surface,
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.control),
+                                  border: selected
+                                      ? null
+                                      : Border.all(color: AppColors.border),
+                                ),
+                                child: Text(
+                                  DateFormat('MMM yyyy').format(m),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: selected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: selected
+                                        ? Colors.white
+                                        : AppColors.gray600,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
+                          );
+                        },
                       ),
-                    );
-                  },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Summary chips
+                    if (!_loading) ...[
+                      Row(children: [
+                        Expanded(
+                            child: KpiChip(
+                                label: 'Present',
+                                value: '${_summary['present']}',
+                                color: AppColors.success500,
+                                compact: true)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                            child: KpiChip(
+                                label: 'Late',
+                                value: '${_summary['late']}',
+                                color: AppColors.warning500,
+                                compact: true)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                            child: KpiChip(
+                                label: 'Absent',
+                                value: '${_summary['absent']}',
+                                color: AppColors.danger500,
+                                compact: true)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                            child: KpiChip(
+                                label: 'Remote',
+                                value: '${_summary['remote']}',
+                                color: AppColors.info500,
+                                compact: true)),
+                      ]),
+                      const SizedBox(height: 24),
+                    ],
+
+                    const SectionHeader(title: 'Records'),
+                    const SizedBox(height: 12),
+
+                    if (_loading)
+                      ...List.generate(
+                          5,
+                          (_) => const Padding(
+                                padding: EdgeInsets.only(bottom: 8),
+                                child: SkeletonBox(
+                                    width: double.infinity,
+                                    height: 68,
+                                    radius: 16),
+                              ))
+                    else if (_monthRecords.isEmpty)
+                      EmptyStateWidget(
+                        icon: Icons.access_time,
+                        title: 'No records',
+                        description:
+                            'No records found for ${DateFormat('MMMM yyyy').format(_selectedMonth)}.',
+                      )
+                    else
+                      ..._monthRecords.map((r) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: _RecordTile(
+                              record: r,
+                              overtimeRequest: _overtimeByAttendance[r['id']],
+                              correction: _correctionsByDate[
+                                  (r['date'] as String).substring(0, 10)],
+                              onRequestOvertime: () => _requestOvertime(r),
+                              onRequestCorrection: () => _requestCorrection(r),
+                            ),
+                          )),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-
-              // Summary chips
-              if (!_loading) ...[
-                Row(children: [
-                  Expanded(
-                      child: KpiChip(
-                          label: 'Present',
-                          value: '${_summary['present']}',
-                          color: AppColors.success500,
-                          compact: true)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                      child: KpiChip(
-                          label: 'Late',
-                          value: '${_summary['late']}',
-                          color: AppColors.warning500,
-                          compact: true)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                      child: KpiChip(
-                          label: 'Absent',
-                          value: '${_summary['absent']}',
-                          color: AppColors.danger500,
-                          compact: true)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                      child: KpiChip(
-                          label: 'Remote',
-                          value: '${_summary['remote']}',
-                          color: AppColors.info500,
-                          compact: true)),
-                ]),
-                const SizedBox(height: 24),
-              ],
-
-              const SectionHeader(title: 'Records'),
-              const SizedBox(height: 12),
-
-              if (_loading)
-                ...List.generate(
-                    5,
-                    (_) => const Padding(
-                          padding: EdgeInsets.only(bottom: 8),
-                          child: SkeletonBox(
-                              width: double.infinity, height: 68, radius: 16),
-                        ))
-              else if (_monthRecords.isEmpty)
-                EmptyStateWidget(
-                  icon: Icons.access_time,
-                  title: 'No records',
-                  description:
-                      'No records found for ${DateFormat('MMMM yyyy').format(_selectedMonth)}.',
-                )
-              else
-                ..._monthRecords.map((r) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _RecordTile(
-                        record: r,
-                        overtimeRequest: _overtimeByAttendance[r['id']],
-                        correction: _correctionsByDate[
-                            (r['date'] as String).substring(0, 10)],
-                        onRequestOvertime: () => _requestOvertime(r),
-                        onRequestCorrection: () => _requestCorrection(r),
-                      ),
-                    )),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -415,7 +435,9 @@ class _RecordTile extends StatelessWidget {
                 const Icon(Icons.login_rounded,
                     size: 12, color: AppColors.gray400),
                 const SizedBox(width: 4),
-                Text(DateFormat('hh:mm a').format(DateTime.parse(checkIn).toLocal()),
+                Text(
+                    DateFormat('hh:mm a')
+                        .format(DateTime.parse(checkIn).toLocal()),
                     style: AppTextStyles.caption),
               ],
               if (checkOut != null) ...[
@@ -423,20 +445,25 @@ class _RecordTile extends StatelessWidget {
                 const Icon(Icons.logout_rounded,
                     size: 12, color: AppColors.gray400),
                 const SizedBox(width: 4),
-                Text(DateFormat('hh:mm a').format(DateTime.parse(checkOut).toLocal()),
+                Text(
+                    DateFormat('hh:mm a')
+                        .format(DateTime.parse(checkOut).toLocal()),
                     style: AppTextStyles.caption),
               ],
               if (hours != null) ...[
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: AppColors.primary.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text('${hours.toStringAsFixed(1)}h',
                       style: const TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary)),
                 ),
               ],
             ],
@@ -524,7 +551,8 @@ class _RecordTile extends StatelessWidget {
               Builder(builder: (_) {
                 final late = _asInt(r['late_minutes']) ?? 0;
                 return late > 0
-                    ? glassDetailRow('Late By', '$late min', highlight: true, highlightColor: AppColors.warning500)
+                    ? glassDetailRow('Late By', '$late min',
+                        highlight: true, highlightColor: AppColors.warning500)
                     : const SizedBox.shrink();
               }),
               Builder(builder: (_) {
@@ -536,7 +564,8 @@ class _RecordTile extends StatelessWidget {
               Builder(builder: (_) {
                 final ot = _asDouble(r['overtime_hours']) ?? 0;
                 return ot > 0
-                    ? glassDetailRow('Overtime', '${ot.toStringAsFixed(1)}h', highlight: true)
+                    ? glassDetailRow('Overtime', '${ot.toStringAsFixed(1)}h',
+                        highlight: true)
                     : const SizedBox.shrink();
               }),
               Builder(builder: (_) {
@@ -557,7 +586,8 @@ class _RecordTile extends StatelessWidget {
                   final status = (req['status'] as String? ?? 'pending');
                   return glassDetailRow('Overtime Request',
                       status[0].toUpperCase() + status.substring(1),
-                      highlight: status == 'pending', highlightColor: AppColors.warning500);
+                      highlight: status == 'pending',
+                      highlightColor: AppColors.warning500);
                 }
                 return Padding(
                   padding: const EdgeInsets.only(top: 12),
@@ -648,20 +678,23 @@ class _RecordTile extends StatelessWidget {
   }
 
   Widget _breakHistoryRow(Map<String, dynamic> b) {
-    final name     = (b['break_type'] as String? ?? 'Break')
+    final name = (b['break_type'] as String? ?? 'Break')
         .replaceAll('_', ' ')
         .split(' ')
-        .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+        .map(
+            (w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
         .join(' ');
-    final start    = b['break_start'] != null
-        ? DateFormat('hh:mm a').format(DateTime.parse(b['break_start'] as String).toLocal())
+    final start = b['break_start'] != null
+        ? DateFormat('hh:mm a')
+            .format(DateTime.parse(b['break_start'] as String).toLocal())
         : '—';
-    final end      = b['break_end'] != null
-        ? DateFormat('hh:mm a').format(DateTime.parse(b['break_end'] as String).toLocal())
+    final end = b['break_end'] != null
+        ? DateFormat('hh:mm a')
+            .format(DateTime.parse(b['break_end'] as String).toLocal())
         : 'Ongoing';
     final duration = _asInt(b['duration_mins']);
-    final late     = _asInt(b['late_return_minutes']) ?? 0;
-    final isPaid   = (b['is_paid'] as bool?) ?? false;
+    final late = _asInt(b['late_return_minutes']) ?? 0;
+    final isPaid = (b['is_paid'] as bool?) ?? false;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -671,7 +704,9 @@ class _RecordTile extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(
-              late > 0 ? Icons.running_with_errors : Icons.free_breakfast_rounded,
+              late > 0
+                  ? Icons.running_with_errors
+                  : Icons.free_breakfast_rounded,
               size: 16,
               color: late > 0 ? AppColors.danger500 : AppColors.primary,
             ),
@@ -693,7 +728,11 @@ class _RecordTile extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Text('PAID',
-                    style: TextStyle(fontSize: 9, color: AppColors.primary, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+                    style: TextStyle(
+                        fontSize: 9,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5)),
               ),
           ]),
           const SizedBox(height: 8),
@@ -702,7 +741,8 @@ class _RecordTile extends StatelessWidget {
             if (duration != null) ...[
               const SizedBox(width: 8),
               Container(
-                width: 4, height: 4,
+                width: 4,
+                height: 4,
                 decoration: const BoxDecoration(
                     shape: BoxShape.circle, color: AppColors.gray300),
               ),
@@ -713,7 +753,8 @@ class _RecordTile extends StatelessWidget {
           if (late > 0) ...[
             const SizedBox(height: 8),
             Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.danger500),
+              const Icon(Icons.warning_amber_rounded,
+                  size: 14, color: AppColors.danger500),
               const SizedBox(width: 6),
               Text('${late}m late returning',
                   style: const TextStyle(

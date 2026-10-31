@@ -72,7 +72,8 @@ class GlassBadge extends StatelessWidget {
   final String text;
   final Color color;
   final IconData? icon;
-  const GlassBadge({super.key, required this.text, required this.color, this.icon});
+  const GlassBadge(
+      {super.key, required this.text, required this.color, this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -83,8 +84,13 @@ class GlassBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.control),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        if (icon != null) ...[Icon(icon, size: 11, color: color), const SizedBox(width: 4)],
-        Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+        if (icon != null) ...[
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4)
+        ],
+        Text(text,
+            style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w700, color: color)),
       ]),
     );
   }
@@ -96,7 +102,8 @@ class AppCard extends StatelessWidget {
   final EdgeInsets? padding;
   final VoidCallback? onTap;
   final Color? color;
-  const AppCard({super.key, required this.child, this.padding, this.onTap, this.color});
+  const AppCard(
+      {super.key, required this.child, this.padding, this.onTap, this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -118,7 +125,8 @@ class StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: small ? 8 : 10, vertical: small ? 3 : 5),
+      padding: EdgeInsets.symmetric(
+          horizontal: small ? 8 : 10, vertical: small ? 3 : 5),
       decoration: BoxDecoration(
         color: StatusColors.bg(status),
         borderRadius: BorderRadius.circular(AppRadius.control),
@@ -126,11 +134,15 @@ class StatusBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(StatusColors.icon(status), size: small ? 10 : 12, color: StatusColors.fg(status)),
+          Icon(StatusColors.icon(status),
+              size: small ? 10 : 12, color: StatusColors.fg(status)),
           const SizedBox(width: 4),
           Text(
             StatusColors.label(status),
-            style: TextStyle(fontSize: small ? 10 : 11, fontWeight: FontWeight.w700, color: StatusColors.fg(status)),
+            style: TextStyle(
+                fontSize: small ? 10 : 11,
+                fontWeight: FontWeight.w700,
+                color: StatusColors.fg(status)),
           ),
         ],
       ),
@@ -143,7 +155,8 @@ class UserAvatar extends StatelessWidget {
   final String name;
   final String? imageUrl;
   final double size;
-  const UserAvatar({super.key, required this.name, this.imageUrl, this.size = 40});
+  const UserAvatar(
+      {super.key, required this.name, this.imageUrl, this.size = 40});
 
   String get _initials {
     final parts = name.trim().split(' ');
@@ -155,9 +168,12 @@ class UserAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeController = context.watch<ThemeController>();
     return Container(
-      width: size, height: size,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
-        color: imageUrl != null ? Colors.transparent : themeController.palette.primary,
+        color: imageUrl != null
+            ? Colors.transparent
+            : themeController.palette.primary,
         borderRadius: BorderRadius.circular(size / 2),
         border: Border.all(color: AppColors.border),
         image: imageUrl != null
@@ -165,7 +181,12 @@ class UserAvatar extends StatelessWidget {
             : null,
       ),
       child: imageUrl == null
-          ? Center(child: Text(_initials, style: TextStyle(color: Colors.white, fontSize: size * 0.35, fontWeight: FontWeight.w700)))
+          ? Center(
+              child: Text(_initials,
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: size * 0.35,
+                      fontWeight: FontWeight.w700)))
           : null,
     );
   }
@@ -181,9 +202,14 @@ class AppButton extends StatelessWidget {
   final IconData? icon;
   final bool fullWidth;
   const AppButton({
-    super.key, required this.label, this.onPressed,
-    this.loading = false, this.outline = false,
-    this.color, this.icon, this.fullWidth = true,
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.loading = false,
+    this.outline = false,
+    this.color,
+    this.icon,
+    this.fullWidth = true,
   });
 
   @override
@@ -192,25 +218,34 @@ class AppButton extends StatelessWidget {
     final fill = color ?? themePrimary;
 
     final buttonChild = loading
-        ? SizedBox(width: 18, height: 18,
+        ? SizedBox(
+            width: 18,
+            height: 18,
             child: CircularProgressIndicator(
               strokeWidth: 2,
               color: outline ? fill : Colors.white,
             ))
         : Row(mainAxisSize: MainAxisSize.min, children: [
-            if (icon != null) ...[Icon(icon, size: 16), const SizedBox(width: 8)],
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+            if (icon != null) ...[
+              Icon(icon, size: 16),
+              const SizedBox(width: 8)
+            ],
+            Text(label,
+                style:
+                    const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
           ]);
 
     if (outline) {
       return SizedBox(
-        width: fullWidth ? double.infinity : null, height: 50,
+        width: fullWidth ? double.infinity : null,
+        height: 50,
         child: OutlinedButton(
           onPressed: loading ? null : onPressed,
           style: OutlinedButton.styleFrom(
             foregroundColor: fill,
             side: const BorderSide(color: AppColors.border),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.control)),
           ),
           child: buttonChild,
         ),
@@ -218,7 +253,8 @@ class AppButton extends StatelessWidget {
     }
 
     return SizedBox(
-      width: fullWidth ? double.infinity : null, height: 50,
+      width: fullWidth ? double.infinity : null,
+      height: 50,
       child: ElevatedButton(
         onPressed: loading ? null : onPressed,
         style: ElevatedButton.styleFrom(
@@ -226,7 +262,8 @@ class AppButton extends StatelessWidget {
           foregroundColor: Colors.white,
           disabledBackgroundColor: AppColors.gray200,
           disabledForegroundColor: AppColors.gray500,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.control)),
           elevation: 0,
           shadowColor: Colors.transparent,
         ),
@@ -241,7 +278,8 @@ class SkeletonBox extends StatelessWidget {
   final double width;
   final double height;
   final double radius;
-  const SkeletonBox({super.key, required this.width, required this.height, this.radius = 8});
+  const SkeletonBox(
+      {super.key, required this.width, required this.height, this.radius = 8});
 
   @override
   Widget build(BuildContext context) {
@@ -249,7 +287,8 @@ class SkeletonBox extends StatelessWidget {
       baseColor: AppColors.gray200,
       highlightColor: AppColors.gray100,
       child: Container(
-        width: width, height: height,
+        width: width,
+        height: height,
         decoration: BoxDecoration(
           color: AppColors.gray200,
           borderRadius: BorderRadius.circular(radius),
@@ -275,6 +314,28 @@ class SectionHeader extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Compact, consistent title treatment for secondary app screens.
+class AppPageTitle extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  const AppPageTitle({super.key, required this.title, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(title,
+              style:
+                  const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          Text(subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.caption),
+        ],
+      );
 }
 
 // ─── KPI Chip ─────────────────────────────────────────
@@ -327,7 +388,12 @@ class EmptyStateWidget extends StatelessWidget {
   final String title;
   final String description;
   final Widget? action;
-  const EmptyStateWidget({super.key, required this.icon, required this.title, required this.description, this.action});
+  const EmptyStateWidget(
+      {super.key,
+      required this.icon,
+      required this.title,
+      required this.description,
+      this.action});
 
   @override
   Widget build(BuildContext context) {
@@ -338,7 +404,8 @@ class EmptyStateWidget extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 60, height: 60,
+              width: 60,
+              height: 60,
               decoration: BoxDecoration(
                 color: AppColors.gray100,
                 borderRadius: BorderRadius.circular(AppRadius.card),
@@ -348,8 +415,12 @@ class EmptyStateWidget extends StatelessWidget {
             const SizedBox(height: AppSpacing.x4),
             Text(title, style: AppTextStyles.title),
             const SizedBox(height: 6),
-            Text(description, textAlign: TextAlign.center, style: AppTextStyles.body),
-            if (action != null) ...[const SizedBox(height: AppSpacing.x5), action!],
+            Text(description,
+                textAlign: TextAlign.center, style: AppTextStyles.body),
+            if (action != null) ...[
+              const SizedBox(height: AppSpacing.x5),
+              action!
+            ],
           ],
         ),
       ),
@@ -388,7 +459,8 @@ class GlassDetailRow extends StatelessWidget {
                     fontSize: 13,
                     fontWeight: highlight ? FontWeight.w700 : FontWeight.w500,
                     color: highlight
-                        ? (highlightColor ?? Theme.of(context).colorScheme.primary)
+                        ? (highlightColor ??
+                            Theme.of(context).colorScheme.primary)
                         : AppColors.textPrimary)),
           ),
         ],
@@ -406,7 +478,8 @@ Widget glassDetailRow(String label, String value,
         highlightColor: highlightColor);
 
 // ─── Confirm Dialog ───────────────────────────────────
-Future<bool?> showConfirmDialog(BuildContext context, {
+Future<bool?> showConfirmDialog(
+  BuildContext context, {
   required String title,
   required String message,
   String confirmLabel = 'Confirm',
@@ -420,13 +493,17 @@ Future<bool?> showConfirmDialog(BuildContext context, {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx, false),
-          child: const Text('Cancel', style: TextStyle(color: AppColors.gray500)),
+          child:
+              const Text('Cancel', style: TextStyle(color: AppColors.gray500)),
         ),
         ElevatedButton(
           onPressed: () => Navigator.pop(ctx, true),
           style: ElevatedButton.styleFrom(
-            backgroundColor: isDanger ? AppColors.danger500 : Theme.of(context).colorScheme.primary,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
+            backgroundColor: isDanger
+                ? AppColors.danger500
+                : Theme.of(context).colorScheme.primary,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.control)),
           ),
           child: Text(confirmLabel),
         ),

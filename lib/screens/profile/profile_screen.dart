@@ -56,6 +56,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final hasPayroll = auth.hasFeature('payroll');
     final hasPerformance = auth.hasFeature('performance_reviews');
+    final hasProjects = auth.hasPermission('projects.view');
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -76,7 +77,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _buildProfileHeader(user, themeController),
 
             const SizedBox(height: 24),
-            
+
             // Professional Section — Expenses is available to everyone;
             // Payslips/Performance are feature-gated.
             const SectionHeader(title: 'Professional'),
@@ -134,6 +135,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     label: 'Performance',
                     onTap: () => context.push('/profile/performance'),
                   ),
+                if (hasProjects)
+                  _professionalCard(
+                    context,
+                    icon: Icons.work_outline_rounded,
+                    label: 'Projects',
+                    onTap: () => context.push('/projects'),
+                  ),
               ],
             ),
             const SizedBox(height: 24),
@@ -164,7 +172,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
 
             const SizedBox(height: 32),
-            
+
             // Edit Profile Button (Quick Action)
             AppButton(
               label: 'Edit Profile Info',
@@ -204,7 +212,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _professionalCard(BuildContext context, {required IconData icon, required String label, required VoidCallback onTap}) {
+  Widget _professionalCard(BuildContext context,
+      {required IconData icon,
+      required String label,
+      required VoidCallback onTap}) {
     final primary = Theme.of(context).colorScheme.primary;
     return GlassCard(
       onTap: onTap,
@@ -258,9 +269,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             borderRadius: BorderRadius.circular(AppRadius.control),
           ),
           child: Text(
-            (_profile?['job_title'] ?? user.role.replaceAll('_', ' ')).toUpperCase(),
+            (_profile?['job_title'] ?? user.role.replaceAll('_', ' '))
+                .toUpperCase(),
             style: TextStyle(
-                fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.0, color: primary),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.0,
+                color: primary),
           ),
         ),
       ],

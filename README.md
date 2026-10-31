@@ -17,6 +17,7 @@ iOS & Android employee mobile app for the Attenda Workforce Management Platform.
 - **QR Scanner** — full-screen camera with custom scan overlay, success/error animations
 - **Remote Work** — declares remote with duration (full/morning/afternoon), triggers AI WhatsApp nudges
 - **Leave Requests** — submit, view balance with progress bars, cancel pending requests
+- **AI Assistant** — ask about attendance, shifts, leave, approvals, and projects; personal attendance summaries use exact records in the organisation timezone
 - **JWT auto-refresh** — Dio interceptor silently refreshes expired tokens
 
 ## Setup

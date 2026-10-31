@@ -1,7 +1,10 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:typed_data';
+import 'attendance_clock.dart';
 
-const _baseUrl = String.fromEnvironment('API_URL', defaultValue: 'https://attenda-api-production.up.railway.app/api/v1');
+const _baseUrl = String.fromEnvironment('API_URL',
+    defaultValue: 'https://attenda-api-production.up.railway.app/api/v1');
 const _storage = FlutterSecureStorage();
 
 class ApiService {
@@ -31,7 +34,8 @@ class ApiService {
           try {
             final refresh = await _storage.read(key: 'refresh_token');
             if (refresh != null) {
-              final res = await Dio().post('$_baseUrl/auth/refresh', data: {'refresh_token': refresh});
+              final res = await Dio().post('$_baseUrl/auth/refresh',
+                  data: {'refresh_token': refresh});
               final newToken = res.data['data']['access_token'] as String;
               await _storage.write(key: 'access_token', value: newToken);
               // Rotation: store the successor refresh token — reusing the old
@@ -40,7 +44,8 @@ class ApiService {
               if (rotated != null) {
                 await _storage.write(key: 'refresh_token', value: rotated);
               }
-              error.requestOptions.headers['Authorization'] = 'Bearer $newToken';
+              error.requestOptions.headers['Authorization'] =
+                  'Bearer $newToken';
               final retry = await dio.fetch(error.requestOptions);
               return handler.resolve(retry);
             }
@@ -57,12 +62,15 @@ class ApiService {
 
   // ─── Auth ─────────────────────────────────────────
   Future<Map<String, dynamic>> login(String email, String password) async {
-    final res = await _dio.post('/auth/login', data: {'email': email, 'password': password});
+    final res = await _dio
+        .post('/auth/login', data: {'email': email, 'password': password});
     return res.data['data'] as Map<String, dynamic>;
   }
 
   Future<void> logout() async {
-    try { await _dio.post('/auth/logout'); } catch (_) {}
+    try {
+      await _dio.post('/auth/logout');
+    } catch (_) {}
     await _storage.deleteAll();
   }
 
@@ -71,7 +79,8 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
-    final res = await Dio().post('$_baseUrl/auth/refresh', data: {'refresh_token': refreshToken});
+    final res = await Dio()
+        .post('$_baseUrl/auth/refresh', data: {'refresh_token': refreshToken});
     return res.data['data'] as Map<String, dynamic>;
   }
 
@@ -91,6 +100,29 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
+  // ─── Attenda AI ────────────────────────────────────
+  Future<Map<String, dynamic>> chatWithAi(String message,
+      {String? conversationId, String? context}) async {
+    final res = await _dio.post('/ai/chat',
+        data: {
+          'message': message,
+          if (conversationId != null) 'conversation_id': conversationId,
+          if (context != null && conversationId == null) 'context': context,
+        },
+        options: Options(receiveTimeout: const Duration(seconds: 125)));
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> getAiConversations() async {
+    final res = await _dio.get('/ai/conversations');
+    return res.data['data'] as List;
+  }
+
+  Future<Map<String, dynamic>> getAiConversation(String id) async {
+    final res = await _dio.get('/ai/conversations/$id');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   // ─── Attendance ───────────────────────────────────
   Future<List<dynamic>> getTodayAttendance() async {
     final res = await _dio.get('/attendance/today');
@@ -98,15 +130,37 @@ class ApiService {
   }
 
   Future<List<dynamic>> getMyAttendance({int days = 30}) async {
-    final res = await _dio.get('/attendance/me', queryParameters: {'days': days});
+    final res =
+        await _dio.get('/attendance/me', queryParameters: {'days': days});
     return res.data['data'] as List;
   }
 
-  Future<Map<String, dynamic>> checkIn({String type = 'manual', String? qrCode, String? durationType}) async {
+  Future<Map<String, dynamic>> checkIn(
+      {String type = 'manual',
+      String? qrCode,
+      String? durationType,
+      String? idempotencyKey,
+      DateTime? clientEventAt,
+      bool offline = false,
+      double? latitude,
+      double? longitude,
+      double? accuracyM,
+      bool? isMocked,
+      Map<String, dynamic>? clockProof}) async {
     final res = await _dio.post('/attendance/checkin', data: {
       'type': type,
       if (qrCode != null) 'qr_code': qrCode,
-      if (type == 'remote' && durationType != null) 'duration_type': durationType,
+      if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
+      if (clientEventAt != null)
+        'client_event_at': clientEventAt.toUtc().toIso8601String(),
+      if (offline) 'offline': true,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (accuracyM != null) 'accuracy_m': accuracyM,
+      if (isMocked != null) 'is_mocked': isMocked,
+      if (clockProof != null) ...clockProof,
+      if (type == 'remote' && durationType != null)
+        'duration_type': durationType,
     });
     return res.data['data'] as Map<String, dynamic>;
   }
@@ -116,7 +170,8 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> startBreak({String breakType = 'manual', String? shiftBreakId}) async {
+  Future<Map<String, dynamic>> startBreak(
+      {String breakType = 'manual', String? shiftBreakId}) async {
     final res = await _dio.post('/attendance/break/start', data: {
       'break_type': breakType,
       if (shiftBreakId != null) 'shift_break_id': shiftBreakId,
@@ -124,9 +179,9 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> endBreak({bool wifiConnected = false}) async {
+  Future<Map<String, dynamic>> endBreak({bool? wifiConnected}) async {
     final res = await _dio.post('/attendance/break/end',
-        data: {'wifi_connected': wifiConnected});
+        data: {if (wifiConnected != null) 'wifi_connected': wifiConnected});
     return res.data['data'] as Map<String, dynamic>;
   }
 
@@ -143,8 +198,8 @@ class ApiService {
   /// Remote-session approval queue (requires remote.approve).
   /// [status]: 'pending' | 'approved' | 'rejected'.
   Future<List<dynamic>> getRemoteSessions({String status = 'pending'}) async {
-    final res = await _dio
-        .get('/attendance/remote/sessions', queryParameters: {'status': status});
+    final res = await _dio.get('/attendance/remote/sessions',
+        queryParameters: {'status': status});
     return res.data['data'] as List;
   }
 
@@ -156,9 +211,10 @@ class ApiService {
     await _dio.put('/attendance/remote/sessions/$id/reject');
   }
 
-  Future<Map<String, dynamic>> reportIpEvent(String ip, {String? ssid, bool? countAwayAsBreak, String? awayShiftBreakId}) async {
+  Future<Map<String, dynamic>> reportIpEvent(String ip,
+      {String? ssid, bool? countAwayAsBreak, String? awayShiftBreakId}) async {
     final res = await _dio.post('/attendance/ip-event', data: {
-      'ip':    ip,
+      'ip': ip,
       'event': 'match',
       if (ssid != null && ssid.isNotEmpty) 'ssid': ssid,
       if (countAwayAsBreak != null) 'count_away_as_break': countAwayAsBreak,
@@ -179,18 +235,19 @@ class ApiService {
   /// current attendance record, and pre-check-in late minutes.
   Future<Map<String, dynamic>> getTodayStatus() async {
     final res = await _dio.get('/attendance/today-status');
-    return res.data['data'] as Map<String, dynamic>;
+    return AttendanceClock.attachAnchor(
+        (res.data['data'] as Map).cast<String, dynamic>());
   }
 
   /// Submit a generic attendance request: 'late_arrival' | 'leave' | 'early_departure'
   Future<Map<String, dynamic>> submitAttendanceRequest({
-    required String type,   // 'late_arrival' | 'leave' | 'early_departure'
-    required String date,   // yyyy-MM-dd
+    required String type, // 'late_arrival' | 'leave' | 'early_departure'
+    required String date, // yyyy-MM-dd
     required String reason,
-    String? expectedTime,   // HH:mm – for late_arrival
-    String? leaveType,      // e.g. 'annual', 'sick' – for leave
+    String? expectedTime, // HH:mm – for late_arrival
+    String? leaveType, // e.g. 'annual', 'sick' – for leave
     String? leaveStartTime, // HH:mm – for mid-shift leave
-    String? leaveEndTime,   // HH:mm – for mid-shift leave
+    String? leaveEndTime, // HH:mm – for mid-shift leave
   }) async {
     if (type == 'late_arrival') {
       return submitLateNotice(
@@ -203,8 +260,8 @@ class ApiService {
       final res = await _dio.post('/leave/requests', data: {
         'leave_type': leaveType ?? 'annual',
         'start_date': date,
-        'end_date':   date,
-        'reason':     reason,
+        'end_date': date,
+        'reason': reason,
         if (leaveStartTime != null) 'leave_start_time': leaveStartTime,
         if (leaveEndTime != null) 'leave_end_time': leaveEndTime,
       });
@@ -213,9 +270,9 @@ class ApiService {
     // early_departure — stored as a late notice with a special type tag until a
     // dedicated endpoint exists.
     final res = await _dio.post('/attendance/late-notice', data: {
-      'date':          date,
+      'date': date,
       'expected_time': expectedTime ?? '17:00',
-      'reason':        '[Early Departure] $reason',
+      'reason': '[Early Departure] $reason',
     });
     return res.data['data'] as Map<String, dynamic>;
   }
@@ -252,14 +309,16 @@ class ApiService {
     return res.data['data'] as List;
   }
 
-  Future<Map<String, dynamic>> approveCorrection(String id, {String? note}) async {
+  Future<Map<String, dynamic>> approveCorrection(String id,
+      {String? note}) async {
     final res = await _dio.put('/attendance/corrections/$id/approve', data: {
       if (note != null && note.isNotEmpty) 'note': note,
     });
     return res.data['data'] as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> rejectCorrection(String id, {String? note}) async {
+  Future<Map<String, dynamic>> rejectCorrection(String id,
+      {String? note}) async {
     final res = await _dio.put('/attendance/corrections/$id/reject', data: {
       if (note != null && note.isNotEmpty) 'note': note,
     });
@@ -284,15 +343,16 @@ class ApiService {
     required String reason,
   }) async {
     final res = await _dio.post('/attendance/late-notice', data: {
-      'date':          date,
+      'date': date,
       'expected_time': expectedTime,
-      'reason':        reason,
+      'reason': reason,
     });
     return res.data['data'] as Map<String, dynamic>;
   }
 
   Future<List<dynamic>> getMyLateNotices({int days = 7}) async {
-    final res = await _dio.get('/attendance/late-notice/me', queryParameters: {'days': days});
+    final res = await _dio
+        .get('/attendance/late-notice/me', queryParameters: {'days': days});
     return res.data['data'] as List;
   }
 
@@ -350,8 +410,88 @@ class ApiService {
     return res.data['data'] as List;
   }
 
-  Future<Map<String, dynamic>> getShiftAssignmentDetail(String assignmentId) async {
+  Future<List<dynamic>> getShiftTemplates() async {
+    final res = await _dio.get('/shifts');
+    return res.data['data'] as List;
+  }
+
+  Future<Map<String, dynamic>> assignShift({
+    required String userId,
+    required String shiftId,
+    required String date,
+  }) async {
+    final res = await _dio.post('/shifts/assignments', data: {
+      'user_id': userId,
+      'shift_id': shiftId,
+      'date': date,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> bulkAssignShifts(
+      List<Map<String, dynamic>> assignments,
+      {bool dryRun = false}) async {
+    final res = await _dio.post('/shifts/assignments/bulk', data: {
+      'assignments': assignments,
+      'dry_run': dryRun,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getShiftAssignmentDetail(
+      String assignmentId) async {
     final res = await _dio.get('/shifts/assignments/$assignmentId/detail');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> getOpenShiftOffers() async {
+    final res = await _dio.get('/shifts/open-shifts');
+    return res.data['data'] as List;
+  }
+
+  Future<Map<String, dynamic>> claimOpenShift(String offerId) async {
+    final res = await _dio.post('/shifts/open-shifts/$offerId/claim');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<void> cancelOpenShiftOffer(String offerId) async {
+    await _dio.post('/shifts/open-shifts/$offerId/cancel');
+  }
+
+  Future<Map<String, dynamic>> createOpenShiftOffer({
+    required String shiftId,
+    required String date,
+    required int expiresInMinutes,
+    String? note,
+  }) async {
+    final res = await _dio.post('/shifts/open-shifts', data: {
+      'shift_id': shiftId,
+      'date': date,
+      'expires_in_minutes': expiresInMinutes,
+      if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> getAssignmentCheckpoints(String assignmentId) async {
+    final res = await _dio.get('/shifts/assignments/$assignmentId/checkpoints');
+    return res.data['data']['checkpoints'] as List;
+  }
+
+  Future<Map<String, dynamic>> scanShiftCheckpoint({
+    required String assignmentId,
+    required String qrCode,
+    double? latitude,
+    double? longitude,
+    double? accuracyM,
+  }) async {
+    final res = await _dio.post('/shifts/checkpoints/scan', data: {
+      'assignment_id': assignmentId,
+      'qr_code': qrCode,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (accuracyM != null) 'accuracy_m': accuracyM,
+    });
     return res.data['data'] as Map<String, dynamic>;
   }
 
@@ -374,8 +514,8 @@ class ApiService {
   /// Org overtime queue (requires overtime.manage).
   /// [status]: 'pending' | 'approved' | 'rejected'.
   Future<List<dynamic>> getOvertimeRequests({String status = 'pending'}) async {
-    final res =
-        await _dio.get('/overtime/requests', queryParameters: {'status': status});
+    final res = await _dio
+        .get('/overtime/requests', queryParameters: {'status': status});
     return res.data['data'] as List;
   }
 
@@ -385,8 +525,8 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> rejectOvertime(String id, String reason) async {
-    final res =
-        await _dio.put('/overtime/requests/$id/reject', data: {'reason': reason});
+    final res = await _dio
+        .put('/overtime/requests/$id/reject', data: {'reason': reason});
     return res.data['data'] as Map<String, dynamic>;
   }
 
@@ -402,6 +542,83 @@ class ApiService {
       if (weekStart != null) 'week_start': weekStart,
     });
     return res.data['data'] as List;
+  }
+
+  Future<List<dynamic>> getMyShiftAvailability() async {
+    final res = await _dio.get('/shifts/planning/availability/me');
+    return res.data['data'] as List;
+  }
+
+  Future<Map<String, dynamic>> requestShiftAvailability(
+      Map<String, dynamic> data) async {
+    final res = await _dio.post('/shifts/planning/availability', data: data);
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<void> cancelShiftAvailability(String id) async {
+    await _dio.delete('/shifts/planning/availability/$id');
+  }
+
+  Future<List<dynamic>> getTeamShiftAvailability(
+      {String status = 'pending'}) async {
+    final res = await _dio.get('/shifts/planning/availability',
+        queryParameters: {'status': status});
+    return res.data['data'] as List;
+  }
+
+  Future<void> reviewShiftAvailability(String id,
+      {required String status, String? reason}) async {
+    await _dio.put('/shifts/planning/availability/$id/review',
+        data: {'status': status, if (reason != null) 'review_note': reason});
+  }
+
+  Future<Map<String, dynamic>> getShiftPlanningIssues(String weekStart) async {
+    final res = await _dio.get('/shifts/planning/issues',
+        queryParameters: {'week_start': weekStart});
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> getShiftWorkload(String weekStart) async {
+    final res = await _dio.get('/shifts/planning/workload',
+        queryParameters: {'week_start': weekStart});
+    return res.data['data'] as List;
+  }
+
+  Future<List<dynamic>> getShiftCoverageRules() async {
+    final res = await _dio.get('/shifts/planning/coverage');
+    return res.data['data'] as List;
+  }
+
+  Future<List<dynamic>> saveShiftCoverageRules(
+      List<Map<String, dynamic>> rules) async {
+    final res =
+        await _dio.put('/shifts/planning/coverage', data: {'rules': rules});
+    return res.data['data'] as List;
+  }
+
+  Future<Map<String, dynamic>> copyShiftWeek(String from, String to) async {
+    final res = await _dio.post('/shifts/planning/copy-week',
+        data: {'from_week_start': from, 'to_week_start': to});
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> publishShiftWeek(String from, String to) async {
+    final res = await _dio.post('/shifts/schedule/publish',
+        data: {'from_date': from, 'to_date': to});
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> getShiftScheduleHistory({int limit = 100}) async {
+    final res = await _dio
+        .get('/shifts/planning/history', queryParameters: {'limit': limit});
+    return res.data['data'] as List;
+  }
+
+  Future<List<int>> exportShiftCalendar(String from, String to) async {
+    final res = await _dio.get<List<int>>('/shifts/planning/export.ics',
+        queryParameters: {'from': from, 'to': to},
+        options: Options(responseType: ResponseType.bytes));
+    return res.data ?? <int>[];
   }
 
   Future<Map<String, dynamic>> requestSwap(Map<String, dynamic> data) async {
@@ -437,7 +654,8 @@ class ApiService {
       'description': description,
       'expense_date': expenseDate,
       if (currency != null && currency.isNotEmpty) 'currency': currency,
-      if (receiptUrl != null && receiptUrl.isNotEmpty) 'receipt_url': receiptUrl,
+      if (receiptUrl != null && receiptUrl.isNotEmpty)
+        'receipt_url': receiptUrl,
     });
     return res.data['data'] as Map<String, dynamic>;
   }
@@ -569,19 +787,123 @@ class ApiService {
     return res.data['data'] as List;
   }
 
+  // ─── Projects ─────────────────────────────────────
+  Future<List<dynamic>> getProjects() async {
+    final res = await _dio.get('/projects');
+    return res.data['data'] as List;
+  }
+
+  Future<Map<String, dynamic>> createProject(Map<String, dynamic> data) async {
+    final res = await _dio.post('/projects', data: data);
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateProject(
+      String id, Map<String, dynamic> data) async {
+    final res = await _dio.put('/projects/$id', data: data);
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> addProjectMember(
+      String id, String userId) async {
+    final res =
+        await _dio.post('/projects/$id/members', data: {'user_id': userId});
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createProjectTask(
+      String projectId, Map<String, dynamic> data) async {
+    final res = await _dio.post('/projects/$projectId/tasks', data: data);
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateProjectTask(
+      String taskId, Map<String, dynamic> data) async {
+    final res = await _dio.put('/projects/tasks/$taskId', data: data);
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> addProjectTaskComment(
+      String taskId, String body) async {
+    final res = await _dio
+        .post('/projects/tasks/$taskId/comments', data: {'body': body});
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getProjectAttachmentUploadUrl(
+      String projectId, Map<String, dynamic> data) async {
+    final res = await _dio.post('/projects/$projectId/attachments/upload-url',
+        data: data);
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> uploadProjectAttachmentLocal({
+    required String projectId,
+    required String fileName,
+    required String mimeType,
+    required List<int> bytes,
+    String? taskId,
+  }) async {
+    final form = FormData.fromMap({
+      'file': MultipartFile.fromBytes(bytes,
+          filename: fileName, contentType: DioMediaType.parse(mimeType)),
+      if (taskId != null) 'task_id': taskId,
+    });
+    final res = await _dio.post('/projects/$projectId/attachments/upload-local',
+        data: form, options: Options(contentType: 'multipart/form-data'));
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<void> uploadProjectAttachmentSigned({
+    required String uploadUrl,
+    required String mimeType,
+    required List<int> bytes,
+  }) async {
+    // Signed storage URLs must not receive the Attenda bearer token.
+    await Dio().put(uploadUrl,
+        data: Uint8List.fromList(bytes),
+        options: Options(headers: {'Content-Type': mimeType}));
+  }
+
+  Future<Map<String, dynamic>> registerProjectAttachment(
+      String projectId, Map<String, dynamic> data) async {
+    final res = await _dio.post('/projects/$projectId/attachments', data: data);
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getProjectAttachmentDownload(
+      String attachmentId) async {
+    final res = await _dio.get('/projects/attachments/$attachmentId/download');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> getProjectActivity(String projectId) async {
+    final res = await _dio.get('/projects/$projectId/activity');
+    return res.data['data'] as List;
+  }
+
+  Future<List<int>> downloadLocalProjectAttachment(String attachmentId) async {
+    final res = await _dio.get<List<int>>(
+        '/projects/attachments/$attachmentId/file',
+        options: Options(responseType: ResponseType.bytes));
+    return res.data ?? const [];
+  }
+
   // ─── Notification Preferences ────────────────────
   Future<Map<String, dynamic>> getNotificationPrefs() async {
     final res = await _dio.get('/users/me/notification-prefs');
     return (res.data['data'] as Map<String, dynamic>?) ?? {};
   }
 
-  Future<Map<String, dynamic>> updateNotificationPrefs(Map<String, bool> prefs) async {
+  Future<Map<String, dynamic>> updateNotificationPrefs(
+      Map<String, bool> prefs) async {
     final res = await _dio.put('/users/me/notification-prefs', data: prefs);
     return (res.data['data'] as Map<String, dynamic>?) ?? {};
   }
 
   // ─── Profile ──────────────────────────────────────
-  Future<Map<String, dynamic>> updateProfile({String? name, String? phone}) async {
+  Future<Map<String, dynamic>> updateProfile(
+      {String? name, String? phone}) async {
     final data = <String, dynamic>{};
     if (name != null) data['name'] = name;
     if (phone != null) data['phone'] = phone;
@@ -590,7 +912,8 @@ class ApiService {
   }
 
   // ─── Change Password ──────────────────────────────
-  Future<void> changePassword(String currentPassword, String newPassword) async {
+  Future<void> changePassword(
+      String currentPassword, String newPassword) async {
     await _dio.put('/auth/change-password', data: {
       'current_password': currentPassword,
       'new_password': newPassword,
@@ -600,7 +923,8 @@ class ApiService {
   // ─── 2FA ──────────────────────────────────────────
   /// Completes a 2FA login challenge. Returns the same payload as /auth/login
   /// on success: {access_token, refresh_token, user}.
-  Future<Map<String, dynamic>> authenticate2fa(String partialToken, String code) async {
+  Future<Map<String, dynamic>> authenticate2fa(
+      String partialToken, String code) async {
     final res = await _dio.post('/auth/2fa/authenticate', data: {
       'partial_token': partialToken,
       'code': code,
@@ -622,8 +946,10 @@ class ApiService {
   }
 
   // ─── Notifications ────────────────────────────────
-  Future<Map<String, dynamic>> getNotifications({int page = 1, int limit = 20}) async {
-    final res = await _dio.get('/notifications', queryParameters: {'page': page, 'limit': limit});
+  Future<Map<String, dynamic>> getNotifications(
+      {int page = 1, int limit = 20}) async {
+    final res = await _dio
+        .get('/notifications', queryParameters: {'page': page, 'limit': limit});
     return res.data['data'] as Map<String, dynamic>;
   }
 

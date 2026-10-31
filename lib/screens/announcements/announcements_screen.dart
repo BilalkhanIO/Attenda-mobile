@@ -81,8 +81,10 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text('Announcements'),
-        centerTitle: true,
+        title: const AppPageTitle(
+          title: 'Announcements',
+          subtitle: 'Updates from your organization',
+        ),
       ),
       body: RefreshIndicator(
         color: primary,
@@ -170,8 +172,9 @@ class AnnouncementCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
     final isUnread = announcement['my_read_at'] == null;
-    final author =
-        announcement['author'] is Map ? announcement['author'] as Map : const {};
+    final author = announcement['author'] is Map
+        ? announcement['author'] as Map
+        : const {};
     final authorName = author['name'] as String? ?? 'Unknown';
     final body = announcement['body'] as String? ?? '';
     final timeAgo =
@@ -189,34 +192,32 @@ class AnnouncementCard extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    announcement['title'] as String? ?? '',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight:
-                          isUnread ? FontWeight.w700 : FontWeight.w500,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Row(children: [
-                    Flexible(
-                      child: Text(authorName,
-                          style: AppTextStyles.caption,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                    ),
-                    if (timeAgo.isNotEmpty) ...[
-                      const SizedBox(width: 6),
-                      Text('·', style: AppTextStyles.caption),
-                      const SizedBox(width: 6),
-                      Text(timeAgo, style: AppTextStyles.caption),
-                    ],
-                  ]),
-                ]),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                announcement['title'] as String? ?? '',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isUnread ? FontWeight.w700 : FontWeight.w500,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Row(children: [
+                Flexible(
+                  child: Text(authorName,
+                      style: AppTextStyles.caption,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                ),
+                if (timeAgo.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Text('·', style: AppTextStyles.caption),
+                  const SizedBox(width: 6),
+                  Text(timeAgo, style: AppTextStyles.caption),
+                ],
+              ]),
+            ]),
           ),
           if (isUnread) ...[
             const SizedBox(width: 8),

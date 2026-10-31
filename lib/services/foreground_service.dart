@@ -42,6 +42,7 @@ class AttendaTaskHandler extends TaskHandler {
   final _storage = const FlutterSecureStorage();
   final _networkInfo = NetworkInfo();
   final _connectivity = Connectivity();
+  bool _cycleRunning = false;
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -76,6 +77,8 @@ class AttendaTaskHandler extends TaskHandler {
   // ── Core check cycle ───────────────────────────────────────────────────────
 
   Future<void> _runCycle() async {
+    if (_cycleRunning) return;
+    _cycleRunning = true;
     try {
       // 1. Need a valid token — service is a no-op if user is logged out
       final token = await _readToken();
@@ -136,6 +139,8 @@ class AttendaTaskHandler extends TaskHandler {
       }
     } catch (e) {
       debugPrint('[FG] Cycle error: $e');
+    } finally {
+      _cycleRunning = false;
     }
   }
 
@@ -171,7 +176,7 @@ class AttendaTaskHandler extends TaskHandler {
             title: 'Attenda - Left Office WiFi',
             // The grace window is org-configurable server-side — keep the
             // copy neutral instead of hardcoding a number of minutes.
-            text: 'Reconnect soon to stay checked in',
+            text: 'Reconnect to restore office WiFi monitoring',
           );
           break;
 

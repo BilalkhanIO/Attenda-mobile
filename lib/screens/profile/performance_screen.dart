@@ -55,21 +55,27 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text('Performance'),
-        centerTitle: true,
+        title: const AppPageTitle(
+          title: 'Performance',
+          subtitle: 'Goals and review progress',
+        ),
       ),
       body: _loading
-          ? Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
+          ? Center(
+              child: CircularProgressIndicator(
+                  color: Theme.of(context).colorScheme.primary))
           : _error != null
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.error_outline, size: 48, color: AppColors.danger500),
+                      const Icon(Icons.error_outline,
+                          size: 48, color: AppColors.danger500),
                       const SizedBox(height: 16),
                       Text(_error!, style: AppTextStyles.body),
                       const SizedBox(height: 24),
-                      AppButton(label: 'Retry', onPressed: _load, fullWidth: false),
+                      AppButton(
+                          label: 'Retry', onPressed: _load, fullWidth: false),
                     ],
                   ),
                 )
@@ -82,16 +88,18 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                       const EmptyStateWidget(
                         icon: Icons.trending_up,
                         title: 'No reviews yet',
-                        description: 'Your performance reviews will appear here once submitted by your manager.',
+                        description:
+                            'Your performance reviews will appear here once submitted by your manager.',
                       )
                     else
                       ..._reviews.map((r) {
                         final month = r['period_month'] as int? ?? 1;
-                        final year = r['period_year'] as int? ?? DateTime.now().year;
+                        final year =
+                            r['period_year'] as int? ?? DateTime.now().year;
                         final score = r['overall_score'];
                         final stars = r['manager_rating'] as int? ?? 0;
                         final submitted = r['submitted_at'] != null;
-                        
+
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: GlassCard(
@@ -99,24 +107,35 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                 Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Text(DateFormat('MMMM yyyy').format(DateTime(year, month)),
+                                      Text(
+                                          DateFormat('MMMM yyyy')
+                                              .format(DateTime(year, month)),
                                           style: AppTextStyles.title),
                                       if (submitted && score != null)
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 4),
                                           decoration: BoxDecoration(
-                                            color: (double.tryParse(score.toString()) ?? 0) >= 80
+                                            color: (double.tryParse(
+                                                            score.toString()) ??
+                                                        0) >=
+                                                    80
                                                 ? AppColors.success100
                                                 : AppColors.warning100,
-                                            borderRadius: BorderRadius.circular(AppRadius.control),
+                                            borderRadius: BorderRadius.circular(
+                                                AppRadius.control),
                                           ),
                                           child: Text('$score/100',
                                               style: TextStyle(
                                                   fontSize: 13,
                                                   fontWeight: FontWeight.w700,
-                                                  color: (double.tryParse(score.toString()) ?? 0) >= 80
+                                                  color: (double.tryParse(score
+                                                                  .toString()) ??
+                                                              0) >=
+                                                          80
                                                       ? AppColors.success700
                                                       : AppColors.warning800)),
                                         ),
@@ -126,8 +145,12 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                                   Row(
                                       children: List.generate(
                                           5,
-                                          (j) => Icon(j < stars ? Icons.star_rounded : Icons.star_border_rounded,
-                                              size: 18, color: AppColors.warning500))),
+                                          (j) => Icon(
+                                              j < stars
+                                                  ? Icons.star_rounded
+                                                  : Icons.star_border_rounded,
+                                              size: 18,
+                                              color: AppColors.warning500))),
                                   if (r['notes'] != null) ...[
                                     const SizedBox(height: 6),
                                     Text(r['notes'] as String,
@@ -151,11 +174,13 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                       const EmptyStateWidget(
                         icon: Icons.flag_outlined,
                         title: 'No goals set',
-                        description: 'Goals assigned by your manager will appear here.',
+                        description:
+                            'Goals assigned by your manager will appear here.',
                       )
                     else
                       ..._goals.map((g) {
-                        final completion = (g['completion'] as num?)?.toInt() ?? 0;
+                        final completion =
+                            (g['completion'] as num?)?.toInt() ?? 0;
                         final targetDate = g['target_date'] as String?;
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12),
@@ -163,14 +188,18 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                               child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                                  Expanded(
-                                    child: Text(g['title'] as String? ?? '—',
-                                        style: AppTextStyles.bodyStrong),
-                                  ),
-                                  Text('${g['weight']}%',
-                                      style: AppTextStyles.body),
-                                ]),
+                                Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                            g['title'] as String? ?? '—',
+                                            style: AppTextStyles.bodyStrong),
+                                      ),
+                                      Text('${g['weight']}%',
+                                          style: AppTextStyles.body),
+                                    ]),
                                 if (g['description'] != null) ...[
                                   const SizedBox(height: 4),
                                   Text(g['description'] as String,
@@ -187,11 +216,14 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                                         value: completion / 100,
                                         minHeight: 6,
                                         backgroundColor: AppColors.gray100,
-                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
                                           completion >= 100
                                               ? AppColors.success500
                                               : completion >= 50
-                                                  ? Theme.of(context).colorScheme.primary
+                                                  ? Theme.of(context)
+                                                      .colorScheme
+                                                      .primary
                                                   : AppColors.warning500,
                                         ),
                                       ),

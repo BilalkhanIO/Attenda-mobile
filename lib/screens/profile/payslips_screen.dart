@@ -50,21 +50,27 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text('Payslips'),
-        centerTitle: true,
+        title: const AppPageTitle(
+          title: 'Payslips',
+          subtitle: 'Your monthly payroll statements',
+        ),
       ),
       body: _loading
-          ? Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
+          ? Center(
+              child: CircularProgressIndicator(
+                  color: Theme.of(context).colorScheme.primary))
           : _error != null
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.error_outline, size: 48, color: AppColors.danger500),
+                      const Icon(Icons.error_outline,
+                          size: 48, color: AppColors.danger500),
                       const SizedBox(height: 16),
                       Text(_error!, style: AppTextStyles.body),
                       const SizedBox(height: 24),
-                      AppButton(label: 'Retry', onPressed: _load, fullWidth: false),
+                      AppButton(
+                          label: 'Retry', onPressed: _load, fullWidth: false),
                     ],
                   ),
                 )
@@ -72,87 +78,121 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
                   ? const EmptyStateWidget(
                       icon: Icons.receipt_long,
                       title: 'No payslips',
-                      description: 'Your payslips will appear here once payroll is processed.',
+                      description:
+                          'Your payslips will appear here once payroll is processed.',
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                      itemCount: _payslips.length,
-                      itemBuilder: (context, i) {
-                        final p = _payslips[i];
-                        final month = p['period_month'] as int? ?? 1;
-                        final year = p['period_year'] as int? ?? DateTime.now().year;
-                        final gross = p['gross_pay'];
-                        final ready = p['status'] == 'processed';
-                        
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: GlassCard(
-                            tint: ready ? AppColors.success500 : null,
-                            child: Row(children: [
-                              Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: ready
-                                      ? AppColors.success500
-                                          .withValues(alpha: 0.10)
-                                      : AppColors.gray100,
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadius.control),
-                                ),
-                                child: Icon(Icons.receipt_long,
+                  : RefreshIndicator(
+                      color: Theme.of(context).colorScheme.primary,
+                      backgroundColor: AppColors.surface,
+                      onRefresh: _load,
+                      child: ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                        itemCount: _payslips.length,
+                        itemBuilder: (context, i) {
+                          final p = _payslips[i];
+                          final month = p['period_month'] as int? ?? 1;
+                          final year =
+                              p['period_year'] as int? ?? DateTime.now().year;
+                          final gross = p['gross_pay'];
+                          final net = p['net_pay'];
+                          final ready = p['status'] == 'processed';
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: GlassCard(
+                              tint: ready ? AppColors.success500 : null,
+                              child: Row(children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
                                     color: ready
                                         ? AppColors.success500
-                                        : AppColors.gray400,
-                                    size: 20),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                  child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                    Text(DateFormat('MMMM yyyy').format(DateTime(year, month)),
-                                        style: AppTextStyles.title),
-                                    Text(ready ? 'Ready to download' : 'Processing',
-                                        style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w500,
-                                            color: ready
-                                                ? AppColors.success700
-                                                : AppColors.gray500)),
-                                  ])),
-                              Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    if (gross != null)
-                                      Text('\$$gross',
+                                            .withValues(alpha: 0.10)
+                                        : AppColors.gray100,
+                                    borderRadius: BorderRadius.circular(
+                                        AppRadius.control),
+                                  ),
+                                  child: Icon(Icons.receipt_long,
+                                      color: ready
+                                          ? AppColors.success500
+                                          : AppColors.gray400,
+                                      size: 20),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                    child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                      Text(
+                                          DateFormat('MMMM yyyy')
+                                              .format(DateTime(year, month)),
                                           style: AppTextStyles.title),
-                                    if (ready)
-                                      GestureDetector(
-                                        onTap: () async {
-                                          try {
-                                            final res = await api.downloadPayslip(p['id'] as String);
-                                            final url = res['url'] as String?;
-                                            if (url != null) {
-                                              final uri = Uri.parse(url);
-                                              if (await canLaunchUrl(uri)) {
-                                                await launchUrl(uri, mode: LaunchMode.externalApplication);
-                                              }
-                                            }
-                                          } catch (e) {
-                                            if (context.mounted) {
-                                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                                  content: Text(ApiFailure.fromError(e).userMessage)));
-                                            }
+                                      Text(
+                                          ready
+                                              ? 'Ready to download'
+                                              : 'Processing',
+                                          style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                              color: ready
+                                                  ? AppColors.success700
+                                                  : AppColors.gray500)),
+                                      if (gross != null || net != null) ...[
+                                        const SizedBox(height: 5),
+                                        Text(
+                                          [
+                                            if (gross != null)
+                                              'Gross ${NumberFormat('#,##0.00').format(gross is num ? gross : num.tryParse('$gross') ?? 0)}',
+                                            if (net != null)
+                                              'Net ${NumberFormat('#,##0.00').format(net is num ? net : num.tryParse('$net') ?? 0)}',
+                                          ].join('  ·  '),
+                                          style: AppTextStyles.caption,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ])),
+                                if (ready)
+                                  IconButton(
+                                    tooltip: 'Download payslip',
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () async {
+                                      try {
+                                        final res = await api
+                                            .downloadPayslip(p['id'] as String);
+                                        final url = res['url'] as String?;
+                                        if (url != null) {
+                                          final uri = Uri.parse(url);
+                                          if (await canLaunchUrl(uri)) {
+                                            await launchUrl(uri,
+                                                mode: LaunchMode
+                                                    .externalApplication);
                                           }
-                                        },
-                                        child: Icon(Icons.download_outlined, size: 18, color: Theme.of(context).colorScheme.primary),
-                                      ),
-                                  ]),
-                            ]),
-                          ),
-                        );
-                      },
+                                        }
+                                      } catch (e) {
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(SnackBar(
+                                                  content: Text(
+                                                      ApiFailure.fromError(e)
+                                                          .userMessage)));
+                                        }
+                                      }
+                                    },
+                                    icon: Icon(Icons.download_outlined,
+                                        size: 20,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary),
+                                  ),
+                              ]),
+                            ),
+                          );
+                        },
+                      ),
                     ),
     );
   }

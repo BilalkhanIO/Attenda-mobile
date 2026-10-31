@@ -77,13 +77,17 @@ class OverdueOffWifiBanner extends StatelessWidget {
         tint: AppColors.danger500,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(children: [
-          const Icon(Icons.running_with_errors, color: AppColors.danger500, size: 18),
+          const Icon(Icons.running_with_errors,
+              color: AppColors.danger500, size: 18),
           const SizedBox(width: 10),
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('$name — return to office!',
                   style: const TextStyle(
-                      fontSize: 13, color: AppColors.danger800, fontWeight: FontWeight.w700)),
+                      fontSize: 13,
+                      color: AppColors.danger800,
+                      fontWeight: FontWeight.w700)),
               const Text('You are away from the office past your break time',
                   style: TextStyle(
                       fontSize: 11,
@@ -144,21 +148,24 @@ class AutoStartedBreakBanner extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            const Icon(Icons.free_breakfast, color: AppColors.teal100, size: 18),
+            const Icon(Icons.free_breakfast,
+                color: AppColors.teal100, size: 18),
             const SizedBox(width: 10),
             Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('$name has started',
-                    style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.teal700,
-                        fontWeight: FontWeight.w700)),
-                Text(subtext,
-                    style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.teal700)),
-              ]),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('$name has started',
+                        style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.teal700,
+                            fontWeight: FontWeight.w700)),
+                    Text(subtext,
+                        style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.teal700)),
+                  ]),
             ),
           ]),
           const SizedBox(height: 10),
@@ -234,20 +241,21 @@ class DeferredReminderBanner extends StatelessWidget {
             const Icon(Icons.alarm, color: AppColors.warning500, size: 18),
             const SizedBox(width: 10),
             Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                Text('Time to take $name',
-                    style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.warning800,
-                        fontWeight: FontWeight.w700)),
-                if (deduct)
-                  const Text('Skipping will deduct this time from your pay',
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.warning800)),
-              ]),
+                    Text('Time to take $name',
+                        style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.warning800,
+                            fontWeight: FontWeight.w700)),
+                    if (deduct)
+                      const Text('Skipping will deduct this time from your pay',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.warning800)),
+                  ]),
             ),
           ]),
           const SizedBox(height: 10),
@@ -313,15 +321,12 @@ class PreCheckinLateBanner extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
               child: Text(
-            'You are currently ${formatMinutesHours(lateMinutes)} late',
+            'You are late by ${formatMinutesHours(lateMinutes)}',
             style: const TextStyle(
                 fontSize: 13,
                 color: AppColors.warning800,
                 fontWeight: FontWeight.w500),
           )),
-          Text('+${formatMinutesHours(lateMinutes)}',
-              style: AppTextStyles.timer
-                  .copyWith(fontSize: 13, color: AppColors.warning800)),
         ]),
       ),
     );

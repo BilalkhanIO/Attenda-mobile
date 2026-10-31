@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../services/api_failure.dart';
@@ -244,14 +245,15 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
             maxLines: 2,
             maxLength: 200,
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-            decoration: const InputDecoration(hintText: 'Add a note (optional)'),
+            decoration:
+                const InputDecoration(hintText: 'Add a note (optional)'),
           ),
         ]),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child:
-                const Text('Cancel', style: TextStyle(color: AppColors.gray500)),
+            child: const Text('Cancel',
+                style: TextStyle(color: AppColors.gray500)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -341,8 +343,7 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
               onChanged: (_) => setDialogState(() {}),
               style:
                   const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-              decoration:
-                  const InputDecoration(hintText: 'Reason (required)'),
+              decoration: const InputDecoration(hintText: 'Reason (required)'),
             ),
           ]),
           actions: [
@@ -378,8 +379,7 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
       final ok = await showConfirmDialog(
         context,
         title: 'Approve Leave',
-        message:
-            'The leave will be approved and deducted from the balance.',
+        message: 'The leave will be approved and deducted from the balance.',
         confirmLabel: 'Approve',
       );
       if (ok != true || !mounted) return;
@@ -459,7 +459,8 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
       } else {
         await api.rejectRemoteSession(id);
       }
-      _showSnack(approve ? 'Remote session approved' : 'Remote session rejected');
+      _showSnack(
+          approve ? 'Remote session approved' : 'Remote session rejected');
       _loadRemote();
     } catch (e) {
       _showSnack(ApiFailure.fromError(e).userMessage, isError: true);
@@ -473,6 +474,17 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Team Approvals'),
+        actions: [
+          if (context.watch<AuthProvider>().hasPermission('analytics.ai_chat'))
+            IconButton(
+              tooltip: 'Ask AI about pending approvals',
+              onPressed: () => context.push('/home/ai', extra: const {
+                'prompt':
+                    'List the pending approvals I am allowed to review. Group them by request type and count each group. Do not approve or reject anything.',
+              }),
+              icon: const Icon(Icons.auto_awesome_outlined),
+            ),
+        ],
         bottom: TabBar(
           controller: _tabCtrl,
           isScrollable: true,
@@ -578,8 +590,8 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
                                 claim: _expenses[i],
                                 onApprove: () =>
                                     _reviewExpense(_expenses[i], approve: true),
-                                onReject: () =>
-                                    _reviewExpense(_expenses[i], approve: false),
+                                onReject: () => _reviewExpense(_expenses[i],
+                                    approve: false),
                               ),
                             ),
                           ),
@@ -609,10 +621,10 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
                               padding: const EdgeInsets.only(bottom: 8),
                               child: OvertimeApprovalCard(
                                 request: _overtime[i],
-                                onApprove: () =>
-                                    _reviewOvertime(_overtime[i], approve: true),
-                                onReject: () =>
-                                    _reviewOvertime(_overtime[i], approve: false),
+                                onApprove: () => _reviewOvertime(_overtime[i],
+                                    approve: true),
+                                onReject: () => _reviewOvertime(_overtime[i],
+                                    approve: false),
                               ),
                             ),
                           ),
@@ -675,7 +687,8 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
           icon: Icons.error_outline,
           title: 'Couldn\'t load',
           description: message,
-          action: AppButton(label: 'Retry', onPressed: onRetry, fullWidth: false),
+          action:
+              AppButton(label: 'Retry', onPressed: onRetry, fullWidth: false),
         ),
       ],
     );
@@ -769,7 +782,8 @@ class CorrectionApprovalCard extends StatelessWidget {
               name: name, imageUrl: user['avatar_url'] as String?, size: 32),
           const SizedBox(width: 10),
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(name,
                   style: AppTextStyles.bodyStrong,
                   maxLines: 1,
@@ -842,7 +856,8 @@ class ExpenseApprovalCard extends StatelessWidget {
               name: name, imageUrl: user['avatar_url'] as String?, size: 32),
           const SizedBox(width: 10),
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(name,
                   style: AppTextStyles.bodyStrong,
                   maxLines: 1,
@@ -936,7 +951,8 @@ class LeaveApprovalCard extends StatelessWidget {
               name: name, imageUrl: user['avatar_url'] as String?, size: 32),
           const SizedBox(width: 10),
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(name,
                   style: AppTextStyles.bodyStrong,
                   maxLines: 1,
@@ -1010,7 +1026,8 @@ class OvertimeApprovalCard extends StatelessWidget {
               name: name, imageUrl: user['avatar_url'] as String?, size: 32),
           const SizedBox(width: 10),
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(name,
                   style: AppTextStyles.bodyStrong,
                   maxLines: 1,
@@ -1074,8 +1091,7 @@ class RemoteApprovalCard extends StatelessWidget {
           .format(DateTime.parse(attendance['date'] as String));
     } catch (_) {}
     final durationType = session['duration_type'] as String? ?? 'full_day';
-    final durationLabel =
-        durationType == 'half_day' ? 'Half day' : 'Full day';
+    final durationLabel = durationType == 'half_day' ? 'Half day' : 'Full day';
 
     return GlassCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1084,7 +1100,8 @@ class RemoteApprovalCard extends StatelessWidget {
               name: name, imageUrl: user['avatar_url'] as String?, size: 32),
           const SizedBox(width: 10),
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(name,
                   style: AppTextStyles.bodyStrong,
                   maxLines: 1,
@@ -1151,7 +1168,8 @@ class LateSummaryTile extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(name,
                 style: AppTextStyles.bodyStrong,
                 maxLines: 1,

@@ -5,6 +5,8 @@ import '../../../widgets/common.dart';
 import 'break_banners.dart' show formatMinutesHours;
 import 'shift_ring.dart';
 
+void _ignoreStatusAction() {}
+
 // ─── Status Card variants ──────────────────────────────
 //
 // The status dispatch (which variant to show, and every value derived from
@@ -92,8 +94,7 @@ class CheckedOutCard extends StatelessWidget {
               ])),
           if (hoursLabel.isNotEmpty)
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 color: AppColors.gray100,
                 borderRadius: BorderRadius.circular(AppRadius.control),
@@ -213,7 +214,7 @@ class CheckedInCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(AppRadius.control),
                   ),
                   child: Text(
-                    isLate ? 'Checked In · Late' : 'Checked In',
+                    'Checked In',
                     style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -238,7 +239,8 @@ class CheckedInCard extends StatelessWidget {
           const Divider(height: 1),
           const SizedBox(height: 12),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            InfoChip(icon: Icons.login, label: 'Checked in', value: checkInTime),
+            InfoChip(
+                icon: Icons.login, label: 'Checked in', value: checkInTime),
             if (checkInTypeLabel != null)
               InfoChip(
                   icon: Icons.wifi, label: 'Method', value: checkInTypeLabel!),
@@ -270,7 +272,7 @@ class CheckedInCard extends StatelessWidget {
         if (lateMins > 0) ...[
           const SizedBox(height: 8),
           Text(
-            '${formatMinutesHours(lateMins)} late${hasNotice ? ' · pre-announced' : ''}',
+            'Arrived ${formatMinutesHours(lateMins)} late${hasNotice ? ' · pre-announced' : ''}',
             style: const TextStyle(
                 fontSize: 13,
                 color: AppColors.warning800,
@@ -283,9 +285,8 @@ class CheckedInCard extends StatelessWidget {
         Row(children: [
           Expanded(
             child: OutlinedButton.icon(
-              onPressed: actionLoading
-                  ? null
-                  : () => context.push('/attendance/qr'),
+              onPressed:
+                  actionLoading ? null : () => context.push('/attendance/qr'),
               icon: const Icon(Icons.qr_code_scanner, size: 16),
               label: const Text('Scan QR'),
               style: OutlinedButton.styleFrom(
@@ -327,6 +328,9 @@ class StatusInfoCard extends StatelessWidget {
   /// Shows the "Report Late Arrival" button (within the check-in block).
   final bool showReportLate;
   final VoidCallback onReportLate;
+  final bool actionLoading;
+  final VoidCallback onCheckIn;
+  final VoidCallback? onCheckOut;
 
   /// Non-null shows the "View My Activity" button for an approved remote
   /// session with this id.
@@ -342,6 +346,9 @@ class StatusInfoCard extends StatelessWidget {
       required this.showCheckInActions,
       required this.showReportLate,
       required this.onReportLate,
+      this.actionLoading = false,
+      this.onCheckIn = _ignoreStatusAction,
+      this.onCheckOut,
       required this.remoteDetailId});
 
   @override
@@ -365,9 +372,25 @@ class StatusInfoCard extends StatelessWidget {
         if (showCheckInActions) ...[
           const SizedBox(height: 16),
           AppButton(
-            label: 'Scan QR Code',
-            icon: Icons.qr_code_scanner,
-            onPressed: () => context.push('/attendance/qr'),
+            label: 'Check In',
+            icon: Icons.login,
+            loading: actionLoading,
+            onPressed: actionLoading ? null : onCheckIn,
+          ),
+          const SizedBox(height: 6),
+          OutlinedButton.icon(
+            onPressed:
+                actionLoading ? null : () => context.push('/attendance/qr'),
+            icon: const Icon(Icons.qr_code_scanner, size: 16),
+            label: const Text('Check in with QR'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.textPrimary,
+              side: const BorderSide(color: AppColors.border),
+              minimumSize: const Size(double.infinity, 42),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.control),
+              ),
+            ),
           ),
           const SizedBox(height: 8),
           if (showReportLate)
@@ -383,6 +406,19 @@ class StatusInfoCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(AppRadius.control)),
               ),
             ),
+        ],
+
+        // Remote attendance is active attendance too, so it must expose the
+        // same checkout action as an office shift.
+        if (onCheckOut != null) ...[
+          const SizedBox(height: 16),
+          AppButton(
+            label: 'Check Out',
+            icon: Icons.logout,
+            color: AppColors.danger500,
+            loading: actionLoading,
+            onPressed: actionLoading ? null : onCheckOut,
+          ),
         ],
 
         // Remote activity button

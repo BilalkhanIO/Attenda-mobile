@@ -62,10 +62,13 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text('My Expenses'),
-        centerTitle: true,
+        title: const AppPageTitle(
+          title: 'Expenses',
+          subtitle: 'Submit claims and track reimbursements',
+        ),
         actions: [
           IconButton(
+            tooltip: 'New expense claim',
             icon: const Icon(Icons.add_circle_outline),
             onPressed: _newClaim,
           ),
@@ -212,19 +215,18 @@ class ExpenseClaimCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    formatExpenseAmount(
-                        claim['amount'], claim['currency'] as String?),
-                    style: AppTextStyles.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(dateLabel, style: AppTextStyles.caption),
-                ]),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                formatExpenseAmount(
+                    claim['amount'], claim['currency'] as String?),
+                style: AppTextStyles.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(dateLabel, style: AppTextStyles.caption),
+            ]),
           ),
           const SizedBox(width: 8),
           ExpenseStatusChip(status: status),
@@ -246,18 +248,17 @@ class ExpenseClaimCard extends StatelessWidget {
               color: AppColors.gray100,
               borderRadius: BorderRadius.circular(AppRadius.control),
             ),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    reviewer != null && reviewer.isNotEmpty
-                        ? 'Note from $reviewer'
-                        : 'Reviewer note',
-                    style: AppTextStyles.captionStrong,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(note, style: AppTextStyles.body),
-                ]),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                reviewer != null && reviewer.isNotEmpty
+                    ? 'Note from $reviewer'
+                    : 'Reviewer note',
+                style: AppTextStyles.captionStrong,
+              ),
+              const SizedBox(height: 2),
+              Text(note, style: AppTextStyles.body),
+            ]),
           ),
         ],
       ]),

@@ -8,6 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/auth_provider.dart';
 import '../../services/api_failure.dart';
 import '../../services/api_service.dart';
+import '../../services/attendance_location.dart';
+import '../../services/attendance_clock.dart';
 import '../../services/wifi_service.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common.dart';
@@ -61,8 +63,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Duration _clockOffset = Duration.zero;
 
   // Flash messages shown briefly after a WiFi event, then auto-dismissed.
-  String? _breakWelcomeBack;   // "Welcome back — you were X late from Lunch"
-  String? _lateArrivalFlash;  // "You checked in X late today"
+  String? _breakWelcomeBack; // "Welcome back — you were X late from Lunch"
+  String? _lateArrivalFlash; // "You checked in X late today"
 
   @override
   void initState() {
@@ -94,13 +96,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           // Reload first, then check whether the check-in was late.
           _load(silent: true).then((_) {
             if (!mounted) return;
-            final lateMins = (_todayRecord?['late_minutes'] as num?)?.toInt() ?? 0;
-            if (lateMins > 0) {
-              _showFlash(
-                'You checked in ${formatMinutesHours(lateMins)} late today',
-                isBreak: false,
-              );
-            } else {
+            final lateMins =
+                (_todayRecord?['late_minutes'] as num?)?.toInt() ?? 0;
+            if (lateMins <= 0) {
               _showSnack('✅ Auto checked in via office WiFi');
             }
           });
@@ -131,6 +129,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         case 'vpn_detected':
         case 'no_networks':
           setState(() {});
+          break;
+        case 'offline_checkin_review':
+          _showSnack('An offline check-in needs review. Contact your manager or submit an attendance correction.', isError: true);
+          break;
+        case 'manual_checkin_required':
+          _showSnack('Office Wi-Fi detected. Check in manually to verify your location.');
           break;
       }
     };
@@ -192,13 +196,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // ── SharedPreferences cache keys ──────────────────────
   static const _kCachedStatus = 'attenda_today_status';
   static const _kCachedRecord = 'attenda_today_record';
-  static const _kCacheDate    = 'attenda_cache_date';
+  static const _kCacheDate = 'attenda_cache_date';
 
-  Future<void> _persistCache(Map<String, dynamic> todayStatus, Map<String, dynamic>? todayRecord) async {
+  Future<void> _persistCache(Map<String, dynamic> todayStatus,
+      Map<String, dynamic>? todayRecord) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      await prefs.setString(_kCachedStatus, jsonEncode(todayStatus));
+      final safeStatus = Map<String, dynamic>.from(todayStatus)
+        ..remove('_server_anchor_uptime_ms')
+        ..remove('_clock_epoch');
+      await prefs.setString(_kCachedStatus, jsonEncode(safeStatus));
       await prefs.setString(_kCachedRecord, jsonEncode(todayRecord ?? {}));
       await prefs.setString(_kCacheDate, dateStr);
     } catch (_) {}
@@ -218,7 +226,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           : null;
       setState(() {
         _todayStatus ??= cachedStatus;
-        if (_todayRecord == null && cachedRecord != null && cachedRecord.isNotEmpty) {
+        if (_todayRecord == null &&
+            cachedRecord != null &&
+            cachedRecord.isNotEmpty) {
           _todayRecord = cachedRecord;
         }
       });
@@ -241,11 +251,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         api.getWhosOut().catchError((_) => <String, dynamic>{}),
       ]);
 
-      final records    = results[0] as List;
-      final shifts     = results[1] as List;
-      final leaveInfo  = results[2] as Map<String, dynamic>;
+      final records = results[0] as List;
+      final shifts = results[1] as List;
+      final leaveInfo = results[2] as Map<String, dynamic>;
       final todayStatus = results[3] as Map<String, dynamic>;
-      final whosOut    = results[4] as Map<String, dynamic>;
+      final whosOut = results[4] as Map<String, dynamic>;
 
       // Never overwrite good in-memory data with an empty offline response.
       if (todayStatus.isEmpty) {
@@ -303,19 +313,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           if (statusAttendance != null) ...statusAttendance,
         };
         setState(() {
-          _todayRecord  = mergedRecord.isNotEmpty ? mergedRecord : _todayRecord;
-          _nextShift    = shifts.isNotEmpty ? shifts.first as Map<String, dynamic> : null;
+          _todayRecord = mergedRecord.isNotEmpty ? mergedRecord : _todayRecord;
+          _nextShift =
+              shifts.isNotEmpty ? shifts.first as Map<String, dynamic> : null;
           _remoteSession = remoteSession;
-          _todayLeave   = leaveInfo['leave'] as Map<String, dynamic>?;
-          _lateNotice   = leaveInfo['late_notice'] as Map<String, dynamic>?;
-          _todayStatus  = todayStatus;
+          _todayLeave = leaveInfo['leave'] as Map<String, dynamic>?;
+          _lateNotice = leaveInfo['late_notice'] as Map<String, dynamic>?;
+          _todayStatus = todayStatus;
           if (whosOut.isNotEmpty) _whosOut = whosOut;
-          _loadError    = null;
-          _loading      = false;
+          _loadError = null;
+          _loading = false;
         });
         _updateElapsed();
         // Persist for offline use
-        _persistCache(todayStatus, mergedRecord.isNotEmpty ? mergedRecord : null);
+        _persistCache(
+            todayStatus, mergedRecord.isNotEmpty ? mergedRecord : null);
       }
     } catch (e) {
       // API totally failed — fall back to cache so banners still work offline.
@@ -388,9 +400,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   int _totalBreakMinutes(Map<String, dynamic>? record) {
     if (record == null) return 0;
-    final breakRecords = (record['break_records'] as List?)
-            ?.cast<Map<String, dynamic>>() ??
-        const <Map<String, dynamic>>[];
+    final breakRecords =
+        (record['break_records'] as List?)?.cast<Map<String, dynamic>>() ??
+            const <Map<String, dynamic>>[];
     if (breakRecords.isEmpty) return _asInt(record['break_minutes']) ?? 0;
 
     var total = 0;
@@ -451,13 +463,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   int get _livePreCheckinLateMins {
-    final shift = (_todayStatus?['shift'] as Map?)?.cast<String, dynamic>();
-    final start = _parseLocal(shift?['shift_start_utc']);
+    final start = _parseLocal(_todayStatus?['expected_checkin_utc']);
     if (start == null || _checkedIn || _checkedOut) return 0;
     // Use server-corrected _now (not device DateTime.now()) so this matches the
     // break countdowns and the server's pre_checkin_late_minutes under clock skew.
-    final minutes = _now.difference(start).inMinutes;
-    return minutes > 0 ? minutes : 0;
+    final minutes = (_now.difference(start).inMilliseconds / 60000).round();
+    final tolerance = (_todayStatus?['late_tolerance_minutes'] as num?)?.toInt() ?? 15;
+    return (minutes - tolerance).clamp(0, 1 << 31);
   }
 
   String get _status => _todayRecord?['status'] as String? ?? 'none';
@@ -469,7 +481,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // HomeScreen being recreated on every tab switch (the disconnect countdown
   // therefore keeps running instead of restarting).
   WifiAttendanceService get _wifi => WifiAttendanceService();
-  bool get _heartbeatLost => _wifi.heartbeatLost;
+  bool? get _officeWifiAtBreakEnd {
+    final last = _wifi.lastHeartbeatAt;
+    if (last != null && !_wifi.heartbeatLost &&
+        DateTime.now().difference(last) < const Duration(minutes: 5)) {
+      return true;
+    }
+    return null;
+  }
   bool get _vpnDetected => _wifi.vpnDetected;
   bool get _noNetworksConfig => _wifi.noNetworksConfigured;
   String? get _disconnectSsid => _wifi.disconnectSsid;
@@ -478,7 +497,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // The disconnect/grace UI applies to unexpected WiFi loss while actively
   // working. During a break, the break timer owns the state; the backend also
   // defers heartbeat checkout until the break is overdue plus grace.
-  bool get _autoCheckoutRisk => _heartbeatLost && _checkedIn && !_isOnBreak;
+  bool get _autoCheckoutRisk => false;
   // True once the grace window has elapsed — the server is closing us out.
   bool get _graceExpired =>
       _disconnectDeadline != null &&
@@ -523,7 +542,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     });
     _flashTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted) setState(() { _breakWelcomeBack = null; _lateArrivalFlash = null; });
+      if (mounted) {
+        setState(() {
+          _breakWelcomeBack = null;
+          _lateArrivalFlash = null;
+        });
+      }
     });
   }
 
@@ -531,7 +555,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // at the time the device reconnected to office WiFi. Called before reload.
   String? _overdueBreakWelcomeBack() {
     final breaks = (_todayStatus?['shift']?['breaks'] as List?)
-        ?.cast<Map<String, dynamic>>() ?? [];
+            ?.cast<Map<String, dynamic>>() ??
+        [];
     int maxLate = 0;
     String? breakName;
     for (final b in breaks) {
@@ -539,7 +564,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final endUtc = _parseLocal(b['break_end_utc']);
       if (endUtc == null) continue;
       final late = _now.difference(endUtc).inMinutes;
-      if (late > maxLate) { maxLate = late; breakName = b['name'] as String?; }
+      if (late > maxLate) {
+        maxLate = late;
+        breakName = b['name'] as String?;
+      }
     }
     if (maxLate <= 0 || breakName == null) return null;
     return 'Welcome back — you were ${formatMinutesHours(maxLate)} late from $breakName';
@@ -591,6 +619,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 style: AppTextStyles.display),
                           ]),
                       Row(children: [
+                        if (context
+                            .read<AuthProvider>()
+                            .hasPermission('analytics.ai_chat')) ...[
+                          IconButton(
+                            tooltip: 'Ask Attenda AI',
+                            onPressed: () => context.push('/home/ai'),
+                            icon: const Icon(Icons.auto_awesome_outlined),
+                            style: IconButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              backgroundColor:
+                                  AppColors.primary.withValues(alpha: .08),
+                              minimumSize: const Size(44, 44),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
                         // Notification bell
                         GestureDetector(
                           onTap: () async {
@@ -606,27 +650,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   BorderRadius.circular(AppRadius.control),
                               border: Border.all(color: AppColors.border),
                             ),
-                            child: Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  const Icon(Icons.notifications_none_rounded,
-                                      size: 22, color: AppColors.gray600),
-                                  if (_unreadNotifs > 0)
-                                    Positioned(
-                                      top: 12,
-                                      right: 12,
-                                      child: Container(
-                                        width: 8,
-                                        height: 8,
-                                        decoration: BoxDecoration(
-                                            color: AppColors.primary,
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                                color: AppColors.surface,
-                                                width: 1.5)),
-                                      ),
-                                    ),
-                                ]),
+                            child:
+                                Stack(alignment: Alignment.center, children: [
+                              const Icon(Icons.notifications_none_rounded,
+                                  size: 22, color: AppColors.gray600),
+                              if (_unreadNotifs > 0)
+                                Positioned(
+                                  top: 12,
+                                  right: 12,
+                                  child: Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                        color: AppColors.primary,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                            color: AppColors.surface,
+                                            width: 1.5)),
+                                  ),
+                                ),
+                            ]),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -634,7 +677,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           onTap: () => context.go('/profile'),
                           child: UserAvatar(
                             name: user.name,
-                            imageUrl: _todayStatus?['user']?['avatar_url'] as String?,
+                            imageUrl:
+                                _todayStatus?['user']?['avatar_url'] as String?,
                             size: 40,
                           ),
                         ),
@@ -670,9 +714,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       LateNoticeBanner(
                           expectedTime:
                               _lateNotice?['expected_time'] as String? ?? '',
-                          isAcknowledged:
-                              (_lateNotice?['status'] as String? ?? 'pending') ==
-                                  'acknowledged',
+                          isAcknowledged: (_lateNotice?['status'] as String? ??
+                                  'pending') ==
+                              'acknowledged',
                           onCancel: _cancelLateNotice),
                     // ── Break alert banners (from today-status) ──
                     if (!_loading && _checkedIn) ..._breakAlertBanners(),
@@ -717,101 +761,104 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                   )
                 else ...[
-                // ─── Status Card ──────────────────────────
-                _loading
-                    ? const SkeletonBox(
-                        width: double.infinity, height: 160, radius: 16)
-                    : AnimatedSwitcher(
-                        duration: AppMotion.duration,
-                        switchInCurve: AppMotion.curve,
-                        switchOutCurve: AppMotion.curve,
-                        transitionBuilder: (child, animation) => FadeTransition(
-                          opacity: animation,
-                          child: child,
+                  // ─── Status Card ──────────────────────────
+                  _loading
+                      ? const SkeletonBox(
+                          width: double.infinity, height: 160, radius: 16)
+                      : AnimatedSwitcher(
+                          duration: AppMotion.duration,
+                          switchInCurve: AppMotion.curve,
+                          switchOutCurve: AppMotion.curve,
+                          transitionBuilder: (child, animation) =>
+                              FadeTransition(
+                            opacity: animation,
+                            child: child,
+                          ),
+                          child: KeyedSubtree(
+                            key: ValueKey(
+                                _status + (_autoCheckoutRisk ? '_hl' : '')),
+                            child: _buildStatusCard(),
+                          ),
                         ),
-                        child: KeyedSubtree(
-                          key: ValueKey(
-                              _status + (_autoCheckoutRisk ? '_hl' : '')),
-                          child: _buildStatusCard(),
+
+                  const SizedBox(height: 20),
+
+                  // ─── Break control ─────────────────────────────────
+                  // Always show when checked in. When WiFi is lost mid-break
+                  // (_autoCheckoutRisk) we still show End Break so the employee
+                  // can close the break record before the grace window expires.
+                  // Hide "Take a Break" during the disconnect countdown (they
+                  // shouldn't start a new break while the session is at risk).
+                  if (!_loading &&
+                      _checkedIn &&
+                      (!_autoCheckoutRisk || _isOnBreak)) ...[
+                    BreakControl(
+                      isOnBreak: _isOnBreak,
+                      actionLoading: _actionLoading,
+                      onEndBreak: _endBreak,
+                      onTakeBreak: _showBreakTypeSheet,
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // ─── Quick Actions ────────────────────────
+                  const SectionHeader(title: 'Quick Actions'),
+                  const SizedBox(height: 12),
+                  _buildQuickActions(context),
+
+                  const SizedBox(height: 20),
+
+                  // ─── Today's Shift ────────────────────────
+                  if (_nextShift != null) ...[
+                    const SectionHeader(title: 'Your Shift'),
+                    const SizedBox(height: 12),
+                    _buildShiftCard(),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // ─── Who's out today ──────────────────────
+                  if (_whosOutLeave.isNotEmpty ||
+                      _whosOutRemote.isNotEmpty) ...[
+                    const SectionHeader(title: "Who's out today"),
+                    const SizedBox(height: 12),
+                    WhosOutCard(onLeave: _whosOutLeave, remote: _whosOutRemote),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // ─── Date + WiFi status ───────────────────
+                  GlassCard(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    child: Row(children: [
+                      Icon(Icons.calendar_today, size: 16, color: primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          DateFormat('EEEE, d MMMM yyyy')
+                              .format(DateTime.now()),
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary),
                         ),
                       ),
-
-                const SizedBox(height: 20),
-
-                // ─── Break control ─────────────────────────────────
-                // Always show when checked in. When WiFi is lost mid-break
-                // (_autoCheckoutRisk) we still show End Break so the employee
-                // can close the break record before the grace window expires.
-                // Hide "Take a Break" during the disconnect countdown (they
-                // shouldn't start a new break while the session is at risk).
-                if (!_loading && _checkedIn &&
-                    (!_autoCheckoutRisk || _isOnBreak)) ...[
-                  BreakControl(
-                    isOnBreak: _isOnBreak,
-                    actionLoading: _actionLoading,
-                    onEndBreak: _endBreak,
-                    onTakeBreak: _showBreakTypeSheet,
-                  ),
-                  const SizedBox(height: 20),
-                ],
-
-                // ─── Quick Actions ────────────────────────
-                const SectionHeader(title: 'Quick Actions'),
-                const SizedBox(height: 12),
-                _buildQuickActions(context),
-
-                const SizedBox(height: 20),
-
-                // ─── Today's Shift ────────────────────────
-                if (_nextShift != null) ...[
-                  const SectionHeader(title: 'Your Shift'),
-                  const SizedBox(height: 12),
-                  _buildShiftCard(),
-                  const SizedBox(height: 20),
-                ],
-
-                // ─── Who's out today ──────────────────────
-                if (_whosOutLeave.isNotEmpty || _whosOutRemote.isNotEmpty) ...[
-                  const SectionHeader(title: "Who's out today"),
-                  const SizedBox(height: 12),
-                  WhosOutCard(onLeave: _whosOutLeave, remote: _whosOutRemote),
-                  const SizedBox(height: 20),
-                ],
-
-                // ─── Date + WiFi status ───────────────────
-                GlassCard(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Row(children: [
-                    Icon(Icons.calendar_today,
-                        size: 16, color: primary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        DateFormat('EEEE, d MMMM yyyy').format(DateTime.now()),
+                      Icon(Icons.wifi_rounded,
+                          size: 15,
+                          color: _noNetworksConfig
+                              ? AppColors.gray300
+                              : AppColors.success500),
+                      const SizedBox(width: 4),
+                      Text(
+                        _noNetworksConfig
+                            ? 'Auto check-in off'
+                            : 'Auto check-in on',
                         style: const TextStyle(
-                            fontSize: 13,
+                            fontSize: 11,
                             fontWeight: FontWeight.w500,
-                            color: AppColors.textPrimary),
+                            color: AppColors.gray500),
                       ),
-                    ),
-                    Icon(Icons.wifi_rounded,
-                        size: 15,
-                        color: _noNetworksConfig
-                            ? AppColors.gray300
-                            : AppColors.success500),
-                    const SizedBox(width: 4),
-                    Text(
-                      _noNetworksConfig
-                          ? 'Auto check-in off'
-                          : 'Auto check-in on',
-                      style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.gray500),
-                    ),
-                  ]),
-                ),
+                    ]),
+                  ),
                 ],
               ],
             ),
@@ -823,8 +870,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   // ─── Banner Widgets ────────────────────────────────────
 
-  void _dismissFlash() =>
-      setState(() { _breakWelcomeBack = null; _lateArrivalFlash = null; });
+  void _dismissFlash() => setState(() {
+        _breakWelcomeBack = null;
+        _lateArrivalFlash = null;
+      });
 
   Future<void> _cancelLateNotice() async {
     final id = _lateNotice?['id'] as String?;
@@ -885,7 +934,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final deductIfSkipped = b['deduct_if_skipped'] as bool? ?? true;
     setState(() => _actionLoading = true);
     try {
-      await api.endBreak(wifiConnected: !_wifi.heartbeatLost);
+      await api.endBreak(wifiConnected: _officeWifiAtBreakEnd);
       final remindAt = _now.add(Duration(minutes: reminderMins));
       final reminder = {
         'id': breakId,
@@ -916,7 +965,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // + _now so the 1-second _updateElapsed setState() drives mm:ss ticking.
   List<Widget> _breakAlertBanners() {
     final breaks = (_todayStatus?['shift']?['breaks'] as List?)
-            ?.cast<Map<String, dynamic>>() ?? [];
+            ?.cast<Map<String, dynamic>>() ??
+        [];
     final offWifi = _wifi.heartbeatLost;
 
     // "overdue" from the backend covers two very different situations:
@@ -925,14 +975,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     //   B) Window has passed AND employee is still on break
     //      (_now >= break_end_utc) — they're late returning, urgent
     // We distinguish them locally so each gets the right banner.
-    Map<String, dynamic>? lateReturningOffWifi;   // B + off WiFi
-    Map<String, dynamic>? lateReturningOnWifi;    // B + on WiFi
-    Map<String, dynamic>? windowOpenNotStarted;   // A (regardless of WiFi)
+    Map<String, dynamic>? lateReturningOffWifi; // B + off WiFi
+    Map<String, dynamic>? lateReturningOnWifi; // B + on WiFi
+    Map<String, dynamic>? windowOpenNotStarted; // A (regardless of WiFi)
     Map<String, dynamic>? activeBreak;
     Map<String, dynamic>? imminentBreak;
 
     for (final b in breaks) {
-      final state    = b['break_state'] as String? ?? 'upcoming';
+      final state = b['break_state'] as String? ?? 'upcoming';
       final breakEnd = _parseLocal(b['break_end_utc']);
 
       if (state == 'overdue') {
@@ -1032,7 +1082,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final linked = b['linked_break_record'] as Map<String, dynamic>?;
     final autoStarted = linked?['auto_started'] as bool? ?? false;
     final breakId = linked?['id'] as String?;
-    if (autoStarted && breakId != null && !_acknowledgedAutoBreaks.contains(breakId)) {
+    if (autoStarted &&
+        breakId != null &&
+        !_acknowledgedAutoBreaks.contains(breakId)) {
       return AutoStartedBreakBanner(
         name: b['name'] as String? ?? 'Break',
         reminderMins: (b['reminder_after_mins'] as num?)?.toInt() ?? 30,
@@ -1053,11 +1105,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Flexible: end = actual break_start + allowed break_minutes.
       // Use linked_break_record.break_start so the timer reflects when the
       // employee actually started the break, not the scheduled window.
-      final linked  = b['linked_break_record'] as Map<String, dynamic>?;
+      final linked = b['linked_break_record'] as Map<String, dynamic>?;
       final startStr = linked?['break_start'] as String?;
-      final mins    = (b['break_minutes'] as num?)?.toInt();
+      final mins = (b['break_minutes'] as num?)?.toInt();
       if (startStr != null && mins != null) {
-        breakEnd = DateTime.parse(startStr).toLocal().add(Duration(minutes: mins));
+        breakEnd =
+            DateTime.parse(startStr).toLocal().add(Duration(minutes: mins));
       } else {
         breakEnd = _parseLocal(b['break_end_utc']);
       }
@@ -1200,7 +1253,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               if (requestType == 'leave' || requestType == 'mid_shift_leave')
                 ...(() {
                   return [
-                    const Text('Leave Type', style: AppTextStyles.captionStrong),
+                    const Text('Leave Type',
+                        style: AppTextStyles.captionStrong),
                     const SizedBox(height: 6),
                     Wrap(
                         spacing: 6,
@@ -1267,7 +1321,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         ),
                         child: Row(children: [
                           Icon(Icons.access_time,
-                              size: 15, color: Theme.of(context).colorScheme.primary),
+                              size: 15,
+                              color: Theme.of(context).colorScheme.primary),
                           const SizedBox(width: 8),
                           Text(selectedTime.format(ctx),
                               style: const TextStyle(
@@ -1300,7 +1355,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     child: TimePickerTile(
                       label: 'End',
                       value: selectedEndTime,
-                      onPicked: (picked) => setDlg(() => selectedEndTime = picked),
+                      onPicked: (picked) =>
+                          setDlg(() => selectedEndTime = picked),
                     ),
                   ),
                 ]),
@@ -1314,8 +1370,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 controller: reasonCtrl,
                 maxLines: 3,
                 maxLength: 200,
-                style: const TextStyle(
-                    color: AppColors.textPrimary, fontSize: 13),
+                style:
+                    const TextStyle(color: AppColors.textPrimary, fontSize: 13),
                 decoration: const InputDecoration(
                   hintText: 'Briefly describe the reason…',
                 ),
@@ -1347,21 +1403,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   final eh = selectedEndTime.hour.toString().padLeft(2, '0');
                   final em = selectedEndTime.minute.toString().padLeft(2, '0');
                   if (requestType == 'mid_shift_leave') {
-                    final startMins = selectedTime.hour * 60 + selectedTime.minute;
-                    final endMins = selectedEndTime.hour * 60 + selectedEndTime.minute;
+                    final startMins =
+                        selectedTime.hour * 60 + selectedTime.minute;
+                    final endMins =
+                        selectedEndTime.hour * 60 + selectedEndTime.minute;
                     if (endMins <= startMins) {
                       _showSnack('End time must be after start time');
                       return;
                     }
                   }
                   await api.submitAttendanceRequest(
-                    type: requestType == 'mid_shift_leave' ? 'leave' : requestType,
+                    type: requestType == 'mid_shift_leave'
+                        ? 'leave'
+                        : requestType,
                     date: fmtDate(selectedDate),
                     reason: reason,
                     expectedTime: '$hh:$mm',
                     leaveType: leaveType,
-                    leaveStartTime: requestType == 'mid_shift_leave' ? '$hh:$mm' : null,
-                    leaveEndTime: requestType == 'mid_shift_leave' ? '$eh:$em' : null,
+                    leaveStartTime:
+                        requestType == 'mid_shift_leave' ? '$hh:$mm' : null,
+                    leaveEndTime:
+                        requestType == 'mid_shift_leave' ? '$eh:$em' : null,
                   );
                   if (!ctx.mounted) return;
                   Navigator.pop(ctx);
@@ -1480,7 +1542,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (untilStart.inMinutes <= 10) {
         return {
           'icon': Icons.schedule,
-        'color': Theme.of(context).colorScheme.primary,
+          'color': Theme.of(context).colorScheme.primary,
           'text':
               '$name in ${untilStart.inMinutes}m ${untilStart.inSeconds % 60}s',
         };
@@ -1525,13 +1587,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       cardTint = AppColors.purple500;
       cardIcon = Icons.home_rounded;
       iconColor = AppColors.purple500;
-      statusTitle = 'Working Remotely 🏠';
+      statusTitle = 'Working Remotely';
       final sessionStatus = _remoteSession?['status'] as String? ?? 'pending';
       statusSub = sessionStatus == 'approved'
-          ? 'Approved — AI will check in with you via WhatsApp'
+          ? 'Approved remote shift — check out when you finish'
           : sessionStatus == 'rejected'
-              ? 'Rejected by manager — please contact HR'
-              : 'Pending manager approval';
+              ? 'Remote request rejected — contact your manager'
+              : 'Remote request pending approval';
     } else if (_checkedOut) {
       // ── CheckedOut summary card ────────────────────────────
       final checkInStr = _todayRecord?['check_in_at'] as String?;
@@ -1540,7 +1602,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final netHours = _asDouble(_todayRecord?['net_hours_worked']);
       final breakMins = _totalBreakMinutes(_todayRecord);
       final overtimeHours = _asDouble(_todayRecord?['overtime_hours']) ?? 0;
-      final extraOfficeMins = _asInt(_todayRecord?['extra_office_minutes']) ?? 0;
+      final extraOfficeMins =
+          _asInt(_todayRecord?['extra_office_minutes']) ?? 0;
       final wasAutoOut = (_todayRecord?['auto_checked_out'] as bool?) ?? false;
       final shift = (_todayStatus?['shift'] as Map?)?.cast<String, dynamic>();
       final canRequestOvertime = extraOfficeMins > 0 &&
@@ -1614,7 +1677,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       cardTint = Theme.of(context).colorScheme.primary;
       cardIcon = Icons.beach_access;
       iconColor = Theme.of(context).colorScheme.primary;
-      statusTitle = 'On Leave 📅';
+      statusTitle = 'On Leave';
       statusSub = 'Approved leave';
     } else if (_status == 'half_leave') {
       final period = (_todayLeave?['half_day_period'] as String?) ?? '';
@@ -1642,8 +1705,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       iconColor: iconColor,
       title: statusTitle,
       subtitle: statusSub,
-      showCheckInActions:
-          !_checkedIn && !_checkedOut && !_isRemote && _status != 'leave',
+      showCheckInActions: !_checkedIn && !_checkedOut && !_isRemote,
+      actionLoading: _actionLoading,
+      onCheckIn: _confirmCheckIn,
+      onCheckOut: _isRemote && _todayRecord?['check_out_at'] == null
+          ? _confirmCheckOut
+          : null,
       showReportLate:
           _lateNotice == null || _lateNotice!['status'] == 'cancelled',
       onReportLate: _showLateNoticeDialog,
@@ -1653,6 +1720,66 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ? _remoteSession!['id']?.toString()
           : null,
     );
+  }
+
+  Future<void> _confirmCheckIn() async {
+    if (_actionLoading) return;
+    if (_todayLeave != null || _status == 'leave') {
+      final confirmed = await showConfirmDialog(
+        context,
+        title: 'Check in during approved leave?',
+        message:
+            'Your manager will be notified that you checked in while on leave.',
+        confirmLabel: 'Check In',
+      );
+      if (confirmed != true) return;
+    }
+    setState(() => _actionLoading = true);
+    final idempotencyKey = WifiAttendanceService.newIdempotencyKey();
+    final clientEventAt = DateTime.now();
+    final clockProof = _todayStatus == null ? null : AttendanceClock.anchor(_todayStatus!);
+    AttendanceLocationEvidence? location;
+    try {
+      final locationEnabled = _todayStatus?['location_capture_enabled'] == true;
+      location = await captureAttendanceLocation(enabled: locationEnabled);
+      if (_todayStatus?['location_required'] == true && location == null) {
+        _showSnack('Allow precise location and turn on Location Services to check in.', isError: true);
+        return;
+      }
+      await api.checkIn(
+        type: 'manual',
+        idempotencyKey: idempotencyKey,
+        clientEventAt: clientEventAt,
+        latitude: location?.latitude,
+        longitude: location?.longitude,
+        accuracyM: location?.accuracyM,
+        isMocked: location?.isMocked,
+        clockProof: clockProof,
+      );
+      await _load(silent: true);
+      // The refreshed status card shows the late duration, so this transient
+      // confirmation stays generic and does not repeat the same warning.
+      _showSnack('Checked in successfully');
+    } catch (e) {
+      final failure = ApiFailure.fromError(e);
+      if (failure is NetworkFailure || failure is TimeoutFailure) {
+        try {
+          await WifiAttendanceService().queueManualCheckIn(
+            idempotencyKey: idempotencyKey,
+            timestamp: clientEventAt,
+            location: location,
+            clockProof: clockProof,
+          );
+          _showSnack('Check-in saved on this device. It will sync when you’re online.');
+        } catch (_) {
+          _showSnack('Couldn’t save the offline check-in on this device.', isError: true);
+        }
+      } else {
+        _showSnack(failure.userMessage, isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _actionLoading = false);
+    }
   }
 
   Future<void> _confirmCheckOut() async {
@@ -1736,37 +1863,45 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // them late; the backend accepts shift_break_id at any time.
     final List<Map<String, dynamic>> types = policyBreaks.isNotEmpty
         ? policyBreaks
-            .where((b) => b['break_state'] != 'active') // hide if already active
+            .where(
+                (b) => b['break_state'] != 'active') // hide if already active
             .map<Map<String, dynamic>>((b) {
-              final state     = b['break_state'] as String? ?? 'upcoming';
-              final breakEnd  = _parseLocal(b['break_end_utc']);
-              final minsLeft  = breakEnd?.difference(_now).inMinutes;
+            final state = b['break_state'] as String? ?? 'upcoming';
+            final breakEnd = _parseLocal(b['break_end_utc']);
+            final minsLeft = breakEnd?.difference(_now).inMinutes;
 
-              // State badge shown as suffix in the subtitle
-              String badge = '';
-              if (state == 'overdue' && breakEnd != null && _now.isBefore(breakEnd)) {
-                badge = ' · window open';
-              } else if (state == 'done' || (state == 'overdue' && (breakEnd == null || !_now.isBefore(breakEnd)))) {
-                badge = ' · take late';
-              } else if (state == 'imminent' && minsLeft != null) {
-                badge = ' · in ${minsLeft}m';
-              }
+            // State badge shown as suffix in the subtitle
+            String badge = '';
+            if (state == 'overdue' &&
+                breakEnd != null &&
+                _now.isBefore(breakEnd)) {
+              badge = ' · window open';
+            } else if (state == 'done' ||
+                (state == 'overdue' &&
+                    (breakEnd == null || !_now.isBefore(breakEnd)))) {
+              badge = ' · take late';
+            } else if (state == 'imminent' && minsLeft != null) {
+              badge = ' · in ${minsLeft}m';
+            }
 
-              return {
-                'id': b['id'],
-                'type': b['name'] ?? 'break',
-                'label': b['name'] ?? 'Break',
-                'subtitle':
-                    "${b['break_minutes'] ?? 0}m${b['allowed_count_per_shift'] != null ? " × ${b['allowed_count_per_shift']}" : ''}$badge",
-                'icon': Icons.coffee,
-                'state': state,
-              };
-            })
-            .toList()
+            return {
+              'id': b['id'],
+              'type': b['name'] ?? 'break',
+              'label': b['name'] ?? 'Break',
+              'subtitle':
+                  "${b['break_minutes'] ?? 0}m${b['allowed_count_per_shift'] != null ? " × ${b['allowed_count_per_shift']}" : ''}$badge",
+              'icon': Icons.coffee,
+              'state': state,
+            };
+          }).toList()
         : [
             {'type': 'short', 'label': 'Quick Break', 'icon': Icons.coffee},
             {'type': 'lunch', 'label': 'Lunch', 'icon': Icons.lunch_dining},
-            {'type': 'prayer', 'label': 'Prayer', 'icon': Icons.self_improvement},
+            {
+              'type': 'prayer',
+              'label': 'Prayer',
+              'icon': Icons.self_improvement
+            },
             {'type': 'manual', 'label': 'Other', 'icon': Icons.more_horiz},
           ];
 
@@ -1787,31 +1922,32 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           const Text('Start a Break', style: AppTextStyles.title),
           const SizedBox(height: 8),
           ...types.map((t) {
-                final state = t['state'] as String? ?? '';
-                final isLate = state == 'done' ||
-                    (state == 'overdue' &&
-                        !(t['subtitle'] as String? ?? '').contains('window open'));
-                final isNow  = (t['subtitle'] as String? ?? '').contains('window open');
-                final subtitleColor = isLate
-                    ? AppColors.warning800
-                    : isNow
-                        ? AppColors.teal700
-                        : AppColors.gray500;
-                return ListTile(
-                  leading: Icon(t['icon'] as IconData,
-                      color: isLate ? AppColors.warning500 : AppColors.teal100,
-                      size: 22),
-                  title: Text(t['label'] as String,
-                      style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w700)),
-                  subtitle: t['subtitle'] != null
-                      ? Text(t['subtitle'] as String,
-                          style: TextStyle(color: subtitleColor, fontSize: 11))
-                      : null,
-                  onTap: () => Navigator.pop(context, t),
-                );
-              }),
+            final state = t['state'] as String? ?? '';
+            final isLate = state == 'done' ||
+                (state == 'overdue' &&
+                    !(t['subtitle'] as String? ?? '').contains('window open'));
+            final isNow =
+                (t['subtitle'] as String? ?? '').contains('window open');
+            final subtitleColor = isLate
+                ? AppColors.warning800
+                : isNow
+                    ? AppColors.teal700
+                    : AppColors.gray500;
+            return ListTile(
+              leading: Icon(t['icon'] as IconData,
+                  color: isLate ? AppColors.warning500 : AppColors.teal100,
+                  size: 22),
+              title: Text(t['label'] as String,
+                  style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w700)),
+              subtitle: t['subtitle'] != null
+                  ? Text(t['subtitle'] as String,
+                      style: TextStyle(color: subtitleColor, fontSize: 11))
+                  : null,
+              onTap: () => Navigator.pop(context, t),
+            );
+          }),
           const SizedBox(height: 8),
         ]),
       ),
@@ -1820,12 +1956,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (chosen == null || !mounted) return;
     setState(() => _actionLoading = true);
     try {
-      await api.startBreak(
+      final result = await api.startBreak(
         breakType: chosen['type'] as String? ?? 'manual',
         shiftBreakId: chosen['id'] as String?,
       );
       await _load();
-      _showSnack('Break started ☕');
+      _showSnack(result['warning'] as String? ?? 'Break started');
     } catch (e) {
       _showSnack(ApiFailure.fromError(e).userMessage, isError: true);
     } finally {
@@ -1836,10 +1972,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _endBreak() async {
     setState(() => _actionLoading = true);
     try {
-      // wifiConnected = true when the device is still on the office network at
-      // the moment the employee taps End Break. heartbeatLost means the device
-      // has left the office WiFi, so the inverse gives us the connected state.
-      final wifiConnected = !_wifi.heartbeatLost;
+      final wifiConnected = _officeWifiAtBreakEnd;
       await api.endBreak(wifiConnected: wifiConnected);
       await _load();
       _showSnack('Break ended — welcome back!');
@@ -1889,7 +2022,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         color: Theme.of(context).colorScheme.primary,
         onTap: _showAttendanceRequestDialog,
       ),
-      if (auth.hasFeature('remote_work') && !_checkedIn && !_checkedOut && !_isRemote)
+      if (auth.hasFeature('remote_work') &&
+          !_checkedIn &&
+          !_checkedOut &&
+          !_isRemote)
         QuickAction(
           icon: Icons.home_outlined,
           label: 'Work\nRemote',

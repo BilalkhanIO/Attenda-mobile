@@ -27,6 +27,12 @@
     </array>
 
     <!-- Camera (QR scanning) -->
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Attenda uses speech recognition to turn your voice into a message for Attenda AI.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Attenda uses the microphone when you choose voice input in Attenda AI.</string>
+
+    <!-- Camera (QR scanning) -->
     <key>NSCameraUsageDescription</key>
     <string>Camera is needed to scan the office QR code for attendance check-in.</string>
 
@@ -36,7 +42,7 @@
 
     <!-- Location (required by network_info_plus on iOS for WiFi SSID/IP) -->
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Location access is required to read the current WiFi network name for auto check-in.</string>
+    <string>Attenda uses location for office Wi-Fi detection and, when enabled by your organization, to verify on-site attendance check-ins.</string>
 
     <!-- Push notifications -->
     <key>NSUserNotificationUsageDescription</key>

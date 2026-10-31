@@ -4,11 +4,18 @@ import '../services/auth_provider.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/two_factor_screen.dart';
 import '../screens/home/home_screen.dart';
+import '../screens/ai/ai_chat_screen.dart';
 import '../screens/attendance/attendance_screen.dart';
 import '../screens/attendance/qr_scanner_screen.dart';
 import '../screens/leave/leave_screen.dart';
 import '../screens/leave/request_leave_screen.dart';
 import '../screens/schedule/schedule_screen.dart';
+import '../screens/schedule/shift_availability_screen.dart';
+import '../screens/schedule/shift_planning_screen.dart';
+import '../screens/schedule/shift_history_screen.dart';
+import '../screens/schedule/shift_rounds_screen.dart';
+import '../screens/schedule/checkpoint_scanner_screen.dart';
+import '../screens/schedule/open_shifts_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/profile/payslips_screen.dart';
 import '../screens/profile/performance_screen.dart';
@@ -27,91 +34,240 @@ import '../screens/documents/documents_screen.dart';
 import '../screens/announcements/announcements_screen.dart';
 import '../screens/onboarding/onboarding_screen.dart';
 import '../screens/kudos/kudos_screen.dart';
+import '../screens/projects/projects_screen.dart';
+import '../screens/projects/project_detail_screen.dart';
+import '../screens/projects/project_task_screen.dart';
 import 'shell.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
 final _shellKey = GlobalKey<NavigatorState>();
 
 GoRouter buildRouter(AuthProvider auth) => GoRouter(
-  navigatorKey: _rootKey,
-  refreshListenable: auth,
-  initialLocation: '/home',
-  redirect: (context, state) {
-    final loggedIn = auth.isAuthenticated;
-    final onAuthRoute = state.matchedLocation == '/login' || state.matchedLocation == '/2fa';
-    if (!loggedIn && !onAuthRoute) return '/login';
-    if (loggedIn && onAuthRoute) return '/home';
+      navigatorKey: _rootKey,
+      refreshListenable: auth,
+      initialLocation: '/home',
+      redirect: (context, state) {
+        final loggedIn = auth.isAuthenticated;
+        final onAuthRoute = state.matchedLocation == '/login' ||
+            state.matchedLocation == '/2fa';
+        if (!loggedIn && !onAuthRoute) return '/login';
+        if (loggedIn && onAuthRoute) return '/home';
 
-    if (loggedIn) {
-      if (state.matchedLocation.startsWith('/leave') && !auth.hasFeature('leave_management')) return '/home';
-      if (state.matchedLocation.startsWith('/schedule') && !auth.hasFeature('shifts')) return '/home';
-      if (state.matchedLocation.startsWith('/home/remote') && !auth.hasFeature('remote_work')) return '/home';
-    }
+        if (loggedIn) {
+          if (state.matchedLocation.startsWith('/leave') &&
+              !auth.hasFeature('leave_management')) {
+            return '/home';
+          }
+          if (state.matchedLocation.startsWith('/schedule') &&
+              !auth.hasFeature('shifts')) {
+            return '/home';
+          }
+          if (state.matchedLocation == '/schedule/manage' &&
+              !auth.hasPermission('shifts.assign')) {
+            return '/schedule';
+          }
+          if (state.matchedLocation == '/schedule/history' &&
+              !auth.hasPermission('shifts.view')) {
+            return '/schedule';
+          }
+          if (state.matchedLocation.startsWith('/home/remote') &&
+              !auth.hasFeature('remote_work')) {
+            return '/home';
+          }
+          if (state.matchedLocation == '/home/ai' &&
+              !auth.hasPermission('analytics.ai_chat')) {
+            return '/home';
+          }
+          if (state.matchedLocation.startsWith('/projects') &&
+              !auth.hasPermission('projects.view')) {
+            return '/home';
+          }
+        }
 
-    return null;
-  },
-  routes: [
-    GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-    GoRoute(
-      path: '/2fa',
-      redirect: (_, state) => state.extra is String ? null : '/login',
-      builder: (_, state) => TwoFactorScreen(partialToken: state.extra as String),
-    ),
-
-    ShellRoute(
-      navigatorKey: _shellKey,
-      builder: (context, state, child) => AppShell(child: child),
+        return null;
+      },
       routes: [
+        GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
         GoRoute(
-          path: '/home',
-          builder: (_, __) => const HomeScreen(),
+          path: '/2fa',
+          redirect: (_, state) => state.extra is String ? null : '/login',
+          builder: (_, state) =>
+              TwoFactorScreen(partialToken: state.extra as String),
+        ),
+        ShellRoute(
+          navigatorKey: _shellKey,
+          builder: (context, state, child) => AppShell(child: child),
           routes: [
-            GoRoute(path: 'remote', builder: (_, __) => const RemoteWorkScreen()),
             GoRoute(
-              path: 'remote/detail',
-              builder: (_, state) => RemoteDetailScreen(
-                sessionId: state.uri.queryParameters['id'] ?? '',
-              ),
+              path: '/home',
+              builder: (_, __) => const HomeScreen(),
+              routes: [
+                GoRoute(
+                    path: 'remote',
+                    builder: (_, __) => const RemoteWorkScreen()),
+                GoRoute(
+                    path: 'ai',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, state) {
+                      final launch = state.extra is Map
+                          ? Map<String, dynamic>.from(state.extra as Map)
+                          : const <String, dynamic>{};
+                      return AiChatScreen(
+                        initialPrompt: launch['prompt']?.toString() ??
+                            state.uri.queryParameters['prompt'],
+                        initialContext: launch['context']?.toString(),
+                        initialContextTitle:
+                            launch['context_title']?.toString(),
+                      );
+                    }),
+                GoRoute(
+                  path: 'remote/detail',
+                  builder: (_, state) => RemoteDetailScreen(
+                    sessionId: state.uri.queryParameters['id'] ?? '',
+                  ),
+                ),
+                GoRoute(
+                    path: 'notifications',
+                    builder: (_, __) => const NotificationsScreen()),
+              ],
             ),
-            GoRoute(path: 'notifications', builder: (_, __) => const NotificationsScreen()),
-          ],
-        ),
-        GoRoute(
-          path: '/attendance',
-          builder: (_, __) => const AttendanceScreen(),
-          routes: [
-            GoRoute(path: 'qr', parentNavigatorKey: _rootKey, builder: (_, __) => const QrScannerScreen()),
-          ],
-        ),
-        GoRoute(
-          path: '/leave',
-          builder: (_, __) => const LeaveScreen(),
-          routes: [
-            GoRoute(path: 'request', parentNavigatorKey: _rootKey, builder: (_, __) => const RequestLeaveScreen()),
-          ],
-        ),
-        GoRoute(path: '/schedule', builder: (_, __) => const ScheduleScreen()),
-        GoRoute(
-          path: '/profile',
-          builder: (_, __) => const ProfileScreen(),
-          routes: [
-            GoRoute(path: 'settings', parentNavigatorKey: _rootKey, builder: (_, __) => const SettingsScreen()),
-            GoRoute(path: 'edit', parentNavigatorKey: _rootKey, builder: (_, __) => const EditProfileScreen()),
-            GoRoute(path: 'payslips', parentNavigatorKey: _rootKey, builder: (_, __) => const PayslipsScreen()),
-            GoRoute(path: 'expenses', parentNavigatorKey: _rootKey, builder: (_, __) => const ExpensesScreen()),
-            GoRoute(path: 'documents', parentNavigatorKey: _rootKey, builder: (_, __) => const DocumentsScreen()),
-            GoRoute(path: 'announcements', parentNavigatorKey: _rootKey, builder: (_, __) => const AnnouncementsScreen()),
-            GoRoute(path: 'onboarding', parentNavigatorKey: _rootKey, builder: (_, __) => const OnboardingScreen()),
-            GoRoute(path: 'kudos', parentNavigatorKey: _rootKey, builder: (_, __) => const KudosScreen()),
-            GoRoute(path: 'performance', parentNavigatorKey: _rootKey, builder: (_, __) => const PerformanceScreen()),
-            GoRoute(path: 'settings/notifications', parentNavigatorKey: _rootKey, builder: (_, __) => const NotificationSettingsScreen()),
-            GoRoute(path: 'settings/security', parentNavigatorKey: _rootKey, builder: (_, __) => const SecurityScreen()),
-            GoRoute(path: 'settings/appearance', parentNavigatorKey: _rootKey, builder: (_, __) => const AppearanceScreen()),
-            GoRoute(path: 'settings/reliability', parentNavigatorKey: _rootKey, builder: (_, __) => const ReliabilityScreen()),
-            GoRoute(path: 'approvals', parentNavigatorKey: _rootKey, builder: (_, __) => const ApprovalsScreen()),
+            GoRoute(
+              path: '/attendance',
+              builder: (_, __) => const AttendanceScreen(),
+              routes: [
+                GoRoute(
+                    path: 'qr',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, __) => const QrScannerScreen()),
+              ],
+            ),
+            GoRoute(
+              path: '/leave',
+              builder: (_, __) => const LeaveScreen(),
+              routes: [
+                GoRoute(
+                    path: 'request',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, __) => const RequestLeaveScreen()),
+              ],
+            ),
+            GoRoute(
+              path: '/schedule',
+              builder: (_, __) => const ScheduleScreen(),
+              routes: [
+                GoRoute(
+                    path: 'open-shifts',
+                    builder: (_, __) => const OpenShiftsScreen()),
+                GoRoute(
+                    path: 'rounds',
+                    builder: (_, state) => ShiftRoundsScreen(
+                          assignmentId:
+                              state.uri.queryParameters['assignmentId'] ?? '',
+                        )),
+                GoRoute(
+                    path: 'checkpoint-scan',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, state) => CheckpointScannerScreen(
+                          assignmentId:
+                              state.uri.queryParameters['assignmentId'] ?? '',
+                        )),
+                GoRoute(
+                    path: 'availability',
+                    builder: (_, __) => const ShiftAvailabilityScreen()),
+                GoRoute(
+                    path: 'manage',
+                    builder: (_, __) => const ShiftPlanningScreen()),
+                GoRoute(
+                    path: 'history',
+                    builder: (_, __) => const ShiftHistoryScreen()),
+              ],
+            ),
+            GoRoute(
+              path: '/projects',
+              builder: (_, state) => ProjectsScreen(
+                taskId: state.uri.queryParameters['task_id'],
+              ),
+              routes: [
+                GoRoute(
+                  path: ':id',
+                  builder: (_, state) => ProjectDetailScreen(
+                    projectId: state.pathParameters['id']!,
+                  ),
+                  routes: [
+                    GoRoute(
+                      path: 'tasks/:taskId',
+                      builder: (_, state) => ProjectTaskScreen(
+                        projectId: state.pathParameters['id']!,
+                        taskId: state.pathParameters['taskId']!,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            GoRoute(
+              path: '/profile',
+              builder: (_, __) => const ProfileScreen(),
+              routes: [
+                GoRoute(
+                    path: 'settings',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, __) => const SettingsScreen()),
+                GoRoute(
+                    path: 'edit',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, __) => const EditProfileScreen()),
+                GoRoute(
+                    path: 'payslips',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, __) => const PayslipsScreen()),
+                GoRoute(
+                    path: 'expenses',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, __) => const ExpensesScreen()),
+                GoRoute(
+                    path: 'documents',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, __) => const DocumentsScreen()),
+                GoRoute(
+                    path: 'announcements',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, __) => const AnnouncementsScreen()),
+                GoRoute(
+                    path: 'onboarding',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, __) => const OnboardingScreen()),
+                GoRoute(
+                    path: 'kudos',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, __) => const KudosScreen()),
+                GoRoute(
+                    path: 'performance',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, __) => const PerformanceScreen()),
+                GoRoute(
+                    path: 'settings/notifications',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, __) => const NotificationSettingsScreen()),
+                GoRoute(
+                    path: 'settings/security',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, __) => const SecurityScreen()),
+                GoRoute(
+                    path: 'settings/appearance',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, __) => const AppearanceScreen()),
+                GoRoute(
+                    path: 'settings/reliability',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, __) => const ReliabilityScreen()),
+                GoRoute(
+                    path: 'approvals',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, __) => const ApprovalsScreen()),
+              ],
+            ),
           ],
         ),
       ],
-    ),
-  ],
-);
+    );
