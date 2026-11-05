@@ -74,3 +74,15 @@ Common components (`StatusBadge`, `UserAvatar`, `AppCard`, `AppButton`, etc.) ar
 - All API responses are unwrapped from `res.data['data']` before returning — the backend wraps all payloads in a `{ "data": ... }` envelope.
 - DM Sans is the project font, bundled under `assets/fonts/` and configured in `pubspec.yaml`. Use `GoogleFonts.dmSans(...)` or rely on `AppTheme.light`'s text theme rather than specifying font families ad-hoc.
 - Navigation uses `context.go(path)` (replace) for tab switches and `context.push(path)` for full-screen overlays like the QR scanner.
+
+## Skill routing
+
+When the user's request matches an available skill, invoke it via the Skill tool. Route only to skills in the session's available-skills list; answer directly for quick questions or small scoped edits.
+
+Key routing rules:
+- Product ideas/brainstorming → invoke /office-hours
+- QA/testing site behavior → invoke /qa
+- Code review/diff check → invoke /review
+- Ship/deploy/PR → invoke /ship
+
+Do not suggest or auto-invoke other gstack skills: they run when the user types them, or when a running skill hands off to them (`gstack-config set proactive all` routes every skill).
