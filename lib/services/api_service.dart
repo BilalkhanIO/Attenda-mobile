@@ -1340,10 +1340,10 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> addProjectTaskComment(
-      String taskId, String body) async {
+  Future<Map<String, dynamic>> addProjectTaskComment(String taskId, String body,
+      {List<String> mentionIds = const []}) async {
     final res = await _dio.post('/projects/tasks/$taskId/comments',
-        data: {'body': body},
+        data: {'body': body, 'mention_ids': mentionIds},
         options:
             Options(headers: {'Idempotency-Key': _pendingIdempotencyMarker}));
     return res.data['data'] as Map<String, dynamic>;

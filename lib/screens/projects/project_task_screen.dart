@@ -27,6 +27,7 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
   Map<String, dynamic>? _project;
   Map<String, dynamic>? _task;
   final _comment = TextEditingController();
+  final Set<String> _mentionedMemberIds = {};
   bool _loading = true;
   bool _busy = false;
   String? _error;
@@ -92,14 +93,70 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
     if (body.isEmpty || _busy) return;
     setState(() => _busy = true);
     try {
-      await api.addProjectTaskComment(widget.taskId, body);
+      await api.addProjectTaskComment(widget.taskId, body,
+          mentionIds: _mentionedMemberIds.toList());
       _comment.clear();
+      _mentionedMemberIds.clear();
       await _load();
     } catch (error) {
       if (mounted) _message(ApiFailure.fromError(error).userMessage);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _mentionMember() async {
+    final members = (_project?['members'] as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .where((item) {
+      final user = item['user'] as Map?;
+      final id = user?['id']?.toString();
+      return id != null &&
+          id != context.read<AuthProvider>().user?.id &&
+          !_mentionedMemberIds.contains(id);
+    }).toList();
+    if (members.isEmpty) {
+      _message('There are no other project members to mention.');
+      return;
+    }
+    final selected = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const ListTile(title: Text('Mention a project member')),
+            for (final member in members)
+              ListTile(
+                leading: UserAvatar(
+                    name: (member['user'] as Map?)?['name']?.toString() ?? '?',
+                    size: 36),
+                title: Text(
+                    (member['user'] as Map?)?['name']?.toString() ?? 'Member'),
+                subtitle: Text(
+                    (member['user'] as Map?)?['department']?.toString() ??
+                        member['role']?.toString() ??
+                        'Project member'),
+                onTap: () => Navigator.pop(context, member),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    final user = selected['user'] as Map?;
+    final id = user?['id']?.toString();
+    final name = user?['name']?.toString();
+    if (id == null || name == null) return;
+    setState(() {
+      _mentionedMemberIds.add(id);
+      final current = _comment.text.trimRight();
+      _comment.text = '${current.isEmpty ? '' : '$current '}@$name ';
+      _comment.selection =
+          TextSelection.collapsed(offset: _comment.text.length);
+    });
   }
 
   Future<void> _addSubtask() async {
@@ -514,6 +571,24 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
                                 ),
                               if (canComment) ...[
                                 const Divider(height: 20),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: TextButton.icon(
+                                    onPressed: _busy ? null : _mentionMember,
+                                    icon: const Icon(
+                                        Icons.alternate_email_rounded,
+                                        size: 18),
+                                    label: const Text('Mention a teammate'),
+                                  ),
+                                ),
+                                if (_mentionedMemberIds.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: Text(
+                                      'Mentioned: ${((_project?['members'] as List? ?? const []).whereType<Map>()).where((item) => _mentionedMemberIds.contains((item['user'] as Map?)?['id']?.toString())).map((item) => (item['user'] as Map?)?['name']?.toString() ?? '').where((name) => name.isNotEmpty).join(', ')}',
+                                      style: AppTextStyles.caption,
+                                    ),
+                                  ),
                                 TextField(
                                   controller: _comment,
                                   minLines: 2,
