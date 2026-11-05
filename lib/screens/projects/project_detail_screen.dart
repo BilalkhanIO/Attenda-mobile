@@ -29,6 +29,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
   bool _loading = true;
   String? _error;
   String _statusFilter = 'all';
+  String _priorityFilter = 'all';
+  String _ownerFilter = 'all';
+  String _dateFilter = 'all';
+  final TextEditingController _taskSearch = TextEditingController();
   late final TabController _tabs = TabController(length: 2, vsync: this);
 
   @override
@@ -40,6 +44,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
   @override
   void dispose() {
     _tabs.dispose();
+    _taskSearch.dispose();
     super.dispose();
   }
 
@@ -147,6 +152,38 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
       if (userId == null) return;
       await api.addProjectMember(widget.projectId, userId);
       await _load();
+    } catch (error) {
+      if (mounted) _message(ApiFailure.fromError(error).userMessage);
+    }
+  }
+
+  Future<void> _removeMember(Map<String, dynamic> member) async {
+    final user = member['user'] as Map?;
+    final userId = user?['id']?.toString();
+    final name = user?['name']?.toString() ?? 'this member';
+    if (userId == null ||
+        userId == (_project?['owner'] as Map?)?['id']?.toString()) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove project member?'),
+        content: Text(
+            '$name will lose access. Reassign or complete their open tasks first.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Remove member')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await api.removeProjectMember(widget.projectId, userId);
+      await _load();
+      if (mounted) _message('$name removed from project');
     } catch (error) {
       if (mounted) _message(ApiFailure.fromError(error).userMessage);
     }
@@ -274,9 +311,34 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
         .toList();
     final statuses = List<String>.from(project?['status_options'] as List? ??
         ['todo', 'in_progress', 'blocked', 'done']);
-    final filtered = _statusFilter == 'all'
-        ? tasks
-        : tasks.where((task) => task['status'] == _statusFilter).toList();
+    final today = DateUtils.dateOnly(DateTime.now());
+    final filtered = tasks.where((task) {
+      if (task['parent_task_id'] != null) return false;
+      if (_statusFilter != 'all' && task['status'] != _statusFilter)
+        return false;
+      if (_priorityFilter != 'all' && task['priority'] != _priorityFilter)
+        return false;
+      final assignee = task['assignee'] as Map?;
+      if (_ownerFilter == 'unassigned' && assignee != null) return false;
+      if (_ownerFilter != 'all' &&
+          _ownerFilter != 'unassigned' &&
+          assignee?['id']?.toString() != _ownerFilter) return false;
+      final due = DateTime.tryParse(task['due_date']?.toString() ?? '');
+      if (_dateFilter == 'no_date' && due != null) return false;
+      if (_dateFilter == 'overdue' &&
+          (due == null ||
+              !DateUtils.dateOnly(due).isBefore(today) ||
+              task['status'] == 'done')) return false;
+      if (_dateFilter == 'upcoming' &&
+          (due == null || DateUtils.dateOnly(due).isBefore(today)))
+        return false;
+      final query = _taskSearch.text.trim().toLowerCase();
+      if (query.isNotEmpty &&
+          !'${task['title'] ?? ''} ${task['description'] ?? ''} ${assignee?['name'] ?? ''}'
+              .toLowerCase()
+              .contains(query)) return false;
+      return true;
+    }).toList();
     final done = tasks.where((task) => task['status'] == 'done').length;
     final canManageProject =
         context.watch<AuthProvider>().hasPermission('projects.manage');
@@ -399,6 +461,22 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                 ? (value) => _updateProject({'status': value})
                 : null),
         const SizedBox(height: 14),
+        TextField(
+          controller: _taskSearch,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            hintText: 'Search tasks or owners',
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: _taskSearch.text.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: 'Clear search',
+                    onPressed: () => setState(_taskSearch.clear),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 8),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(children: [
@@ -419,6 +497,57 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
               ),
           ]),
         ),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(
+              child: DropdownButtonFormField<String>(
+            initialValue: _priorityFilter,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Priority'),
+            items: const [
+              DropdownMenuItem(value: 'all', child: Text('Any priority')),
+              DropdownMenuItem(value: 'urgent', child: Text('Urgent')),
+              DropdownMenuItem(value: 'high', child: Text('High')),
+              DropdownMenuItem(value: 'medium', child: Text('Medium')),
+              DropdownMenuItem(value: 'low', child: Text('Low')),
+            ],
+            onChanged: (value) =>
+                setState(() => _priorityFilter = value ?? 'all'),
+          )),
+          const SizedBox(width: 8),
+          Expanded(
+              child: DropdownButtonFormField<String>(
+            initialValue: _ownerFilter,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Owner'),
+            items: [
+              const DropdownMenuItem(value: 'all', child: Text('Anyone')),
+              const DropdownMenuItem(
+                  value: 'unassigned', child: Text('Unassigned')),
+              for (final member
+                  in (project['members'] as List? ?? const []).whereType<Map>())
+                DropdownMenuItem(
+                    value: (member['user'] as Map?)?['id']?.toString() ?? '',
+                    child: Text(
+                        (member['user'] as Map?)?['name']?.toString() ??
+                            'Member',
+                        overflow: TextOverflow.ellipsis)),
+            ],
+            onChanged: (value) => setState(() => _ownerFilter = value ?? 'all'),
+          )),
+        ]),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          initialValue: _dateFilter,
+          decoration: const InputDecoration(labelText: 'Due date'),
+          items: const [
+            DropdownMenuItem(value: 'all', child: Text('Any date')),
+            DropdownMenuItem(value: 'overdue', child: Text('Overdue')),
+            DropdownMenuItem(value: 'upcoming', child: Text('Upcoming')),
+            DropdownMenuItem(value: 'no_date', child: Text('No due date')),
+          ],
+          onChanged: (value) => setState(() => _dateFilter = value ?? 'all'),
+        ),
         const SizedBox(height: 12),
         SectionHeader(
           title: 'Tasks',
@@ -428,11 +557,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
         if (tasks.isEmpty)
           EmptyStateWidget(
             icon: Icons.task_alt_outlined,
-            title:
-                allTasks.isEmpty ? 'No tasks yet' : 'No tasks in this status',
+            title: allTasks.isEmpty ? 'No tasks yet' : 'No matching tasks',
             description: allTasks.isEmpty
                 ? 'Break this project into clear, assignable steps.'
-                : 'Choose another status filter to see more tasks.',
+                : 'Try changing your search or filters to see more tasks.',
             action: allTasks.isEmpty && canManageTasks
                 ? AppButton(
                     label: 'Add task', onPressed: _addTask, fullWidth: false)
@@ -523,6 +651,15 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                     (member['user'] as Map?)?['name']?.toString() ?? 'Member'),
                 subtitle:
                     Text(projectLabel(member['role']?.toString() ?? 'member')),
+                trailing: canManageProject &&
+                        (member['user'] as Map?)?['id']?.toString() !=
+                            (project['owner'] as Map?)?['id']?.toString()
+                    ? IconButton(
+                        tooltip: 'Remove project member',
+                        onPressed: () => _removeMember(member),
+                        icon: const Icon(Icons.person_remove_alt_1_outlined),
+                      )
+                    : null,
                 dense: true,
               ),
           ]),

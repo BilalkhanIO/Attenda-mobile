@@ -1316,6 +1316,12 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
+  Future<void> removeProjectMember(String id, String userId) async {
+    await _dio.delete('/projects/$id/members/$userId',
+        options:
+            Options(headers: {'Idempotency-Key': _pendingIdempotencyMarker}));
+  }
+
   Future<Map<String, dynamic>> createProjectTask(
       String projectId, Map<String, dynamic> data) async {
     final res = await _dio.post('/projects/$projectId/tasks',

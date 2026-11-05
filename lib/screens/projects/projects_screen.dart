@@ -20,6 +20,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   bool _loading = true;
   String? _error;
   bool _deepLinkHandled = false;
+  String _search = '';
+  String _statusFilter = 'all';
 
   @override
   void initState() {
@@ -85,6 +87,14 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   Widget build(BuildContext context) {
     final canCreate =
         context.watch<AuthProvider>().hasPermission('projects.manage');
+    final visibleProjects = _projects.where((project) {
+      if (_statusFilter != 'all' && project['status'] != _statusFilter)
+        return false;
+      final owner = (project['owner'] as Map?)?['name']?.toString() ?? '';
+      return '${project['name'] ?? ''} ${project['description'] ?? ''} $owner'
+          .toLowerCase()
+          .contains(_search.trim().toLowerCase());
+    }).toList();
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -152,16 +162,69 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                           ),
                         ],
                       )
-                    : ListView.separated(
+                    : ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
-                        itemCount: _projects.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (_, index) => _ProjectCard(
-                          project: _projects[index],
-                          onTap: () => context
-                              .push('/projects/${_projects[index]['id']}'),
-                        ),
+                        children: [
+                          TextField(
+                            onChanged: (value) =>
+                                setState(() => _search = value),
+                            decoration: InputDecoration(
+                              hintText: 'Search projects or owners',
+                              prefixIcon: const Icon(Icons.search_rounded),
+                              suffixIcon: _search.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      tooltip: 'Clear search',
+                                      onPressed: () =>
+                                          setState(() => _search = ''),
+                                      icon: const Icon(Icons.close_rounded),
+                                    ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            initialValue: _statusFilter,
+                            decoration: const InputDecoration(
+                                labelText: 'Project status'),
+                            items: const [
+                              DropdownMenuItem(
+                                  value: 'all', child: Text('All statuses')),
+                              DropdownMenuItem(
+                                  value: 'planning', child: Text('Planning')),
+                              DropdownMenuItem(
+                                  value: 'active', child: Text('Active')),
+                              DropdownMenuItem(
+                                  value: 'on_hold', child: Text('On hold')),
+                              DropdownMenuItem(
+                                  value: 'completed', child: Text('Completed')),
+                              DropdownMenuItem(
+                                  value: 'cancelled', child: Text('Cancelled')),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => _statusFilter = value ?? 'all'),
+                          ),
+                          const SizedBox(height: 12),
+                          if (visibleProjects.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 54),
+                              child: EmptyStateWidget(
+                                icon: Icons.search_off_rounded,
+                                title: 'No matching projects',
+                                description:
+                                    'Try a different search or status filter.',
+                              ),
+                            )
+                          else
+                            for (final project in visibleProjects) ...[
+                              _ProjectCard(
+                                project: project,
+                                onTap: () =>
+                                    context.push('/projects/${project['id']}'),
+                              ),
+                              const SizedBox(height: 10),
+                            ],
+                        ],
                       ),
       ),
     );
