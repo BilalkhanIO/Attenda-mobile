@@ -30,45 +30,61 @@ import 'attendance_location.dart';
 import 'foreground_service.dart'; // shared constants + startForegroundCallback
 
 // ─── Offline-queue models ─────────────────────────────────────────────────────
-enum OfflineEventType { checkIn, ipMatch }
+enum OfflineEventType { checkIn, ipMatch, checkOut, breakStart, breakEnd }
 
 class OfflineEvent {
   final OfflineEventType type;
-  final DateTime         timestamp;
-  final String?          payload;
-  final String?          ssid;
-  final String?          idempotencyKey;
-  final bool             requiresReview;
+  final DateTime timestamp;
+  final String? payload;
+  final String? ssid;
+  final String? idempotencyKey;
+  final bool requiresReview;
   final AttendanceLocationEvidence? location;
   final Map<String, dynamic>? clockProof;
-  OfflineEvent({required this.type, required this.timestamp, this.payload, this.ssid, this.idempotencyKey, this.requiresReview = false, this.location, this.clockProof});
+  final int? sequence;
+  final Map<String, dynamic>? actionData;
+  OfflineEvent(
+      {required this.type,
+      required this.timestamp,
+      this.payload,
+      this.ssid,
+      this.idempotencyKey,
+      this.requiresReview = false,
+      this.location,
+      this.clockProof,
+      this.sequence,
+      this.actionData});
   Map<String, dynamic> toJson() => {
-    'type':      type.name,
-    'timestamp': timestamp.toIso8601String(),
-    'payload':   payload,
-    'ssid':      ssid,
-    'idempotency_key': idempotencyKey,
-    'requires_review': requiresReview,
-    if (clockProof != null) 'clock_proof': clockProof,
-    if (location != null) ...location!.toJson(),
-  };
+        'type': type.name,
+        'timestamp': timestamp.toIso8601String(),
+        'payload': payload,
+        'ssid': ssid,
+        'idempotency_key': idempotencyKey,
+        'requires_review': requiresReview,
+        if (sequence != null) 'sequence': sequence,
+        if (actionData != null) 'action_data': actionData,
+        if (clockProof != null) 'clock_proof': clockProof,
+        if (location != null) ...location!.toJson(),
+      };
   factory OfflineEvent.fromJson(Map<String, dynamic> j) => OfflineEvent(
-    type:      OfflineEventType.values.firstWhere((e) => e.name == j['type']),
-    timestamp: DateTime.parse(j['timestamp'] as String),
-    payload:   j['payload'] as String?,
-    ssid:      j['ssid']    as String?,
-    idempotencyKey: j['idempotency_key'] as String?,
-    requiresReview: j['requires_review'] as bool? ?? false,
-    clockProof: (j['clock_proof'] as Map?)?.cast<String, dynamic>(),
-    location: j['latitude'] is num && j['longitude'] is num
-        ? AttendanceLocationEvidence(
-            latitude: (j['latitude'] as num).toDouble(),
-            longitude: (j['longitude'] as num).toDouble(),
-            accuracyM: (j['accuracy_m'] as num?)?.toDouble() ?? 0,
-            isMocked: j['is_mocked'] as bool? ?? false,
-          )
-        : null,
-  );
+        type: OfflineEventType.values.firstWhere((e) => e.name == j['type']),
+        timestamp: DateTime.parse(j['timestamp'] as String),
+        payload: j['payload'] as String?,
+        ssid: j['ssid'] as String?,
+        idempotencyKey: j['idempotency_key'] as String?,
+        requiresReview: j['requires_review'] as bool? ?? false,
+        sequence: (j['sequence'] as num?)?.toInt(),
+        actionData: (j['action_data'] as Map?)?.cast<String, dynamic>(),
+        clockProof: (j['clock_proof'] as Map?)?.cast<String, dynamic>(),
+        location: j['latitude'] is num && j['longitude'] is num
+            ? AttendanceLocationEvidence(
+                latitude: (j['latitude'] as num).toDouble(),
+                longitude: (j['longitude'] as num).toDouble(),
+                accuracyM: (j['accuracy_m'] as num?)?.toDouble() ?? 0,
+                isMocked: j['is_mocked'] as bool? ?? false,
+              )
+            : null,
+      );
 }
 
 // ─── Service singleton ────────────────────────────────────────────────────────
@@ -82,26 +98,87 @@ class WifiAttendanceService {
     return bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
   }
 
-  Future<void> queueManualCheckIn({required String idempotencyKey, required DateTime timestamp, AttendanceLocationEvidence? location, Map<String, dynamic>? clockProof}) async {
+  int get pendingOfflineEventCount =>
+      _queueEvents.where((event) => !event.requiresReview).length;
+  int get parkedOfflineEventCount =>
+      _queueEvents.where((event) => event.requiresReview).length;
+  bool get hasPendingOfflineCheckout => _queueEvents.any((event) =>
+      event.type == OfflineEventType.checkOut && !event.requiresReview);
+  List<OfflineEvent> get _queueEvents {
+    if (!Hive.isBoxOpen(kQueueBox)) return const [];
+    final events = <OfflineEvent>[];
+    for (final raw in Hive.box(kQueueBox).values) {
+      try {
+        if (raw is String) {
+          events.add(
+              OfflineEvent.fromJson(jsonDecode(raw) as Map<String, dynamic>));
+        } else if (raw is Map) {
+          events.add(OfflineEvent.fromJson(raw.cast<String, dynamic>()));
+        }
+      } catch (_) {}
+    }
+    return events;
+  }
+
+  int _nextSequence() =>
+      _queueEvents.fold<int>(
+          0, (maxValue, event) => max(maxValue, event.sequence ?? 0)) +
+      1;
+
+  Future<void> queueOfflineAction(
+      {required OfflineEventType type,
+      required String idempotencyKey,
+      required DateTime timestamp,
+      required Map<String, dynamic> clockProof,
+      Map<String, dynamic>? actionData}) async {
+    if (type == OfflineEventType.checkIn || type == OfflineEventType.ipMatch) {
+      throw ArgumentError(
+          'Use the dedicated queue method for this event type.');
+    }
+    if (!Hive.isBoxOpen(kQueueBox)) await Hive.openBox(kQueueBox);
+    await Hive.box(kQueueBox).add(jsonEncode(OfflineEvent(
+      type: type,
+      timestamp: timestamp,
+      idempotencyKey: idempotencyKey,
+      clockProof: clockProof,
+      actionData: actionData,
+      sequence: _nextSequence(),
+    ).toJson()));
+    onStatusChange?.call('offline_queue_changed');
+  }
+
+  Future<void> queueManualCheckIn(
+      {required String idempotencyKey,
+      required DateTime timestamp,
+      AttendanceLocationEvidence? location,
+      Map<String, dynamic>? clockProof,
+      Map<String, dynamic>? deviceProof}) async {
     if (!Hive.isBoxOpen(kQueueBox)) await Hive.openBox(kQueueBox);
     final box = Hive.box(kQueueBox);
     final key = 'checkin:$idempotencyKey';
-    await box.put(key, jsonEncode(OfflineEvent(
-      type: OfflineEventType.checkIn,
-      timestamp: timestamp,
-      idempotencyKey: idempotencyKey,
-      location: location,
-      clockProof: clockProof,
-    ).toJson()));
+    await box.put(
+        key,
+        jsonEncode(OfflineEvent(
+          type: OfflineEventType.checkIn,
+          timestamp: timestamp,
+          idempotencyKey: idempotencyKey,
+          location: location,
+          clockProof: clockProof,
+          actionData:
+              deviceProof == null ? null : {'device_proof': deviceProof},
+          sequence: _nextSequence(),
+        ).toJson()));
+    onStatusChange?.call('offline_queue_changed');
   }
 
-  final _networkInfo  = NetworkInfo();
+  final _networkInfo = NetworkInfo();
   final _connectivity = Connectivity();
 
   // ── In-memory state (UI isolate) ──────────────────────────────────────────
   String? _lastKnownIp;
   String? _lastKnownSsid;
-  bool    _checkedInViaWifi = false;
+  bool _checkedInViaWifi = false;
+  bool _syncingOfflineQueue = false;
 
   /// Called with (status, [data]) — data carries extra info (e.g. gap minutes).
   void Function(String status, [String? data])? onStatusChange;
@@ -110,14 +187,14 @@ class WifiAttendanceService {
   // Server-driven: updated from each heartbeat ack (org heartbeat_grace_mins).
   Duration graceWindow = const Duration(minutes: 20);
   DateTime? disconnectDeadline;
-  String?   disconnectSsid;
+  String? disconnectSsid;
   DateTime? lastHeartbeatAt;
-  bool      vpnDetected       = false;
-  bool      noNetworksConfigured = false;
+  bool vpnDetected = false;
+  bool noNetworksConfigured = false;
   bool get heartbeatLost => disconnectDeadline != null;
 
   // ── Foreground heartbeat timer ────────────────────────────────────────────
-  Timer?  _fgHeartbeatTimer;
+  Timer? _fgHeartbeatTimer;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
 
   // ── Foreground service notification ID ───────────────────────────────────
@@ -139,24 +216,24 @@ class WifiAttendanceService {
     // ── Configure flutter_foreground_task ────────────────────────────────
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
-        channelId:          'attenda_wifi',
-        channelName:        'Attendance Tracking',
+        channelId: 'attenda_wifi',
+        channelName: 'Attendance Tracking',
         channelDescription: 'Monitors office WiFi for automatic check-in/out',
-        channelImportance:  NotificationChannelImportance.LOW,
-        priority:           NotificationPriority.LOW,
+        channelImportance: NotificationChannelImportance.LOW,
+        priority: NotificationPriority.LOW,
       ),
       iosNotificationOptions: const IOSNotificationOptions(
         showNotification: false,
-        playSound:        false,
+        playSound: false,
       ),
       foregroundTaskOptions: ForegroundTaskOptions(
         // Fire every 4 minutes — well within the server's heartbeat grace
         // window (org-configurable, 20 min default)
-        eventAction:             ForegroundTaskEventAction.repeat(4 * 60 * 1000),
-        autoRunOnBoot:           true,
+        eventAction: ForegroundTaskEventAction.repeat(4 * 60 * 1000),
+        autoRunOnBoot: true,
         autoRunOnMyPackageReplaced: true,
-        allowWakeLock:           true,
-        allowWifiLock:           true,
+        allowWakeLock: true,
+        allowWifiLock: true,
       ),
     );
 
@@ -167,7 +244,8 @@ class WifiAttendanceService {
     await _startService();
 
     // ── React to connectivity changes in the foreground ──────────────────
-    _connectivitySub = _connectivity.onConnectivityChanged.listen(_onConnectivityChanged);
+    _connectivitySub =
+        _connectivity.onConnectivityChanged.listen(_onConnectivityChanged);
 
     // ── Immediate foreground check ────────────────────────────────────────
     await checkAndReport();
@@ -180,10 +258,10 @@ class WifiAttendanceService {
   Future<void> _startService() async {
     if (await FlutterForegroundTask.isRunningService) return; // already running
     final result = await FlutterForegroundTask.startService(
-      serviceId:         _serviceId,
+      serviceId: _serviceId,
       notificationTitle: 'Attenda',
-      notificationText:  'Monitoring office WiFi for attendance…',
-      callback:          startForegroundCallback,
+      notificationText: 'Monitoring office WiFi for attendance…',
+      callback: startForegroundCallback,
     );
     debugPrint('[WiFi] FG service start → $result');
   }
@@ -197,7 +275,7 @@ class WifiAttendanceService {
   /// Tells the background task the user manually checked out.
   Future<void> onManualCheckOut() async {
     _checkedInViaWifi = false;
-    lastHeartbeatAt   = null;
+    lastHeartbeatAt = null;
     _stopFgHeartbeat();
     _markReconnected();
     await _saveState();
@@ -213,45 +291,43 @@ class WifiAttendanceService {
     debugPrint('[WiFi] Task → main: $msg');
 
     if (msg == 'checked_in') {
-      _checkedInViaWifi    = true;
+      _checkedInViaWifi = true;
       noNetworksConfigured = false;
-      vpnDetected          = false;
+      vpnDetected = false;
       _markReconnected();
       _saveState();
       _startFgHeartbeat();
       onStatusChange?.call('checked_in');
-
-    } else if (msg.startsWith('re_entered:') || msg.startsWith('re_entered_forgiven:')) {
-      _checkedInViaWifi    = true;
+    } else if (msg.startsWith('re_entered:') ||
+        msg.startsWith('re_entered_forgiven:')) {
+      _checkedInViaWifi = true;
       noNetworksConfigured = false;
-      vpnDetected          = false;
+      vpnDetected = false;
       _markReconnected();
       _saveState();
       _startFgHeartbeat();
       final gap = msg.split(':').last;
       onStatusChange?.call(
-          msg.startsWith('re_entered_forgiven:') ? 're_entered_forgiven' : 're_entered', gap);
-
+          msg.startsWith('re_entered_forgiven:')
+              ? 're_entered_forgiven'
+              : 're_entered',
+          gap);
     } else if (msg == 'already_in') {
-      _checkedInViaWifi    = true;
+      _checkedInViaWifi = true;
       noNetworksConfigured = false;
-      vpnDetected          = false;
+      vpnDetected = false;
       _markReconnected();
       _saveState();
       _startFgHeartbeat();
-
     } else if (msg == 'heartbeat_accepted') {
       lastHeartbeatAt = DateTime.now();
-      vpnDetected     = false;
+      vpnDetected = false;
       _markReconnected(notify: true);
-
     } else if (msg.startsWith('heartbeat_lost:')) {
       _markDisconnected();
-
     } else if (msg == 'no_networks') {
       noNetworksConfigured = true;
       onStatusChange?.call('no_networks');
-
     } else if (msg == 'vpn_detected') {
       vpnDetected = true;
       onStatusChange?.call('vpn_detected');
@@ -287,20 +363,21 @@ class WifiAttendanceService {
       }
       vpnDetected = false;
 
-      final ip   = await _networkInfo.getWifiIP();
-      var ssid = (await _networkInfo.getWifiName()
-              .catchError((_) => null as String?))
-          ?.replaceAll('"', '');
+      final ip = await _networkInfo.getWifiIP();
+      var ssid =
+          (await _networkInfo.getWifiName().catchError((_) => null as String?))
+              ?.replaceAll('"', '');
       if (ssid == '<unknown ssid>') ssid = null;
 
-      final hasNet = (ip != null && ip.isNotEmpty) || (ssid != null && ssid.isNotEmpty);
+      final hasNet =
+          (ip != null && ip.isNotEmpty) || (ssid != null && ssid.isNotEmpty);
       if (!hasNet) {
         if (_checkedInViaWifi) _markDisconnected();
         return;
       }
 
       if (ip != _lastKnownIp || ssid != _lastKnownSsid) {
-        _lastKnownIp   = ip;
+        _lastKnownIp = ip;
         _lastKnownSsid = ssid;
         await _saveState();
       }
@@ -351,7 +428,7 @@ class WifiAttendanceService {
       final action = result['action'] as String?;
       switch (action) {
         case 'checked_in':
-          _checkedInViaWifi    = true;
+          _checkedInViaWifi = true;
           noNetworksConfigured = false;
           await _saveState();
           _markReconnected();
@@ -359,17 +436,18 @@ class WifiAttendanceService {
           onStatusChange?.call('checked_in');
           break;
         case 're_entered':
-          _checkedInViaWifi    = true;
+          _checkedInViaWifi = true;
           noNetworksConfigured = false;
           await _saveState();
           _markReconnected();
           _startFgHeartbeat();
           final gap = result['gap_mins'] as int? ?? 0;
           final forgiven = result['forgiven'] as bool? ?? false;
-          onStatusChange?.call(forgiven ? 're_entered_forgiven' : 're_entered', '$gap');
+          onStatusChange?.call(
+              forgiven ? 're_entered_forgiven' : 're_entered', '$gap');
           break;
         case 'already_in':
-          _checkedInViaWifi    = true;
+          _checkedInViaWifi = true;
           noNetworksConfigured = false;
           await _saveState();
           _markReconnected();
@@ -389,11 +467,11 @@ class WifiAttendanceService {
       }
     } catch (e) {
       debugPrint('[WiFi] FG ip-event failed: $e — queuing');
-      _queueEvent(OfflineEvent(
-        type:      OfflineEventType.ipMatch,
+      await _queueEvent(OfflineEvent(
+        type: OfflineEventType.ipMatch,
         timestamp: DateTime.now(),
-        payload:   ip,
-        ssid:      ssid,
+        payload: ip,
+        ssid: ssid,
       ));
     }
   }
@@ -439,7 +517,7 @@ class WifiAttendanceService {
   void _markReconnected({bool notify = false}) {
     final wasLost = heartbeatLost;
     disconnectDeadline = null;
-    disconnectSsid     = null;
+    disconnectSsid = null;
     if (notify && wasLost) onStatusChange?.call('heartbeat_restored');
   }
 
@@ -447,80 +525,275 @@ class WifiAttendanceService {
   // Offline queue — sync queued events when connectivity is restored
   // ─────────────────────────────────────────────────────────────────────────
   Future<void> syncOfflineQueue() async {
-    if (!Hive.isBoxOpen(kQueueBox)) return;
-    final box  = Hive.box(kQueueBox);
-    if (box.isEmpty) return;
-    final conn = await _connectivity.checkConnectivity();
-    if (conn.contains(ConnectivityResult.none)) return;
+    if (_syncingOfflineQueue) return;
+    _syncingOfflineQueue = true;
+    try {
+      if (!Hive.isBoxOpen(kQueueBox)) return;
+      final box = Hive.box(kQueueBox);
+      if (box.isEmpty) return;
+      final conn = await _connectivity.checkConnectivity();
+      if (conn.contains(ConnectivityResult.none)) return;
 
-    for (final key in box.keys.toList()) {
-      try {
-        final raw = box.get(key) as String?;
-        if (raw == null) continue;
-        final event = OfflineEvent.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-        if (event.requiresReview) continue;
-        // Skip and discard events older than a full shift — replaying stale
-        // check-ins across days creates wrong records, but same-day events
-        // must survive long offline stretches (e.g. doze + poor signal).
-        if (DateTime.now().difference(event.timestamp) > const Duration(hours: 12)) {
-          await box.put(key, jsonEncode(OfflineEvent(
-            type: event.type,
-            timestamp: event.timestamp,
-            payload: event.payload,
-            ssid: event.ssid,
-            idempotencyKey: event.idempotencyKey,
-            requiresReview: true,
-            location: event.location,
-            clockProof: event.clockProof,
-          ).toJson()));
-          if (event.type == OfflineEventType.checkIn) onStatusChange?.call('offline_checkin_review');
-          continue;
-        }
-        if (event.type == OfflineEventType.checkIn) {
-          await api.checkIn(
-            type: 'manual',
-            idempotencyKey: event.idempotencyKey,
-            clientEventAt: event.timestamp,
-            offline: true,
-            latitude: event.location?.latitude,
-            longitude: event.location?.longitude,
-            accuracyM: event.location?.accuracyM,
-            isMocked: event.location?.isMocked,
-            clockProof: event.clockProof,
-          );
-        } else if (event.type == OfflineEventType.ipMatch &&
-            (event.payload != null || event.ssid != null)) {
-          await api.reportIpEvent(event.payload ?? '', ssid: event.ssid);
-        }
-        await box.delete(key);
-      } catch (e) {
-        final code = (e as dynamic)?.response?.statusCode as int?;
-        String? apiCode;
+      final queued = <({dynamic key, OfflineEvent event})>[];
+      for (final key in box.keys) {
         try {
-          final data = (e as dynamic).response?.data;
-          if (data is Map) apiCode = data['code'] as String?;
-        } catch (_) {}
-        if (code == 409 && apiCode == 'OFFLINE_CHECKIN_REVIEW') {
-          final raw = box.get(key) as String?;
-          if (raw != null) {
-            final event = OfflineEvent.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-            await box.put(key, jsonEncode(OfflineEvent(
-              type: event.type,
-              timestamp: event.timestamp,
-              payload: event.payload,
-              ssid: event.ssid,
-              idempotencyKey: event.idempotencyKey,
-              requiresReview: true,
-              location: event.location,
-              clockProof: event.clockProof,
-            ).toJson()));
+          final raw = box.get(key);
+          if (raw is String) {
+            queued.add((
+              key: key,
+              event:
+                  OfflineEvent.fromJson(jsonDecode(raw) as Map<String, dynamic>)
+            ));
+          } else if (raw is Map) {
+            queued.add((
+              key: key,
+              event: OfflineEvent.fromJson(raw.cast<String, dynamic>())
+            ));
           }
-          onStatusChange?.call('offline_checkin_review');
+        } catch (_) {}
+      }
+      queued.sort(
+          (a, b) => (a.event.sequence ?? 0).compareTo(b.event.sequence ?? 0));
+      var sequence = 0;
+      for (var i = 0; i < queued.length; i++) {
+        sequence = max(sequence + 1, queued[i].event.sequence ?? 0);
+        queued[i] = (
+          key: queued[i].key,
+          event: OfflineEvent(
+            type: queued[i].event.type,
+            timestamp: queued[i].event.timestamp,
+            payload: queued[i].event.payload,
+            ssid: queued[i].event.ssid,
+            idempotencyKey: queued[i].event.idempotencyKey,
+            requiresReview: queued[i].event.requiresReview,
+            location: queued[i].event.location,
+            clockProof: queued[i].event.clockProof,
+            sequence: sequence,
+            actionData: queued[i].event.actionData,
+          )
+        );
+      }
+
+      var index = 0;
+      while (index < queued.length) {
+        final first = queued[index];
+        final raw = box.get(first.key);
+        if (raw == null) {
+          index++;
           continue;
         }
-        if (code != null && code >= 400 && code < 500) await box.delete(key);
-        continue;
+        final event = first.event;
+        // A parked action blocks later actions until the user reviews it; sending
+        // a checkout without its check-in would corrupt the attendance timeline.
+        if (event.requiresReview) break;
+        if (DateTime.now().difference(event.timestamp) >
+            const Duration(hours: 12)) {
+          await box.put(
+              first.key,
+              jsonEncode(OfflineEvent(
+                      type: event.type,
+                      timestamp: event.timestamp,
+                      payload: event.payload,
+                      ssid: event.ssid,
+                      idempotencyKey: event.idempotencyKey,
+                      requiresReview: true,
+                      location: event.location,
+                      clockProof: event.clockProof,
+                      sequence: event.sequence,
+                      actionData: event.actionData)
+                  .toJson()));
+          onStatusChange?.call('offline_checkin_review');
+          break;
+        }
+
+        // Wi-Fi observations are sent through their existing endpoint and are
+        // never included as attendance actions in an offline batch.
+        if (event.type == OfflineEventType.ipMatch) {
+          try {
+            await api.reportIpEvent(event.payload ?? '', ssid: event.ssid);
+            await box.delete(first.key);
+            onStatusChange?.call('offline_queue_changed');
+            index++;
+            continue;
+          } catch (_) {
+            break;
+          }
+        }
+
+        final batch =
+            <({dynamic key, OfflineEvent event, String idempotencyKey})>[];
+        for (var cursor = index;
+            cursor < queued.length && batch.length < 20;
+            cursor++) {
+          final item = queued[cursor];
+          final currentRaw = box.get(item.key);
+          if (currentRaw == null) continue;
+          final current = item.event;
+          if (current.requiresReview ||
+              current.type == OfflineEventType.ipMatch ||
+              DateTime.now().difference(current.timestamp) >
+                  const Duration(hours: 12)) {
+            break;
+          }
+          final actionKey =
+              current.idempotencyKey ?? ApiService.newIdempotencyKey();
+          final saved = OfflineEvent(
+              type: current.type,
+              timestamp: current.timestamp,
+              payload: current.payload,
+              ssid: current.ssid,
+              idempotencyKey: actionKey,
+              requiresReview: false,
+              location: current.location,
+              clockProof: current.clockProof,
+              sequence: current.sequence,
+              actionData: current.actionData);
+          await box.put(item.key, jsonEncode(saved.toJson()));
+          batch.add((key: item.key, event: saved, idempotencyKey: actionKey));
+        }
+        if (batch.isEmpty) {
+          index++;
+          continue;
+        }
+
+        final requestEvents = batch.map((item) {
+          final queuedEvent = item.event;
+          final payload = <String, dynamic>{
+            'offline': true,
+            'idempotency_key': item.idempotencyKey,
+            'client_event_at': queuedEvent.timestamp.toUtc().toIso8601String(),
+            ...?queuedEvent.clockProof,
+          };
+          switch (queuedEvent.type) {
+            case OfflineEventType.checkIn:
+              payload['type'] = 'manual';
+              if (queuedEvent.location != null) {
+                payload.addAll(queuedEvent.location!.toJson());
+              }
+              final deviceProof = queuedEvent.actionData?['device_proof'];
+              if (deviceProof is Map) {
+                payload['device_proof'] = deviceProof.cast<String, dynamic>();
+              }
+              break;
+            case OfflineEventType.checkOut:
+              break;
+            case OfflineEventType.breakStart:
+              payload['break_type'] =
+                  queuedEvent.actionData?['break_type'] ?? 'manual';
+              if (queuedEvent.actionData?['shift_break_id'] != null) {
+                payload['shift_break_id'] =
+                    queuedEvent.actionData!['shift_break_id'];
+              }
+              break;
+            case OfflineEventType.breakEnd:
+              if (queuedEvent.actionData?['wifi_connected'] != null) {
+                payload['wifi_connected'] =
+                    queuedEvent.actionData!['wifi_connected'];
+              }
+              break;
+            case OfflineEventType.ipMatch:
+              break;
+          }
+          final type = switch (queuedEvent.type) {
+            OfflineEventType.checkIn => 'checkin',
+            OfflineEventType.checkOut => 'checkout',
+            OfflineEventType.breakStart => 'break_start',
+            OfflineEventType.breakEnd => 'break_end',
+            OfflineEventType.ipMatch => 'ip_match',
+          };
+          return {
+            'sequence': queuedEvent.sequence,
+            'idempotency_key': item.idempotencyKey,
+            'type': type,
+            'payload': payload
+          };
+        }).toList();
+
+        List<Map<String, dynamic>> outcomes;
+        try {
+          outcomes = await api.syncAttendanceEvents(requestEvents);
+        } catch (error) {
+          final code = (error as dynamic)?.response?.statusCode as int?;
+          String? apiCode;
+          try {
+            final data = (error as dynamic).response?.data;
+            if (data is Map) apiCode = data['code'] as String?;
+          } catch (_) {}
+          final statusCode = code ?? 0;
+          final transient = code == null ||
+              statusCode == 408 ||
+              statusCode == 429 ||
+              statusCode >= 500 ||
+              apiCode == 'ATTENDANCE_SYNC_IN_PROGRESS' ||
+              apiCode == 'SYNC_COORDINATION_UNAVAILABLE' ||
+              apiCode == 'IDEMPOTENCY_REQUEST_IN_PROGRESS';
+          if (!transient &&
+              statusCode >= 400 &&
+              statusCode < 500 &&
+              statusCode != 401 &&
+              statusCode != 403) {
+            for (final item in batch) {
+              await box.put(
+                  item.key,
+                  jsonEncode(OfflineEvent(
+                          type: item.event.type,
+                          timestamp: item.event.timestamp,
+                          payload: item.event.payload,
+                          ssid: item.event.ssid,
+                          idempotencyKey: item.idempotencyKey,
+                          requiresReview: true,
+                          location: item.event.location,
+                          clockProof: item.event.clockProof,
+                          sequence: item.event.sequence,
+                          actionData: item.event.actionData)
+                      .toJson()));
+            }
+            onStatusChange?.call('offline_checkin_review');
+          }
+          break;
+        }
+
+        var shouldStop = false;
+        for (var outcomeIndex = 0;
+            outcomeIndex < batch.length;
+            outcomeIndex++) {
+          final item = batch[outcomeIndex];
+          final result = outcomeIndex < outcomes.length
+              ? outcomes[outcomeIndex]['result']
+              : 'retry';
+          if (result == 'applied' || result == 'duplicate') {
+            await box.delete(item.key);
+          } else if (result == 'parked_for_review' || result == 'rejected') {
+            await box.put(
+                item.key,
+                jsonEncode(OfflineEvent(
+                        type: item.event.type,
+                        timestamp: item.event.timestamp,
+                        payload: item.event.payload,
+                        ssid: item.event.ssid,
+                        idempotencyKey: item.idempotencyKey,
+                        requiresReview: true,
+                        location: item.event.location,
+                        clockProof: item.event.clockProof,
+                        sequence: item.event.sequence,
+                        actionData: item.event.actionData)
+                    .toJson()));
+            onStatusChange?.call('offline_checkin_review');
+            shouldStop = true;
+            break;
+          } else {
+            // Unknown or retry outcomes stay in the outbox. The server may have
+            // committed an event whose response was lost, so keep its same key.
+            shouldStop = true;
+            break;
+          }
+        }
+        onStatusChange?.call('offline_queue_changed');
+        index += batch.length;
+        if (shouldStop || outcomes.length < batch.length) break;
       }
+    } finally {
+      _syncingOfflineQueue = false;
     }
   }
 
@@ -530,7 +803,9 @@ class WifiAttendanceService {
   Future<bool> ensureLocationPermission() async {
     try {
       var status = await Permission.locationWhenInUse.status;
-      if (!status.isGranted) status = await Permission.locationWhenInUse.request();
+      if (!status.isGranted) {
+        status = await Permission.locationWhenInUse.request();
+      }
       return status.isGranted;
     } catch (e) {
       debugPrint('[WiFi] Location permission error: $e');
@@ -546,7 +821,8 @@ class WifiAttendanceService {
 
   Future<void> _requestNotificationPermission() async {
     try {
-      final permission = await FlutterForegroundTask.checkNotificationPermission();
+      final permission =
+          await FlutterForegroundTask.checkNotificationPermission();
       if (permission != NotificationPermission.granted) {
         await FlutterForegroundTask.requestNotificationPermission();
       }
@@ -560,8 +836,8 @@ class WifiAttendanceService {
     if (!Hive.isBoxOpen(kStateBox)) return;
     final box = Hive.box(kStateBox);
     _checkedInViaWifi = box.get(kCheckedInViaWifi, defaultValue: false) as bool;
-    _lastKnownIp      = box.get(kLastKnownIp)   as String?;
-    _lastKnownSsid    = box.get(kLastKnownSsid)  as String?;
+    _lastKnownIp = box.get(kLastKnownIp) as String?;
+    _lastKnownSsid = box.get(kLastKnownSsid) as String?;
 
     // Restart the foreground heartbeat if we were checked in before restart
     if (_checkedInViaWifi) _startFgHeartbeat();
@@ -571,13 +847,25 @@ class WifiAttendanceService {
     if (!Hive.isBoxOpen(kStateBox)) return;
     final box = Hive.box(kStateBox);
     await box.put(kCheckedInViaWifi, _checkedInViaWifi);
-    await box.put(kLastKnownIp,      _lastKnownIp);
-    await box.put(kLastKnownSsid,    _lastKnownSsid);
+    await box.put(kLastKnownIp, _lastKnownIp);
+    await box.put(kLastKnownSsid, _lastKnownSsid);
   }
 
-  void _queueEvent(OfflineEvent event) {
+  Future<void> _queueEvent(OfflineEvent event) async {
     if (!Hive.isBoxOpen(kQueueBox)) return;
-    Hive.box(kQueueBox).add(jsonEncode(event.toJson()));
+    await Hive.box(kQueueBox).add(jsonEncode(OfflineEvent(
+      type: event.type,
+      timestamp: event.timestamp,
+      payload: event.payload,
+      ssid: event.ssid,
+      idempotencyKey: event.idempotencyKey,
+      requiresReview: event.requiresReview,
+      location: event.location,
+      clockProof: event.clockProof,
+      sequence: _nextSequence(),
+      actionData: event.actionData,
+    ).toJson()));
+    onStatusChange?.call('offline_queue_changed');
   }
 
   Future<bool> _isVpnActive() async {

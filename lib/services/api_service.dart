@@ -1,18 +1,42 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:crypto/crypto.dart';
 import 'dart:typed_data';
+import 'dart:math';
 import 'attendance_clock.dart';
+import 'attendance_device_keys.dart';
+import 'idempotency_key_store.dart';
+import 'idempotency_interceptor.dart';
 
 const _baseUrl = String.fromEnvironment('API_URL',
     defaultValue: 'https://attenda-api-production.up.railway.app/api/v1');
 const _storage = FlutterSecureStorage();
+const _pendingIdempotencyMarker = 'attenda-pending';
+final _idempotencyKeyStore = IdempotencyKeyStore.secure(
+  _storage,
+  generateKey: ApiService.newIdempotencyKey,
+);
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
   ApiService._internal();
 
+  static String newIdempotencyKey() {
+    final bytes = List<int>.generate(16, (_) => Random.secure().nextInt(256));
+    return bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+  }
+
   late final Dio _dio = _buildDio();
+  Future<Map<String, dynamic>>? _refreshInFlight;
+
+  Options _authIdempotencyOptions() => Options(
+        headers: {'Idempotency-Key': _pendingIdempotencyMarker},
+        extra: {'_attenda_idempotency_auth': true},
+      );
 
   Dio _buildDio() {
     final dio = Dio(BaseOptions(
@@ -30,17 +54,17 @@ class ApiService {
         handler.next(options);
       },
       onError: (error, handler) async {
-        if (error.response?.statusCode == 401) {
+        if (error.response?.statusCode == 401 &&
+            !error.requestOptions.path.startsWith('/auth/')) {
           try {
             final refresh = await _storage.read(key: 'refresh_token');
             if (refresh != null) {
-              final res = await Dio().post('$_baseUrl/auth/refresh',
-                  data: {'refresh_token': refresh});
-              final newToken = res.data['data']['access_token'] as String;
+              final data = await refreshToken(refresh);
+              final newToken = data['access_token'] as String;
               await _storage.write(key: 'access_token', value: newToken);
               // Rotation: store the successor refresh token — reusing the old
               // one would revoke the whole token family on the server.
-              final rotated = res.data['data']['refresh_token'] as String?;
+              final rotated = data['refresh_token'] as String?;
               if (rotated != null) {
                 await _storage.write(key: 'refresh_token', value: rotated);
               }
@@ -56,31 +80,90 @@ class ApiService {
         handler.next(error);
       },
     ));
+    dio.interceptors.add(RequestIdempotencyInterceptor(
+      store: _idempotencyKeyStore,
+      generateKey: newIdempotencyKey,
+    ));
 
     return dio;
   }
 
   // ─── Auth ─────────────────────────────────────────
   Future<Map<String, dynamic>> login(String email, String password) async {
-    final res = await _dio
-        .post('/auth/login', data: {'email': email, 'password': password});
+    final res = await _dio.post('/auth/login',
+        data: {'email': email, 'password': password},
+        options: _authIdempotencyOptions());
     return res.data['data'] as Map<String, dynamic>;
   }
 
   Future<void> logout() async {
     try {
-      await _dio.post('/auth/logout');
+      await _dio.post('/auth/logout', options: _authIdempotencyOptions());
     } catch (_) {}
     await _storage.deleteAll();
   }
 
+  // Trusted attendance devices
+  Future<List<Map<String, dynamic>>> getMyAttendanceDevices() async {
+    final res = await _dio.get('/attendance/devices/me');
+    final data = res.data['data'];
+    if (data is! List) return const [];
+    return data
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> startAttendanceDeviceEnrollment({
+    required String label,
+    required String publicKey,
+  }) async {
+    final res = await _dio.post('/attendance/devices/me/enroll/start', data: {
+      'label': label,
+      'platform': 'android',
+      'public_key': publicKey,
+    });
+    return Map<String, dynamic>.from(res.data['data'] as Map);
+  }
+
+  Future<Map<String, dynamic>> confirmAttendanceDeviceEnrollment({
+    required String id,
+    required String challenge,
+    required String signature,
+  }) async {
+    final res =
+        await _dio.post('/attendance/devices/me/$id/enroll/confirm', data: {
+      'challenge': challenge,
+      'signature': signature,
+    });
+    return Map<String, dynamic>.from(res.data['data'] as Map);
+  }
+
+  Future<void> revokeMyAttendanceDevice(String id) async {
+    await _dio.delete('/attendance/devices/me/$id');
+  }
+
   Future<void> forgotPassword(String email) async {
-    await _dio.post('/auth/forgot-password', data: {'email': email});
+    await _dio.post('/auth/forgot-password',
+        data: {'email': email}, options: _authIdempotencyOptions());
   }
 
   Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
-    final res = await Dio()
-        .post('$_baseUrl/auth/refresh', data: {'refresh_token': refreshToken});
+    final pending = _refreshInFlight;
+    if (pending != null) return pending;
+    final request = _refreshTokenOnce(refreshToken);
+    _refreshInFlight = request;
+    try {
+      return await request;
+    } finally {
+      if (identical(_refreshInFlight, request)) _refreshInFlight = null;
+    }
+  }
+
+  Future<Map<String, dynamic>> _refreshTokenOnce(String refreshToken) async {
+    final res = await _dio.post('/auth/refresh',
+        data: {'refresh_token': refreshToken},
+        options: _authIdempotencyOptions());
     return res.data['data'] as Map<String, dynamic>;
   }
 
@@ -97,6 +180,88 @@ class ApiService {
 
   Future<Map<String, dynamic>> getMyCapabilities() async {
     final res = await _dio.get('/users/me/capabilities');
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  // ─── Project time tracking ─────────────────────────
+  Future<Map<String, dynamic>?> getRunningProjectTimer() async {
+    final res = await _dio.get('/time/timer');
+    return res.data['data'] as Map<String, dynamic>?;
+  }
+
+  Future<Map<String, dynamic>> startProjectTimer({
+    String? projectId,
+    String? taskId,
+    String? description,
+    bool billable = false,
+  }) async {
+    final res = await _dio.post('/time/timer/start', data: {
+      'idempotency_key': _pendingIdempotencyMarker,
+      if (projectId != null) 'project_id': projectId,
+      if (taskId != null) 'task_id': taskId,
+      if (description != null) 'description': description,
+      'billable': billable,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> stopProjectTimer() async {
+    final res = await _dio.post('/time/timer/stop', data: {
+      'idempotency_key': _pendingIdempotencyMarker,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getMyProjectTime({
+    required String from,
+    required String to,
+  }) async {
+    final res = await _dio.get('/time/entries', queryParameters: {
+      'from': from,
+      'to': to,
+    });
+    return {'entries': res.data['data'] as List<dynamic>};
+  }
+
+  Future<Map<String, dynamic>> createManualProjectTime(
+      Map<String, dynamic> data) async {
+    final res = await _dio.post('/time/entries', data: {
+      ...data,
+      'idempotency_key': _pendingIdempotencyMarker,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getMyTimesheet(String weekStart) async {
+    final res = await _dio
+        .get('/time/timesheets/me', queryParameters: {'week_start': weekStart});
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> submitMyTimesheet(String weekStart) async {
+    final res = await _dio.post('/time/timesheets/submit', data: {
+      'week_start': weekStart,
+      'idempotency_key': _pendingIdempotencyMarker,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> getTimesheetsToReview() async {
+    final res = await _dio.get('/time/timesheets');
+    return res.data['data'] as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> reviewTimesheet(String id,
+      {required String decision, String? note}) async {
+    final res = await _dio.put('/time/timesheets/$id/review', data: {
+      'decision': decision,
+      if (note != null) 'note': note,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getProjectTimeReport(String projectId) async {
+    final res = await _dio.get('/time/reports/project/$projectId');
     return res.data['data'] as Map<String, dynamic>;
   }
 
@@ -135,6 +300,28 @@ class ApiService {
     return res.data['data'] as List;
   }
 
+  Future<Map<String, dynamic>> getMyAttendancePage(
+      {int days = 30, int limit = 50, String? cursor}) async {
+    final res = await _dio.get('/attendance/me', queryParameters: {
+      'days': days,
+      'limit': limit,
+      'cursor_mode': true,
+      if (cursor != null) 'cursor': cursor,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<List<Map<String, dynamic>>> syncAttendanceEvents(
+      List<Map<String, dynamic>> events) async {
+    final res = await _dio.post('/attendance/sync',
+        data: {'events': events},
+        options: Options(receiveTimeout: const Duration(minutes: 6)));
+    final data = (res.data['data'] as Map).cast<String, dynamic>();
+    return (data['outcomes'] as List)
+        .map((item) => (item as Map).cast<String, dynamic>())
+        .toList();
+  }
+
   Future<Map<String, dynamic>> checkIn(
       {String type = 'manual',
       String? qrCode,
@@ -147,7 +334,7 @@ class ApiService {
       double? accuracyM,
       bool? isMocked,
       Map<String, dynamic>? clockProof}) async {
-    final res = await _dio.post('/attendance/checkin', data: {
+    final body = <String, dynamic>{
       'type': type,
       if (qrCode != null) 'qr_code': qrCode,
       if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
@@ -161,27 +348,155 @@ class ApiService {
       if (clockProof != null) ...clockProof,
       if (type == 'remote' && durationType != null)
         'duration_type': durationType,
-    });
+    };
+    final proof = await _prepareDeviceProof(body);
+    if (proof != null) {
+      body['device_proof'] = proof;
+      if (idempotencyKey != null) {
+        await AttendanceDeviceKeys().storePendingProof(idempotencyKey, proof);
+      }
+    }
+    final res = await _dio.post('/attendance/checkin', data: body);
+    if (idempotencyKey != null) {
+      await AttendanceDeviceKeys().discardPendingProof(idempotencyKey);
+    }
     return res.data['data'] as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> checkOut() async {
-    final res = await _dio.post('/attendance/checkout');
+  Future<Map<String, String>?> _prepareDeviceProof(
+      Map<String, dynamic> request) async {
+    try {
+      final token = await _storage.read(key: 'access_token');
+      if (token == null) return null;
+      final claims = JwtDecoder.decode(token);
+      final userId = claims['sub'] as String?;
+      if (userId == null) return null;
+      final keys = AttendanceDeviceKeys();
+      final knownDeviceIds = await keys.enrolledDeviceIds(userId);
+      if (knownDeviceIds.isEmpty) return null;
+      final requestBody = Map<String, dynamic>.from(request)
+        ..remove('offline')
+        ..remove('device_proof');
+      final signedPayload = jsonEncode(requestBody);
+      for (final deviceId in knownDeviceIds) {
+        try {
+          var challenge = await keys.readCheckinChallenge(userId, deviceId);
+          if (challenge == null ||
+              DateTime.tryParse(challenge['expires_at']?.toString() ?? '')
+                      ?.isAfter(DateTime.now()) !=
+                  true) {
+            await keys.clearCheckinChallenge(userId, deviceId);
+            challenge = await _requestDeviceChallenge(deviceId);
+            if (challenge == null) continue;
+            await keys.storeCheckinChallenge(userId, deviceId, challenge);
+          }
+          final challengeToken = challenge['challenge'] as String?;
+          final prefix = challenge['signing_prefix'] as String?;
+          if (challengeToken == null || prefix == null) continue;
+          final signature = await keys.signForEnrolledDevice(
+            userId: userId,
+            deviceId: deviceId,
+            message: '$prefix$signedPayload',
+          );
+          await keys.clearCheckinChallenge(userId, deviceId);
+          if (signature != null) {
+            return {
+              'device_id': deviceId,
+              'challenge': challengeToken,
+              'signature': signature,
+              'signed_payload': signedPayload,
+            };
+          }
+        } catch (_) {
+          // Monitor mode allows check-in when key evidence is unavailable.
+        }
+      }
+    } catch (_) {
+      // Enrollment is optional and legacy clients remain able to check in.
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> _requestDeviceChallenge(String deviceId) async {
+    try {
+      final response = await _dio
+          .post('/attendance/devices/me/$deviceId/checkin-challenge',
+              data: const <String, dynamic>{},
+              options: Options(
+                sendTimeout: const Duration(seconds: 3),
+                receiveTimeout: const Duration(seconds: 3),
+              ))
+          .timeout(const Duration(seconds: 3));
+      return Map<String, dynamic>.from(response.data['data'] as Map);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> takePendingAttendanceDeviceProof(
+          String idempotencyKey) =>
+      AttendanceDeviceKeys().takePendingProof(idempotencyKey);
+
+  Future<Map<String, dynamic>> checkOut(
+      {String? idempotencyKey,
+      DateTime? clientEventAt,
+      bool offline = false,
+      Map<String, dynamic>? clockProof}) async {
+    final res = await _dio.post('/attendance/checkout',
+        data: {
+          if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
+          if (clientEventAt != null)
+            'client_event_at': clientEventAt.toUtc().toIso8601String(),
+          if (offline) 'offline': true,
+          if (clockProof != null) ...clockProof,
+        },
+        options: idempotencyKey == null
+            ? null
+            : Options(headers: {'Idempotency-Key': idempotencyKey}));
     return res.data['data'] as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> startBreak(
-      {String breakType = 'manual', String? shiftBreakId}) async {
-    final res = await _dio.post('/attendance/break/start', data: {
-      'break_type': breakType,
-      if (shiftBreakId != null) 'shift_break_id': shiftBreakId,
-    });
+      {String breakType = 'manual',
+      String? shiftBreakId,
+      String? idempotencyKey,
+      DateTime? clientEventAt,
+      bool offline = false,
+      Map<String, dynamic>? clockProof}) async {
+    final res = await _dio.post('/attendance/break/start',
+        data: {
+          'break_type': breakType,
+          if (shiftBreakId != null) 'shift_break_id': shiftBreakId,
+          if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
+          if (clientEventAt != null)
+            'client_event_at': clientEventAt.toUtc().toIso8601String(),
+          if (offline) 'offline': true,
+          if (clockProof != null) ...clockProof,
+        },
+        options: idempotencyKey == null
+            ? null
+            : Options(headers: {'Idempotency-Key': idempotencyKey}));
     return res.data['data'] as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> endBreak({bool? wifiConnected}) async {
+  Future<Map<String, dynamic>> endBreak(
+      {bool? wifiConnected,
+      String? idempotencyKey,
+      DateTime? clientEventAt,
+      bool offline = false,
+      Map<String, dynamic>? clockProof}) async {
     final res = await _dio.post('/attendance/break/end',
-        data: {if (wifiConnected != null) 'wifi_connected': wifiConnected});
+        data: {
+          if (wifiConnected != null) 'wifi_connected': wifiConnected,
+          if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
+          if (clientEventAt != null)
+            'client_event_at': clientEventAt.toUtc().toIso8601String(),
+          if (offline) 'offline': true,
+          if (clockProof != null) ...clockProof,
+        },
+        options: idempotencyKey == null
+            ? null
+            : Options(headers: {'Idempotency-Key': idempotencyKey}));
     return res.data['data'] as Map<String, dynamic>;
   }
 
@@ -207,8 +522,9 @@ class ApiService {
     await _dio.put('/attendance/remote/sessions/$id/approve');
   }
 
-  Future<void> rejectRemoteSession(String id) async {
-    await _dio.put('/attendance/remote/sessions/$id/reject');
+  Future<void> rejectRemoteSession(String id, {required String reason}) async {
+    await _dio.put('/attendance/remote/sessions/$id/reject',
+        data: {'reason': reason});
   }
 
   Future<Map<String, dynamic>> reportIpEvent(String ip,
@@ -235,8 +551,47 @@ class ApiService {
   /// current attendance record, and pre-check-in late minutes.
   Future<Map<String, dynamic>> getTodayStatus() async {
     final res = await _dio.get('/attendance/today-status');
+    unawaited(_prefetchDeviceChallenge());
     return AttendanceClock.attachAnchor(
         (res.data['data'] as Map).cast<String, dynamic>());
+  }
+
+  /// Permission-scoped cross-feature summary used by the home screen.
+  Future<Map<String, dynamic>> getDashboardSummary() async {
+    final res = await _dio.get('/dashboard/summary');
+    return (res.data['data'] as Map).cast<String, dynamic>();
+  }
+
+  Future<void> _prefetchDeviceChallenge() async {
+    try {
+      final token = await _storage.read(key: 'access_token');
+      if (token == null) return;
+      final claims = JwtDecoder.decode(token);
+      final userId = claims['sub'] as String?;
+      if (userId == null) return;
+      final keys = AttendanceDeviceKeys();
+      final known = await keys.enrolledDeviceIds(userId);
+      if (known.isEmpty) return;
+      final devices =
+          await getMyAttendanceDevices().timeout(const Duration(seconds: 3));
+      for (final device in devices.where((item) =>
+          item['status'] == 'approved' && known.contains(item['id']))) {
+        final id = device['id'] as String?;
+        if (id == null) continue;
+        final cached = await keys.readCheckinChallenge(userId, id);
+        if (DateTime.tryParse(cached?['expires_at']?.toString() ?? '')
+                ?.isAfter(DateTime.now()) ==
+            true) {
+          break;
+        }
+        final challenge = await _requestDeviceChallenge(id);
+        if (challenge == null) continue;
+        await keys.storeCheckinChallenge(userId, id, challenge);
+        break;
+      }
+    } catch (_) {
+      // Device evidence is monitored; an unavailable challenge never blocks attendance.
+    }
   }
 
   /// Submit a generic attendance request: 'late_arrival' | 'leave' | 'early_departure'
@@ -361,9 +716,14 @@ class ApiService {
   }
 
   // ─── Leave ────────────────────────────────────────
-  Future<List<dynamic>> getMyLeaveRequests() async {
-    final res = await _dio.get('/leave/requests/me');
-    return res.data['data'] as List;
+  Future<Map<String, dynamic>> getMyLeaveRequestsPage(
+      {String? cursor, int limit = 25}) async {
+    final res = await _dio.get('/leave/requests/me', queryParameters: {
+      'cursor_mode': true,
+      'limit': limit,
+      if (cursor != null) 'cursor': cursor,
+    });
+    return res.data['data'] as Map<String, dynamic>;
   }
 
   Future<List<dynamic>> getMyLeaveBalance() async {
@@ -371,8 +731,34 @@ class ApiService {
     return res.data['data'] as List;
   }
 
-  Future<Map<String, dynamic>> submitLeave(Map<String, dynamic> data) async {
-    final res = await _dio.post('/leave/requests', data: data);
+  Future<Map<String, dynamic>> getMyLeaveBalanceLedger(
+      {int? year, String? leaveType, int limit = 50}) async {
+    final res = await _dio.get('/leave/balance/me/ledger', queryParameters: {
+      'limit': limit,
+      if (year != null) 'year': year,
+      if (leaveType != null) 'leave_type': leaveType,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getLeaveBalanceLedger(String userId,
+      {int? year, String? leaveType, int limit = 50}) async {
+    final res =
+        await _dio.get('/leave/balance/$userId/ledger', queryParameters: {
+      'limit': limit,
+      if (year != null) 'year': year,
+      if (leaveType != null) 'leave_type': leaveType,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> submitLeave(Map<String, dynamic> data,
+      {String? idempotencyKey}) async {
+    final res = await _dio.post('/leave/requests',
+        data: data,
+        options: Options(headers: {
+          'Idempotency-Key': idempotencyKey ?? _pendingIdempotencyMarker
+        }));
     return res.data['data'] as Map<String, dynamic>;
   }
 
@@ -380,9 +766,32 @@ class ApiService {
     await _dio.delete('/leave/requests/$id');
   }
 
-  Future<List<dynamic>> getTeamLeave() async {
-    final res = await _dio.get('/leave/requests/team');
-    return res.data['data'] as List;
+  Future<Map<String, dynamic>> getTeamLeavePage(
+      {String status = 'pending', String? cursor, int limit = 25}) async {
+    final res = await _dio.get('/leave/requests/team', queryParameters: {
+      'cursor_mode': true,
+      'status': status,
+      'limit': limit,
+      if (cursor != null) 'cursor': cursor,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getLeaveRequestsPage(
+      {String? status,
+      String? department,
+      String? query,
+      int limit = 25,
+      String? cursor}) async {
+    final res = await _dio.get('/leave/requests', queryParameters: {
+      'cursor_mode': true,
+      'limit': limit,
+      if (status != null) 'status': status,
+      if (department != null) 'department': department,
+      if (query != null && query.isNotEmpty) 'q': query,
+      if (cursor != null) 'cursor': cursor,
+    });
+    return res.data['data'] as Map<String, dynamic>;
   }
 
   Future<void> approveLeave(String id) async {
@@ -410,6 +819,22 @@ class ApiService {
     return res.data['data'] as List;
   }
 
+  Future<Map<String, dynamic>> acknowledgeMyShift(
+    String assignmentId, {
+    required String status,
+    String? note,
+    String? idempotencyKey,
+  }) async {
+    final res = await _dio.post(
+      '/shifts/assignments/me/$assignmentId/acknowledgement',
+      data: {'status': status, if (note != null) 'note': note},
+      options: idempotencyKey == null
+          ? null
+          : Options(headers: {'Idempotency-Key': idempotencyKey}),
+    );
+    return (res.data['data'] as Map).cast<String, dynamic>();
+  }
+
   Future<List<dynamic>> getShiftTemplates() async {
     final res = await _dio.get('/shifts');
     return res.data['data'] as List;
@@ -419,22 +844,32 @@ class ApiService {
     required String userId,
     required String shiftId,
     required String date,
+    String? idempotencyKey,
   }) async {
-    final res = await _dio.post('/shifts/assignments', data: {
-      'user_id': userId,
-      'shift_id': shiftId,
-      'date': date,
-    });
+    final res = await _dio.post('/shifts/assignments',
+        data: {
+          'user_id': userId,
+          'shift_id': shiftId,
+          'date': date,
+        },
+        options: Options(headers: {
+          'Idempotency-Key': idempotencyKey ?? _pendingIdempotencyMarker
+        }));
     return res.data['data'] as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> bulkAssignShifts(
       List<Map<String, dynamic>> assignments,
-      {bool dryRun = false}) async {
-    final res = await _dio.post('/shifts/assignments/bulk', data: {
-      'assignments': assignments,
-      'dry_run': dryRun,
-    });
+      {bool dryRun = false,
+      String? idempotencyKey}) async {
+    final res = await _dio.post('/shifts/assignments/bulk',
+        data: {
+          'assignments': assignments,
+          'dry_run': dryRun,
+        },
+        options: Options(headers: {
+          'Idempotency-Key': idempotencyKey ?? _pendingIdempotencyMarker
+        }));
     return res.data['data'] as Map<String, dynamic>;
   }
 
@@ -449,8 +884,12 @@ class ApiService {
     return res.data['data'] as List;
   }
 
-  Future<Map<String, dynamic>> claimOpenShift(String offerId) async {
-    final res = await _dio.post('/shifts/open-shifts/$offerId/claim');
+  Future<Map<String, dynamic>> claimOpenShift(String offerId,
+      {String? idempotencyKey}) async {
+    final res = await _dio.post('/shifts/open-shifts/$offerId/claim',
+        options: Options(headers: {
+          'Idempotency-Key': idempotencyKey ?? _pendingIdempotencyMarker
+        }));
     return res.data['data'] as Map<String, dynamic>;
   }
 
@@ -537,10 +976,17 @@ class ApiService {
 
   /// Org-wide assignments for the 7-day window starting [weekStart]
   /// (yyyy-MM-dd). Requires shifts.view — employees without it get a 403.
-  Future<List<dynamic>> getOrgSchedule({String? weekStart}) async {
-    final res = await _dio.get('/shifts/schedule', queryParameters: {
+  Future<List<dynamic>> getOrgSchedule(
+      {String? weekStart, String? locationId}) async {
+    final res = await _dio.get('/shifts/assignments', queryParameters: {
       if (weekStart != null) 'week_start': weekStart,
+      if (locationId != null && locationId != 'all') 'location_id': locationId,
     });
+    return res.data['data'] as List;
+  }
+
+  Future<List<dynamic>> getOrgLocations() async {
+    final res = await _dio.get('/locations');
     return res.data['data'] as List;
   }
 
@@ -647,16 +1093,21 @@ class ApiService {
     required String expenseDate, // yyyy-MM-dd
     String? currency,
     String? receiptUrl,
+    String? idempotencyKey,
   }) async {
-    final res = await _dio.post('/expenses', data: {
-      'amount': amount,
-      'category': category,
-      'description': description,
-      'expense_date': expenseDate,
-      if (currency != null && currency.isNotEmpty) 'currency': currency,
-      if (receiptUrl != null && receiptUrl.isNotEmpty)
-        'receipt_url': receiptUrl,
-    });
+    final res = await _dio.post('/expenses',
+        data: {
+          'amount': amount,
+          'category': category,
+          'description': description,
+          'expense_date': expenseDate,
+          if (currency != null && currency.isNotEmpty) 'currency': currency,
+          if (receiptUrl != null && receiptUrl.isNotEmpty)
+            'receipt_url': receiptUrl,
+        },
+        options: Options(headers: {
+          'Idempotency-Key': idempotencyKey ?? _pendingIdempotencyMarker
+        }));
     return res.data['data'] as Map<String, dynamic>;
   }
 
@@ -666,12 +1117,37 @@ class ApiService {
     return res.data['data'] as List;
   }
 
+  Future<Map<String, dynamic>> getMyExpensesCursor(
+      {String? cursor, int limit = 25}) async {
+    final res = await _dio.get('/expenses/me', queryParameters: {
+      'cursor_mode': true,
+      'limit': limit,
+      if (cursor != null) 'cursor': cursor,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   /// Org expense queue (requires expenses.view).
   /// [status]: 'pending' | 'approved' | 'rejected' | 'reimbursed' | 'all'.
   Future<List<dynamic>> getExpenses({String status = 'pending'}) async {
     final res =
         await _dio.get('/expenses', queryParameters: {'status': status});
     return res.data['data'] as List;
+  }
+
+  Future<Map<String, dynamic>> getExpensesCursor(
+      {String status = 'pending',
+      String? cursor,
+      int limit = 25,
+      bool includeTotal = false}) async {
+    final res = await _dio.get('/expenses', queryParameters: {
+      'status': status,
+      'cursor_mode': true,
+      'limit': limit,
+      if (cursor != null) 'cursor': cursor,
+      if (includeTotal) 'include_total': true,
+    });
+    return res.data['data'] as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> approveExpense(String id, {String? note}) async {
@@ -787,6 +1263,27 @@ class ApiService {
     return res.data['data'] as List;
   }
 
+  Future<Map<String, dynamic>> getOrgMembersCursor(
+      {String? cursor,
+      int limit = 25,
+      String? search,
+      String? department,
+      String? role,
+      String? status,
+      bool includeTotal = false}) async {
+    final res = await _dio.get('/users', queryParameters: {
+      'cursor_mode': true,
+      'limit': limit,
+      if (cursor != null) 'cursor': cursor,
+      if (search != null && search.isNotEmpty) 'search': search,
+      if (department != null) 'department': department,
+      if (role != null) 'role': role,
+      if (status != null) 'status': status,
+      if (includeTotal) 'include_total': true,
+    });
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
   // ─── Projects ─────────────────────────────────────
   Future<List<dynamic>> getProjects() async {
     final res = await _dio.get('/projects');
@@ -794,39 +1291,55 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> createProject(Map<String, dynamic> data) async {
-    final res = await _dio.post('/projects', data: data);
+    final res = await _dio.post('/projects',
+        data: data,
+        options:
+            Options(headers: {'Idempotency-Key': _pendingIdempotencyMarker}));
     return res.data['data'] as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> updateProject(
       String id, Map<String, dynamic> data) async {
-    final res = await _dio.put('/projects/$id', data: data);
+    final res = await _dio.put('/projects/$id',
+        data: data,
+        options:
+            Options(headers: {'Idempotency-Key': _pendingIdempotencyMarker}));
     return res.data['data'] as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> addProjectMember(
       String id, String userId) async {
-    final res =
-        await _dio.post('/projects/$id/members', data: {'user_id': userId});
+    final res = await _dio.post('/projects/$id/members',
+        data: {'user_id': userId},
+        options:
+            Options(headers: {'Idempotency-Key': _pendingIdempotencyMarker}));
     return res.data['data'] as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> createProjectTask(
       String projectId, Map<String, dynamic> data) async {
-    final res = await _dio.post('/projects/$projectId/tasks', data: data);
+    final res = await _dio.post('/projects/$projectId/tasks',
+        data: data,
+        options:
+            Options(headers: {'Idempotency-Key': _pendingIdempotencyMarker}));
     return res.data['data'] as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> updateProjectTask(
       String taskId, Map<String, dynamic> data) async {
-    final res = await _dio.put('/projects/tasks/$taskId', data: data);
+    final res = await _dio.put('/projects/tasks/$taskId',
+        data: data,
+        options:
+            Options(headers: {'Idempotency-Key': _pendingIdempotencyMarker}));
     return res.data['data'] as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> addProjectTaskComment(
       String taskId, String body) async {
-    final res = await _dio
-        .post('/projects/tasks/$taskId/comments', data: {'body': body});
+    final res = await _dio.post('/projects/tasks/$taskId/comments',
+        data: {'body': body},
+        options:
+            Options(headers: {'Idempotency-Key': _pendingIdempotencyMarker}));
     return res.data['data'] as Map<String, dynamic>;
   }
 
@@ -850,7 +1363,21 @@ class ApiService {
       if (taskId != null) 'task_id': taskId,
     });
     final res = await _dio.post('/projects/$projectId/attachments/upload-local',
-        data: form, options: Options(contentType: 'multipart/form-data'));
+        data: form,
+        options: Options(
+          contentType: 'multipart/form-data',
+          headers: {'Idempotency-Key': _pendingIdempotencyMarker},
+          extra: {
+            '_attenda_idempotency_body': {
+              'project_id': projectId,
+              'task_id': taskId,
+              'file_name': fileName,
+              'mime_type': mimeType,
+              'file_size': bytes.length,
+              'file_sha256': sha256.convert(bytes).toString(),
+            },
+          },
+        ));
     return res.data['data'] as Map<String, dynamic>;
   }
 
@@ -896,9 +1423,21 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> updateNotificationPrefs(
-      Map<String, bool> prefs) async {
+      Map<String, dynamic> prefs) async {
     final res = await _dio.put('/users/me/notification-prefs', data: prefs);
     return (res.data['data'] as Map<String, dynamic>?) ?? {};
+  }
+
+  Future<List<Map<String, dynamic>>> getNotificationDeliveries(
+      {int limit = 30}) async {
+    final res = await _dio.get('/users/me/notification-deliveries',
+        queryParameters: {'limit': limit});
+    final rows = res.data['data'];
+    if (rows is! List) return const [];
+    return rows
+        .whereType<Map>()
+        .map((row) => Map<String, dynamic>.from(row))
+        .toList();
   }
 
   // ─── Profile ──────────────────────────────────────
@@ -914,10 +1453,12 @@ class ApiService {
   // ─── Change Password ──────────────────────────────
   Future<void> changePassword(
       String currentPassword, String newPassword) async {
-    await _dio.put('/auth/change-password', data: {
-      'current_password': currentPassword,
-      'new_password': newPassword,
-    });
+    await _dio.put('/auth/change-password',
+        data: {
+          'current_password': currentPassword,
+          'new_password': newPassword,
+        },
+        options: _authIdempotencyOptions());
   }
 
   // ─── 2FA ──────────────────────────────────────────
@@ -925,24 +1466,29 @@ class ApiService {
   /// on success: {access_token, refresh_token, user}.
   Future<Map<String, dynamic>> authenticate2fa(
       String partialToken, String code) async {
-    final res = await _dio.post('/auth/2fa/authenticate', data: {
-      'partial_token': partialToken,
-      'code': code,
-    });
+    final res = await _dio.post('/auth/2fa/authenticate',
+        data: {
+          'partial_token': partialToken,
+          'code': code,
+        },
+        options: _authIdempotencyOptions());
     return res.data['data'] as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> setup2fa() async {
-    final res = await _dio.post('/auth/2fa/setup');
+    final res =
+        await _dio.post('/auth/2fa/setup', options: _authIdempotencyOptions());
     return res.data['data'] as Map<String, dynamic>;
   }
 
   Future<void> verify2fa(String code) async {
-    await _dio.post('/auth/2fa/verify', data: {'code': code});
+    await _dio.post('/auth/2fa/verify',
+        data: {'code': code}, options: _authIdempotencyOptions());
   }
 
   Future<void> disable2fa(String code) async {
-    await _dio.delete('/auth/2fa', data: {'code': code});
+    await _dio.delete('/auth/2fa',
+        data: {'code': code}, options: _authIdempotencyOptions());
   }
 
   // ─── Notifications ────────────────────────────────
@@ -950,6 +1496,17 @@ class ApiService {
       {int page = 1, int limit = 20}) async {
     final res = await _dio
         .get('/notifications', queryParameters: {'page': page, 'limit': limit});
+    return res.data['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getNotificationsCursorPage(
+      {int limit = 20, String? cursor, bool? unread}) async {
+    final res = await _dio.get('/notifications', queryParameters: {
+      'limit': limit,
+      'cursor_mode': true,
+      if (cursor != null) 'cursor': cursor,
+      if (unread != null) 'unread': unread,
+    });
     return res.data['data'] as Map<String, dynamic>;
   }
 

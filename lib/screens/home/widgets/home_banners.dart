@@ -80,14 +80,19 @@ class FlashBanner extends StatelessWidget {
 }
 
 class OfflineBanner extends StatelessWidget {
-  const OfflineBanner({super.key});
+  final int pendingCount;
+  final int reviewCount;
+  const OfflineBanner({super.key, this.pendingCount = 0, this.reviewCount = 0});
 
   @override
-  Widget build(BuildContext context) => const GlassBanner(
-        icon: Icons.cloud_off_rounded,
-        text: "You're offline — showing the last synced data.",
-        tint: AppColors.warning500,
-      );
+  Widget build(BuildContext context) {
+    final text = reviewCount > 0
+        ? '$reviewCount attendance event${reviewCount == 1 ? '' : 's'} need review${pendingCount > 0 ? ' · $pendingCount waiting to sync' : ''}.'
+        : pendingCount > 0
+            ? '$pendingCount attendance event${pendingCount == 1 ? '' : 's'} waiting to sync in order.'
+            : "You're offline — showing the last synced data.";
+    return GlassBanner(icon: Icons.cloud_off_rounded, text: text, tint: AppColors.warning500);
+  }
 }
 
 class VpnBanner extends StatelessWidget {

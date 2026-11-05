@@ -20,6 +20,12 @@ class ApprovalsScreen extends StatefulWidget {
   State<ApprovalsScreen> createState() => _ApprovalsScreenState();
 }
 
+class _SelectedApproval {
+  const _SelectedApproval(this.type, this.request);
+  final String type;
+  final Map<String, dynamic> request;
+}
+
 class _ApprovalsScreenState extends State<ApprovalsScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabCtrl;
@@ -33,6 +39,9 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
   String? _correctionsError;
 
   List<Map<String, dynamic>> _leave = [];
+  String? _leaveCursor;
+  bool _leaveHasMore = false;
+  bool _loadingMoreLeave = false;
   bool _loadingLeave = true;
   String? _leaveError;
 
@@ -51,6 +60,9 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
   Map<String, dynamic>? _lateSummary;
   bool _loadingLate = true;
   String? _lateError;
+  bool _selectMode = false;
+  bool _bulkWorking = false;
+  final Map<String, _SelectedApproval> _selected = {};
 
   @override
   void initState() {
@@ -72,6 +84,11 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
         (_showOvertime ? 1 : 0) +
         (_showRemote ? 1 : 0);
     _tabCtrl = TabController(length: tabCount, vsync: this);
+    _tabCtrl.addListener(() {
+      if (_tabCtrl.indexIsChanging && _selected.isNotEmpty && mounted) {
+        setState(_selected.clear);
+      }
+    });
     _loadCorrections();
     if (_showLeave) _loadLeave();
     if (_showExpenses) _loadExpenses();
@@ -113,15 +130,15 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
       _leaveError = null;
     });
     try {
-      // /leave/requests/team returns every status — the queue shows pending.
-      final list = await api.getTeamLeave();
+      final page = await api.getTeamLeavePage(status: 'pending', limit: 25);
       if (!mounted) return;
       setState(() {
-        _leave = list
+        _leave = (page['items'] as List? ?? const [])
             .whereType<Map>()
             .map((e) => e.cast<String, dynamic>())
-            .where((r) => r['status'] == 'pending')
             .toList();
+        _leaveCursor = page['next_cursor'] as String?;
+        _leaveHasMore = page['has_more'] == true;
         _loadingLeave = false;
       });
     } catch (e) {
@@ -130,6 +147,30 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
         _leaveError = ApiFailure.fromError(e).userMessage;
         _loadingLeave = false;
       });
+    }
+  }
+
+  Future<void> _loadMoreLeave() async {
+    if (_loadingMoreLeave || !_leaveHasMore || _leaveCursor == null) return;
+    setState(() => _loadingMoreLeave = true);
+    try {
+      final page = await api.getTeamLeavePage(
+          status: 'pending', limit: 25, cursor: _leaveCursor);
+      if (!mounted) return;
+      final rows = (page['items'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
+      setState(() {
+        _leave = [..._leave, ...rows];
+        _leaveCursor = page['next_cursor'] as String?;
+        _leaveHasMore = page['has_more'] == true;
+        _loadingMoreLeave = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMoreLeave = false);
+      _showSnack(ApiFailure.fromError(e).userMessage, isError: true);
     }
   }
 
@@ -235,7 +276,7 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
     final noteCtrl = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setDialogState) => AlertDialog(
         title: Text(title),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           Text(message, style: AppTextStyles.body),
@@ -244,9 +285,14 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
             controller: noteCtrl,
             maxLines: 2,
             maxLength: 200,
+            onChanged: (_) => setDialogState(() {}),
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-            decoration:
-                const InputDecoration(hintText: 'Add a note (optional)'),
+            decoration: InputDecoration(
+              hintText: approve
+                  ? 'Add a note (optional)'
+                  : 'Reason for rejection (minimum 5 characters)',
+              helperText: approve ? null : 'Required to reject this request.',
+            ),
           ),
         ]),
         actions: [
@@ -256,7 +302,9 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
                 style: TextStyle(color: AppColors.gray500)),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: !approve && noteCtrl.text.trim().length < 5
+                ? null
+                : () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: approve
                   ? Theme.of(context).colorScheme.primary
@@ -267,7 +315,7 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
             child: Text(approve ? 'Approve' : 'Reject'),
           ),
         ],
-      ),
+      )),
     );
     final note = noteCtrl.text.trim();
     noteCtrl.dispose();
@@ -326,6 +374,7 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
   Future<String?> _askReason({
     required String title,
     required String message,
+    int minLength = 3,
   }) async {
     final reasonCtrl = TextEditingController();
     final confirmed = await showDialog<bool>(
@@ -353,7 +402,7 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
                   style: TextStyle(color: AppColors.gray500)),
             ),
             ElevatedButton(
-              onPressed: reasonCtrl.text.trim().isEmpty
+              onPressed: reasonCtrl.text.trim().length < minLength
                   ? null
                   : () => Navigator.pop(ctx, true),
               style: ElevatedButton.styleFrom(
@@ -369,7 +418,180 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
     );
     final reason = reasonCtrl.text.trim();
     reasonCtrl.dispose();
-    return confirmed == true && reason.isNotEmpty ? reason : null;
+    return confirmed == true && reason.length >= minLength ? reason : null;
+  }
+
+  String _selectionKey(String type, Map<String, dynamic> request) =>
+      '$type:${request['id']}';
+
+  Widget _selectableApproval(
+      String type, Map<String, dynamic> request, Widget card) {
+    if (!_selectMode) return card;
+    final key = _selectionKey(type, request);
+    final selected = _selected.containsKey(key);
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: Checkbox(
+          value: selected,
+          onChanged: (value) {
+            if (value == true && _selected.length >= 20) {
+              _showSnack('Select up to 20 requests at a time.', isError: true);
+              return;
+            }
+            if (_selected.isNotEmpty &&
+                !_selected.values.every((item) => item.type == type)) {
+              _showSnack(
+                  'Bulk actions can only include one request type at a time.',
+                  isError: true);
+              return;
+            }
+            setState(() {
+              if (value == true) {
+                _selected[key] = _SelectedApproval(type, request);
+              } else {
+                _selected.remove(key);
+              }
+            });
+          },
+        ),
+      ),
+      Expanded(child: AbsorbPointer(absorbing: true, child: card)),
+    ]);
+  }
+
+  Future<void> _bulkReview({required bool approve}) async {
+    if (_selected.isEmpty || _bulkWorking) return;
+    final type = _selected.values.first.type;
+    final count = _selected.length;
+    String? reason;
+    if (approve) {
+      final confirmed = await showConfirmDialog(
+        context,
+        title: 'Approve $count requests?',
+        message:
+            'Each selected $type request will be reviewed separately. Requests that have changed or are no longer eligible will be reported as failures.',
+        confirmLabel: 'Approve all',
+      );
+      if (confirmed != true || !mounted) return;
+    } else {
+      reason = await _askReason(
+        title: 'Reject $count requests?',
+        message: 'This reason will be included with every rejection.',
+        minLength: 5,
+      );
+      if (reason == null || !mounted) return;
+    }
+
+    setState(() => _bulkWorking = true);
+    var succeeded = 0;
+    final failed = <String>[];
+    for (final selected in _selected.values.toList()) {
+      final request = selected.request;
+      final id = request['id'] as String;
+      try {
+        switch (selected.type) {
+          case 'correction':
+            if (approve) {
+              await api.approveCorrection(id);
+            } else {
+              await api.rejectCorrection(id, note: reason);
+            }
+            break;
+          case 'leave':
+            if (approve) {
+              await api.approveLeave(id);
+            } else {
+              await api.rejectLeave(id, reason!);
+            }
+            break;
+          case 'expense':
+            if (approve) {
+              await api.approveExpense(id);
+            } else {
+              await api.rejectExpense(id, note: reason!);
+            }
+            break;
+          case 'overtime':
+            if (approve) {
+              await api.approveOvertime(id);
+            } else {
+              await api.rejectOvertime(id, reason!);
+            }
+            break;
+          case 'remote':
+            if (approve) {
+              await api.approveRemoteSession(id);
+            } else {
+              await api.rejectRemoteSession(id, reason: reason!);
+            }
+            break;
+          default:
+            throw StateError('This request type cannot be reviewed in bulk.');
+        }
+        succeeded++;
+      } catch (error) {
+        final employee =
+            request['user'] is Map ? (request['user'] as Map)['name'] : null;
+        final label = employee?.toString().isNotEmpty == true
+            ? employee.toString()
+            : id.substring(0, id.length < 8 ? id.length : 8);
+        failed.add('$label: ${ApiFailure.fromError(error).userMessage}');
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _bulkWorking = false;
+      _selected.clear();
+      _selectMode = false;
+    });
+    _showSnack(
+      failed.isEmpty
+          ? 'All $succeeded selected requests ${approve ? 'were approved' : 'were rejected'}.'
+          : '$succeeded of $count requests completed. ${failed.length} need review.',
+      isError: failed.isNotEmpty,
+    );
+    if (failed.isNotEmpty) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Some requests need review'),
+          content: SizedBox(
+            width: 440,
+            height: 320,
+            child: ListView.separated(
+              itemCount: failed.length,
+              separatorBuilder: (_, __) => const Divider(height: 16),
+              itemBuilder: (_, index) =>
+                  Text(failed[index], style: AppTextStyles.body),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    }
+    switch (type) {
+      case 'correction':
+        await _loadCorrections();
+        break;
+      case 'leave':
+        await _loadLeave();
+        break;
+      case 'expense':
+        await _loadExpenses();
+        break;
+      case 'overtime':
+        await _loadOvertime();
+        break;
+      case 'remote':
+        await _loadRemote();
+        break;
+    }
   }
 
   Future<void> _reviewLeave(Map<String, dynamic> request,
@@ -442,22 +664,29 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
 
   Future<void> _reviewRemote(Map<String, dynamic> session,
       {required bool approve}) async {
-    final ok = await showConfirmDialog(
-      context,
-      title: approve ? 'Approve Remote Work' : 'Reject Remote Work',
-      message: approve
-          ? 'The remote session will be approved.'
-          : 'The employee will be notified of the rejection.',
-      confirmLabel: approve ? 'Approve' : 'Reject',
-      isDanger: !approve,
-    );
-    if (ok != true || !mounted) return;
+    final reason = approve
+        ? null
+        : await _askReason(
+            title: 'Reject Remote Work',
+            message: 'Give the employee a clear reason for this decision.',
+          );
+    if (!mounted) return;
+    if (!approve && (reason == null || reason.trim().length < 3)) return;
+    if (approve) {
+      final ok = await showConfirmDialog(
+        context,
+        title: 'Approve Remote Work',
+        message: 'The remote session will be approved.',
+        confirmLabel: 'Approve',
+      );
+      if (ok != true || !mounted) return;
+    }
     try {
       final id = session['id'] as String;
       if (approve) {
         await api.approveRemoteSession(id);
       } else {
-        await api.rejectRemoteSession(id);
+        await api.rejectRemoteSession(id, reason: reason!.trim());
       }
       _showSnack(
           approve ? 'Remote session approved' : 'Remote session rejected');
@@ -475,6 +704,22 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
       appBar: AppBar(
         title: const Text('Team Approvals'),
         actions: [
+          if (!_selectMode)
+            IconButton(
+              tooltip: 'Select requests for bulk review',
+              onPressed: () => setState(() => _selectMode = true),
+              icon: const Icon(Icons.checklist_rtl_outlined),
+            )
+          else
+            TextButton(
+              onPressed: _bulkWorking
+                  ? null
+                  : () => setState(() {
+                        _selectMode = false;
+                        _selected.clear();
+                      }),
+              child: const Text('Cancel selection'),
+            ),
           if (context.watch<AuthProvider>().hasPermission('analytics.ai_chat'))
             IconButton(
               tooltip: 'Ask AI about pending approvals',
@@ -520,13 +765,16 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
                           itemCount: _corrections.length,
                           itemBuilder: (_, i) => Padding(
                             padding: const EdgeInsets.only(bottom: 8),
-                            child: CorrectionApprovalCard(
-                              correction: _corrections[i],
-                              onApprove: () =>
-                                  _review(_corrections[i], approve: true),
-                              onReject: () =>
-                                  _review(_corrections[i], approve: false),
-                            ),
+                            child: _selectableApproval(
+                                'correction',
+                                _corrections[i],
+                                CorrectionApprovalCard(
+                                  correction: _corrections[i],
+                                  onApprove: () =>
+                                      _review(_corrections[i], approve: true),
+                                  onReject: () =>
+                                      _review(_corrections[i], approve: false),
+                                )),
                           ),
                         ),
         ),
@@ -550,17 +798,36 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
                         : ListView.builder(
                             physics: const AlwaysScrollableScrollPhysics(),
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-                            itemCount: _leave.length,
-                            itemBuilder: (_, i) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: LeaveApprovalCard(
-                                request: _leave[i],
-                                onApprove: () =>
-                                    _reviewLeave(_leave[i], approve: true),
-                                onReject: () =>
-                                    _reviewLeave(_leave[i], approve: false),
-                              ),
-                            ),
+                            itemCount: _leave.length + (_leaveHasMore ? 1 : 0),
+                            itemBuilder: (_, i) {
+                              if (i == _leave.length) {
+                                return Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 14),
+                                    child: _loadingMoreLeave
+                                        ? const CircularProgressIndicator()
+                                        : TextButton(
+                                            onPressed: _loadMoreLeave,
+                                            child: const Text(
+                                                'Load more requests')),
+                                  ),
+                                );
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: _selectableApproval(
+                                    'leave',
+                                    _leave[i],
+                                    LeaveApprovalCard(
+                                      request: _leave[i],
+                                      onApprove: () => _reviewLeave(_leave[i],
+                                          approve: true),
+                                      onReject: () => _reviewLeave(_leave[i],
+                                          approve: false),
+                                    )),
+                              );
+                            },
                           ),
           ),
 
@@ -586,13 +853,17 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
                             itemCount: _expenses.length,
                             itemBuilder: (_, i) => Padding(
                               padding: const EdgeInsets.only(bottom: 8),
-                              child: ExpenseApprovalCard(
-                                claim: _expenses[i],
-                                onApprove: () =>
-                                    _reviewExpense(_expenses[i], approve: true),
-                                onReject: () => _reviewExpense(_expenses[i],
-                                    approve: false),
-                              ),
+                              child: _selectableApproval(
+                                  'expense',
+                                  _expenses[i],
+                                  ExpenseApprovalCard(
+                                    claim: _expenses[i],
+                                    onApprove: () => _reviewExpense(
+                                        _expenses[i],
+                                        approve: true),
+                                    onReject: () => _reviewExpense(_expenses[i],
+                                        approve: false),
+                                  )),
                             ),
                           ),
           ),
@@ -619,13 +890,18 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
                             itemCount: _overtime.length,
                             itemBuilder: (_, i) => Padding(
                               padding: const EdgeInsets.only(bottom: 8),
-                              child: OvertimeApprovalCard(
-                                request: _overtime[i],
-                                onApprove: () => _reviewOvertime(_overtime[i],
-                                    approve: true),
-                                onReject: () => _reviewOvertime(_overtime[i],
-                                    approve: false),
-                              ),
+                              child: _selectableApproval(
+                                  'overtime',
+                                  _overtime[i],
+                                  OvertimeApprovalCard(
+                                    request: _overtime[i],
+                                    onApprove: () => _reviewOvertime(
+                                        _overtime[i],
+                                        approve: true),
+                                    onReject: () => _reviewOvertime(
+                                        _overtime[i],
+                                        approve: false),
+                                  )),
                             ),
                           ),
           ),
@@ -652,13 +928,16 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
                             itemCount: _remote.length,
                             itemBuilder: (_, i) => Padding(
                               padding: const EdgeInsets.only(bottom: 8),
-                              child: RemoteApprovalCard(
-                                session: _remote[i],
-                                onApprove: () =>
-                                    _reviewRemote(_remote[i], approve: true),
-                                onReject: () =>
-                                    _reviewRemote(_remote[i], approve: false),
-                              ),
+                              child: _selectableApproval(
+                                  'remote',
+                                  _remote[i],
+                                  RemoteApprovalCard(
+                                    session: _remote[i],
+                                    onApprove: () => _reviewRemote(_remote[i],
+                                        approve: true),
+                                    onReject: () => _reviewRemote(_remote[i],
+                                        approve: false),
+                                  )),
                             ),
                           ),
           ),
@@ -675,6 +954,61 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
                   : _buildLateSummary(),
         ),
       ]),
+      bottomNavigationBar: _selected.isEmpty
+          ? null
+          : SafeArea(
+              child: Material(
+                color: AppColors.surface,
+                elevation: 12,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          '${_selected.length} selected · actions apply one request at a time',
+                          style: AppTextStyles.caption,
+                        ),
+                      ),
+                      Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                        TextButton(
+                            onPressed: _bulkWorking
+                                ? null
+                                : () => setState(_selected.clear),
+                            child: const Text('Clear')),
+                        const SizedBox(width: 8),
+                        OutlinedButton.icon(
+                          onPressed: _bulkWorking
+                              ? null
+                              : () => _bulkReview(approve: false),
+                          icon: const Icon(Icons.close, size: 18),
+                          label: const Text('Reject'),
+                          style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.danger500),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton.icon(
+                          onPressed: _bulkWorking
+                              ? null
+                              : () => _bulkReview(approve: true),
+                          icon: _bulkWorking
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.check, size: 18),
+                          label: const Text('Approve'),
+                        ),
+                      ]),
+                    ],
+                  ),
+                ),
+              ),
+            ),
     );
   }
 

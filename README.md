@@ -2,23 +2,13 @@
 
 iOS & Android employee mobile app for the Attenda Workforce Management Platform.
 
+See [FEATURES_AND_ARCHITECTURE.md](docs/FEATURES_AND_ARCHITECTURE.md) for the mobile route/screen map, data flow, capability rules, shared UI conventions, and feature development checklist. The workspace [system feature guide](../SYSTEM_FEATURE_GUIDE.md) describes cross-client behavior.
+
 ## Features
 
-| Tab | Screens |
-|-----|---------|
-| 🏠 Home | Today's status card, live hours counter, auto IP check-in, QR scan button, quick actions, shift preview |
-| ⏰ Attendance | Monthly history, status summary chips, day detail bottom sheet, override indicators |
-| 📅 Leave | Leave requests list, balance progress bars, cancel request with confirmation |
-| 📆 Schedule | Upcoming shifts list with colour coding, swap request management |
-| 👤 Profile | Personal info, payslips list, performance reviews with star ratings, sign out |
+The shell provides Home, Attendance, Leave, Schedule, optional Project Time, and Profile tabs. From those areas, employees can access AI chat, approvals where authorized, projects/tasks, notifications, remote work, open shifts, availability, QR checkpoints, expenses, payslips, documents, announcements, onboarding, kudos, performance, and personal settings. See [the mobile feature guide](docs/FEATURES_AND_ARCHITECTURE.md) for every screen and route.
 
-### Key capabilities
-- **IP Auto Check-in** — detects office WiFi and calls `/attendance/ip-event` automatically on app resume
-- **QR Scanner** — full-screen camera with custom scan overlay, success/error animations
-- **Remote Work** — declares remote with duration (full/morning/afternoon), triggers AI WhatsApp nudges
-- **Leave Requests** — submit, view balance with progress bars, cancel pending requests
-- **AI Assistant** — ask about attendance, shifts, leave, approvals, and projects; personal attendance summaries use exact records in the organisation timezone
-- **JWT auto-refresh** — Dio interceptor silently refreshes expired tokens
+Attendance combines user-initiated controls with organization policy, network/location evidence, background heartbeats when configured, offline event queuing, and server reconciliation. The API remains authoritative for recorded status and time; the client timer is a display aid. Other capabilities include project task collaboration, shift rounds/checkpoints, emergency open-shift claims, AI-assisted HR workflows, dynamic permission-aware navigation, and session/token refresh.
 
 ## Setup
 

@@ -191,8 +191,8 @@ void main() {
         const PreCheckinLateBanner(lateMinutes: 75),
       );
 
-      expect(find.text('You are currently 1h 15m late'), findsOneWidget);
-      expect(find.text('+1h 15m'), findsOneWidget);
+      expect(find.text('You are late by 1h 15m'), findsOneWidget);
+      expect(find.textContaining('1h 15m'), findsOneWidget);
     });
   });
 

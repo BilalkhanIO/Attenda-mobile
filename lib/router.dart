@@ -4,6 +4,7 @@ import '../services/auth_provider.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/two_factor_screen.dart';
 import '../screens/home/home_screen.dart';
+import '../screens/requests/my_requests_screen.dart';
 import '../screens/ai/ai_chat_screen.dart';
 import '../screens/attendance/attendance_screen.dart';
 import '../screens/attendance/qr_scanner_screen.dart';
@@ -26,6 +27,7 @@ import '../screens/settings/notification_settings_screen.dart';
 import '../screens/settings/security_screen.dart';
 import '../screens/settings/appearance_screen.dart';
 import '../screens/settings/reliability_screen.dart';
+import '../screens/settings/attendance_devices_screen.dart';
 import '../screens/settings/edit_profile_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/approvals/approvals_screen.dart';
@@ -37,6 +39,7 @@ import '../screens/kudos/kudos_screen.dart';
 import '../screens/projects/projects_screen.dart';
 import '../screens/projects/project_detail_screen.dart';
 import '../screens/projects/project_task_screen.dart';
+import '../screens/projects/project_time_screen.dart';
 import 'shell.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
@@ -82,6 +85,11 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
               !auth.hasPermission('projects.view')) {
             return '/home';
           }
+          if (state.matchedLocation.startsWith('/project-time') &&
+              (!auth.hasPermission('time.view') ||
+                  !auth.hasFeature('time_tracking'))) {
+            return '/home';
+          }
         }
 
         return null;
@@ -98,6 +106,10 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
           navigatorKey: _shellKey,
           builder: (context, state, child) => AppShell(child: child),
           routes: [
+            GoRoute(
+              path: '/requests',
+              builder: (_, __) => const MyRequestsScreen(),
+            ),
             GoRoute(
               path: '/home',
               builder: (_, __) => const HomeScreen(),
@@ -183,6 +195,10 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
               ],
             ),
             GoRoute(
+              path: '/project-time',
+              builder: (_, __) => const ProjectTimeScreen(),
+            ),
+            GoRoute(
               path: '/projects',
               builder: (_, state) => ProjectsScreen(
                 taskId: state.uri.queryParameters['task_id'],
@@ -253,6 +269,10 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
                     path: 'settings/security',
                     parentNavigatorKey: _rootKey,
                     builder: (_, __) => const SecurityScreen()),
+                GoRoute(
+                    path: 'settings/attendance-devices',
+                    parentNavigatorKey: _rootKey,
+                    builder: (_, __) => const AttendanceDevicesScreen()),
                 GoRoute(
                     path: 'settings/appearance',
                     parentNavigatorKey: _rootKey,

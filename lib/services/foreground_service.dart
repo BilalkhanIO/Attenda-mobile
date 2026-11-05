@@ -19,6 +19,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:network_info_plus/network_info_plus.dart';
+import 'api_service.dart';
 
 // ─── Constants shared with wifi_service.dart ─────────────────────────────────
 const kBaseUrl = String.fromEnvironment(
@@ -293,16 +294,12 @@ class AttendaTaskHandler extends TaskHandler {
     try {
       final refresh = await _storage.read(key: 'refresh_token');
       if (refresh == null) return;
-      final res = await Dio().post(
-        '$kBaseUrl/auth/refresh',
-        data: {'refresh_token': refresh},
-        options: Options(headers: {'Content-Type': 'application/json'}),
-      );
-      final newToken = res.data['data']['access_token'] as String?;
+      final data = await ApiService().refreshToken(refresh);
+      final newToken = data['access_token'] as String?;
       if (newToken == null) return;
       await _storage.write(key: 'access_token', value: newToken);
 
-      final newRefresh = res.data['data']['refresh_token'] as String?;
+      final newRefresh = data['refresh_token'] as String?;
       if (newRefresh != null) {
         await _storage.write(key: 'refresh_token', value: newRefresh);
       }

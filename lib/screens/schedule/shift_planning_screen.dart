@@ -22,8 +22,10 @@ class _ShiftPlanningScreenState extends State<ShiftPlanningScreen> {
   List<Map<String, dynamic>> _rules = [];
   List<Map<String, dynamic>> _templates = [];
   List<Map<String, dynamic>> _employees = [];
+  List<Map<String, dynamic>> _locations = [];
   String _search = '';
   String _department = 'all';
+  String _locationFilter = 'all';
   String _shiftFilter = 'all';
   String _assignmentFilter = 'all';
   String _publicationFilter = 'all';
@@ -51,16 +53,22 @@ class _ShiftPlanningScreenState extends State<ShiftPlanningScreen> {
       _error = null;
     });
     try {
-      final canManageCoverage =
-          context.read<AuthProvider>().hasPermission('shifts.coverage.manage');
-      final results = await Future.wait([
-        api.getOrgSchedule(weekStart: _weekStart),
+      final auth = context.read<AuthProvider>();
+      final canManageCoverage = auth.hasPermission('shifts.coverage.manage');
+      final canViewLocations = auth.hasPermission('org.locations.view') ||
+          auth.hasPermission('org.locations.manage');
+      final jobs = <Future<dynamic>>[
+        api.getOrgSchedule(
+            weekStart: _weekStart,
+            locationId: canViewLocations ? _locationFilter : null),
         api.getShiftPlanningIssues(_weekStart),
         api.getShiftWorkload(_weekStart),
         api.getShiftTemplates(),
         api.getOrgMembers(),
-        if (canManageCoverage) api.getShiftCoverageRules(),
-      ]);
+      ];
+      if (canManageCoverage) jobs.add(api.getShiftCoverageRules());
+      if (canViewLocations) jobs.add(api.getOrgLocations());
+      final results = await Future.wait(jobs);
       if (!mounted) return;
       setState(() {
         _assignments = (results[0] as List).cast<Map<String, dynamic>>();
@@ -70,9 +78,22 @@ class _ShiftPlanningScreenState extends State<ShiftPlanningScreen> {
         _workload = (results[2] as List).cast<Map<String, dynamic>>();
         _templates = (results[3] as List).cast<Map<String, dynamic>>();
         _employees = (results[4] as List).cast<Map<String, dynamic>>();
-        _rules = results.length > 5
-            ? (results[5] as List).cast<Map<String, dynamic>>()
+        var nextIndex = 5;
+        _rules = canManageCoverage
+            ? (results[nextIndex++] as List).cast<Map<String, dynamic>>()
             : [];
+        _locations = canViewLocations
+            ? (results[nextIndex] as List)
+                .cast<Map<String, dynamic>>()
+                .where((location) => location['is_active'] != false)
+                .toList()
+            : [];
+        if (!canViewLocations) _locationFilter = 'all';
+        if (_locationFilter != 'all' &&
+            _locationFilter != 'unassigned' &&
+            !_locations.any((location) => location['id'] == _locationFilter)) {
+          _locationFilter = 'all';
+        }
         _loading = false;
       });
     } catch (error) {
@@ -367,12 +388,19 @@ class _ShiftPlanningScreenState extends State<ShiftPlanningScreen> {
           const <String, dynamic>{};
       final department = user['department'] as String? ?? '';
       final isPublished = item['is_published'] == true;
+      final location = (item['location'] as Map?)?.cast<String, dynamic>();
+      final locationId =
+          (item['location_id'] as String?) ?? location?['id'] as String?;
       final textMatch = query.isEmpty ||
           '${user['name'] ?? ''} ${user['email'] ?? ''} $department ${shift['name'] ?? ''}'
               .toLowerCase()
               .contains(query);
       return textMatch &&
           (_department == 'all' || department == _department) &&
+          (_locationFilter == 'all' ||
+              (_locationFilter == 'unassigned'
+                  ? locationId == null
+                  : locationId == _locationFilter)) &&
           (_shiftFilter == 'all' || shift['id'] == _shiftFilter) &&
           (_assignmentFilter != 'unassigned') &&
           (_publicationFilter == 'all' ||
@@ -594,6 +622,28 @@ class _ShiftPlanningScreenState extends State<ShiftPlanningScreen> {
                           onPressed: () => setState(() => _search = ''),
                           icon: const Icon(Icons.close_rounded)))),
           const SizedBox(height: 8),
+          if (context
+                  .read<AuthProvider>()
+                  .hasPermission('org.locations.view') ||
+              context
+                  .read<AuthProvider>()
+                  .hasPermission('org.locations.manage'))
+            DropdownButtonFormField<String>(
+                initialValue: _locationFilter,
+                decoration: const InputDecoration(labelText: 'Location'),
+                items: [
+                  const DropdownMenuItem(
+                      value: 'all', child: Text('All locations')),
+                  const DropdownMenuItem(
+                      value: 'unassigned', child: Text('No location')),
+                  ..._locations.map((location) => DropdownMenuItem(
+                      value: location['id'] as String,
+                      child: Text(location['name'] as String? ?? 'Location'))),
+                ],
+                onChanged: (value) {
+                  setState(() => _locationFilter = value ?? 'all');
+                  _load();
+                }),
           if (_departments.isNotEmpty)
             DropdownButtonFormField<String>(
                 initialValue: _department,

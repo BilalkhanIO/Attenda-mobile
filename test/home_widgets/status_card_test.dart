@@ -142,9 +142,9 @@ void main() {
         ),
       );
 
-      expect(find.text('Checked In · Late'), findsOneWidget);
+      expect(find.text('Checked In'), findsOneWidget);
       expect(find.byIcon(Icons.running_with_errors), findsOneWidget);
-      expect(find.text('15m late · pre-announced'), findsOneWidget);
+      expect(find.text('Arrived 15m late · pre-announced'), findsOneWidget);
     });
 
     testWidgets('hides chips and subtitle details without a check-in time',
@@ -197,7 +197,7 @@ void main() {
         find.text('Connect to office WiFi for auto check-in, or scan QR code'),
         findsOneWidget,
       );
-      expect(find.widgetWithText(AppButton, 'Scan QR Code'), findsOneWidget);
+      expect(find.text('Check in with QR'), findsOneWidget);
 
       await tester.tap(find.text('Report Late Arrival'));
       expect(reported, isTrue);

@@ -20,6 +20,9 @@ class _LeaveScreenState extends State<LeaveScreen>
   late final _tabCtrl = TabController(length: 2, vsync: this);
   List<Map<String, dynamic>> _requests = [];
   List<Map<String, dynamic>> _balances = [];
+  String? _nextRequestCursor;
+  bool _hasMoreRequests = false;
+  bool _loadingMoreRequests = false;
   bool _loading = true;
   // First-load failure — drives the error + Retry state. Reloads with data
   // already on screen fail silently and keep the last good lists.
@@ -40,12 +43,15 @@ class _LeaveScreenState extends State<LeaveScreen>
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final [reqs, bals] = await Future.wait(
-          [api.getMyLeaveRequests(), api.getMyLeaveBalance()]);
+      final [reqPage, bals] = await Future.wait(
+          [api.getMyLeaveRequestsPage(limit: 25), api.getMyLeaveBalance()]);
       if (!mounted) return;
+      final page = reqPage as Map<String, dynamic>;
       setState(() {
-        _requests = reqs.cast<Map<String, dynamic>>();
-        _balances = bals.cast<Map<String, dynamic>>();
+        _requests = (page['items'] as List? ?? const []).whereType<Map>().map((row) => row.cast<String, dynamic>()).toList();
+        _nextRequestCursor = page['next_cursor'] as String?;
+        _hasMoreRequests = page['has_more'] == true;
+        _balances = (bals as List).cast<Map<String, dynamic>>();
         _error = null;
         _loading = false;
       });
@@ -58,6 +64,92 @@ class _LeaveScreenState extends State<LeaveScreen>
         _loading = false;
       });
     }
+  }
+
+  Future<void> _loadMoreRequests() async {
+    if (_loadingMoreRequests || !_hasMoreRequests || _nextRequestCursor == null) return;
+    setState(() => _loadingMoreRequests = true);
+    try {
+      final page = await api.getMyLeaveRequestsPage(cursor: _nextRequestCursor, limit: 25);
+      if (!mounted) return;
+      final rows = (page['items'] as List? ?? const []).whereType<Map>().map((row) => row.cast<String, dynamic>()).toList();
+      setState(() {
+        _requests = [..._requests, ...rows];
+        _nextRequestCursor = page['next_cursor'] as String?;
+        _hasMoreRequests = page['has_more'] == true;
+        _loadingMoreRequests = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingMoreRequests = false);
+    }
+  }
+
+  Future<void> _openBalanceHistory() async {
+    final future = api.getMyLeaveBalanceLedger(year: DateTime.now().year, limit: 100);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(sheetContext).size.height * 0.76,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.gray400, borderRadius: BorderRadius.circular(4)))),
+              const SizedBox(height: 18),
+              const Text('Leave balance history', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              const SizedBox(height: 4),
+              Text('Accruals, leave usage, adjustments and reversals', style: AppTextStyles.caption),
+              const SizedBox(height: 12),
+              Expanded(
+                child: FutureBuilder<Map<String, dynamic>>(
+                  future: future,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                    if (snapshot.hasError) return Center(child: Text('Could not load history. Pull to retry.', style: AppTextStyles.caption));
+                    final items = (snapshot.data?['items'] as List? ?? const []).whereType<Map>().map((row) => row.cast<String, dynamic>()).toList();
+                    if (items.isEmpty) return Center(child: Text('No balance changes recorded this year.', style: AppTextStyles.caption));
+                    return ListView.separated(
+                      itemCount: items.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (_, index) {
+                        final item = items[index];
+                        double number(dynamic value) => value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
+                        final totalDelta = number(item['total_delta']);
+                        final usedDelta = number(item['used_delta']);
+                        final date = DateTime.tryParse('${item['effective_date']}');
+                        final detail = totalDelta != 0
+                            ? '${totalDelta > 0 ? '+' : ''}${totalDelta.toStringAsFixed(totalDelta % 1 == 0 ? 0 : 2)} days'
+                            : '${usedDelta > 0 ? '+' : ''}${usedDelta.toStringAsFixed(usedDelta % 1 == 0 ? 0 : 2)} used';
+                        return GlassCard(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Icon(totalDelta < 0 || usedDelta > 0 ? Icons.remove_circle_outline : Icons.add_circle_outline, size: 18, color: totalDelta < 0 || usedDelta > 0 ? AppColors.warning500 : AppColors.success500),
+                            const SizedBox(width: 10),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text('${item['reason'] ?? 'Balance change'}'.replaceAll('_', ' ').toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                              if (item['note'] != null && '${item['note']}'.isNotEmpty) ...[
+                                const SizedBox(height: 3),
+                                Text('${item['note']}', style: AppTextStyles.caption),
+                              ],
+                              const SizedBox(height: 4),
+                              Text(date == null ? '' : DateFormat('MMM d, yyyy').format(date), style: AppTextStyles.caption),
+                            ])),
+                            const SizedBox(width: 8),
+                            Text(detail, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                          ]),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _errorState() {
@@ -81,6 +173,11 @@ class _LeaveScreenState extends State<LeaveScreen>
         appBar: AppBar(
           title: const Text('Leave'),
           actions: [
+            IconButton(
+              tooltip: 'Leave balance history',
+              onPressed: _openBalanceHistory,
+              icon: const Icon(Icons.history_rounded),
+            ),
             if (context
                 .watch<AuthProvider>()
                 .hasPermission('analytics.ai_chat'))
@@ -130,12 +227,21 @@ class _LeaveScreenState extends State<LeaveScreen>
                           )
                         : ListView.builder(
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-                            itemCount: _requests.length,
-                            itemBuilder: (_, i) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: _LeaveRequestTile(
-                                  request: _requests[i], onCancel: _load),
-                            ),
+                            itemCount: _requests.length + (_hasMoreRequests ? 1 : 0),
+                            itemBuilder: (_, i) {
+                              if (i == _requests.length) {
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  child: Center(child: _loadingMoreRequests
+                                      ? const CircularProgressIndicator()
+                                      : TextButton(onPressed: _loadMoreRequests, child: const Text('Load more requests'))),
+                                );
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: _LeaveRequestTile(request: _requests[i], onCancel: _load),
+                              );
+                            },
                           ),
           ),
           // Balance tab

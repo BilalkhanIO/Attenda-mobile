@@ -18,6 +18,8 @@ class AppShell extends StatelessWidget {
         (path: '/leave',      label: 'Leave',       icon: Icons.beach_access_outlined,   activeIcon: Icons.beach_access),
       if (auth.hasFeature('shifts'))
         (path: '/schedule',   label: 'Schedule',    icon: Icons.calendar_today_outlined, activeIcon: Icons.calendar_today_rounded),
+      if (auth.hasFeature('time_tracking') && auth.hasPermission('time.view'))
+        (path: '/project-time', label: 'Time', icon: Icons.timer_outlined, activeIcon: Icons.timer_rounded),
       (path: '/profile',    label: 'Profile',     icon: Icons.person_outline_rounded,  activeIcon: Icons.person_rounded),
     ];
   }

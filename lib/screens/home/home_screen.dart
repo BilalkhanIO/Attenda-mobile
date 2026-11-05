@@ -37,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? _lateNotice;
   Map<String, dynamic>? _todayStatus; // from /attendance/today-status
   Map<String, dynamic>? _whosOut; // from /org/whos-out (today)
+  Map<String, dynamic>? _dashboardSummary;
   bool _loading = true;
   // First-load failure with nothing cached — drives the error + Retry state.
   // Background/silent refresh failures never set this; the last good data
@@ -52,6 +53,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // Offline indicator — fed by connectivity_plus, shown as a thin banner.
   StreamSubscription<List<ConnectivityResult>>? _connSub;
   bool _offline = false;
+  int _offlinePendingCount = 0;
+  int _offlineReviewCount = 0;
+  bool _pendingOfflineCheckout = false;
 
   // Auto-started break acknowledgement + deferred reminder state.
   final Set<String> _acknowledgedAutoBreaks = {};
@@ -72,6 +76,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
 
     _initialSync();
+    _refreshOfflineQueueCounts();
 
     _startTimer();
     _startAutoRefresh();
@@ -92,6 +97,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WifiAttendanceService().onStatusChange = (status, [data]) {
       if (!mounted) return;
       switch (status) {
+        case 'offline_queue_changed':
+          _refreshOfflineQueueCounts();
+          _load(silent: true);
+          break;
         case 'checked_in':
           // Reload first, then check whether the check-in was late.
           _load(silent: true).then((_) {
@@ -131,13 +140,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           setState(() {});
           break;
         case 'offline_checkin_review':
-          _showSnack('An offline check-in needs review. Contact your manager or submit an attendance correction.', isError: true);
+          _refreshOfflineQueueCounts();
+          _showSnack(
+              'An offline check-in needs review. Contact your manager or submit an attendance correction.',
+              isError: true);
           break;
         case 'manual_checkin_required':
-          _showSnack('Office Wi-Fi detected. Check in manually to verify your location.');
+          _showSnack(
+              'Office Wi-Fi detected. Check in manually to verify your location.');
           break;
       }
     };
+  }
+
+  void _refreshOfflineQueueCounts() {
+    final service = WifiAttendanceService();
+    if (!mounted) return;
+    setState(() {
+      _offlinePendingCount = service.pendingOfflineEventCount;
+      _offlineReviewCount = service.parkedOfflineEventCount;
+      _pendingOfflineCheckout = service.hasPendingOfflineCheckout;
+    });
   }
 
   Future<void> _initialSync() async {
@@ -249,6 +272,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         // Who's out + holidays are additive UI — fail silently and keep the
         // last good data when the fetch doesn't come back.
         api.getWhosOut().catchError((_) => <String, dynamic>{}),
+        api.getDashboardSummary().catchError((_) => <String, dynamic>{}),
       ]);
 
       final records = results[0] as List;
@@ -256,6 +280,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final leaveInfo = results[2] as Map<String, dynamic>;
       final todayStatus = results[3] as Map<String, dynamic>;
       final whosOut = results[4] as Map<String, dynamic>;
+      final dashboardSummary = results[5] as Map<String, dynamic>;
 
       // Never overwrite good in-memory data with an empty offline response.
       if (todayStatus.isEmpty) {
@@ -321,6 +346,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           _lateNotice = leaveInfo['late_notice'] as Map<String, dynamic>?;
           _todayStatus = todayStatus;
           if (whosOut.isNotEmpty) _whosOut = whosOut;
+          if (dashboardSummary.isNotEmpty) _dashboardSummary = dashboardSummary;
           _loadError = null;
           _loading = false;
         });
@@ -468,7 +494,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // Use server-corrected _now (not device DateTime.now()) so this matches the
     // break countdowns and the server's pre_checkin_late_minutes under clock skew.
     final minutes = (_now.difference(start).inMilliseconds / 60000).round();
-    final tolerance = (_todayStatus?['late_tolerance_minutes'] as num?)?.toInt() ?? 15;
+    final tolerance =
+        (_todayStatus?['late_tolerance_minutes'] as num?)?.toInt() ?? 15;
     return (minutes - tolerance).clamp(0, 1 << 31);
   }
 
@@ -483,12 +510,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   WifiAttendanceService get _wifi => WifiAttendanceService();
   bool? get _officeWifiAtBreakEnd {
     final last = _wifi.lastHeartbeatAt;
-    if (last != null && !_wifi.heartbeatLost &&
+    if (last != null &&
+        !_wifi.heartbeatLost &&
         DateTime.now().difference(last) < const Duration(minutes: 5)) {
       return true;
     }
     return null;
   }
+
   bool get _vpnDetected => _wifi.vpnDetected;
   bool get _noNetworksConfig => _wifi.noNetworksConfigured;
   String? get _disconnectSsid => _wifi.disconnectSsid;
@@ -529,6 +558,48 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ((_whosOut?['holidays'] as List?)?.whereType<String>() ??
               const <String>[])
           .contains(DateFormat('yyyy-MM-dd').format(DateTime.now()));
+
+  Widget _buildTeamSummaryCard() {
+    final team = (_dashboardSummary?['team'] as Map).cast<String, dynamic>();
+    final checkedIn = (team['checked_in'] as num?)?.toInt() ?? 0;
+    final headcount = (team['headcount'] as num?)?.toInt() ?? 0;
+    final records = (team['records'] as List?)?.whereType<Map>() ?? const [];
+    final exceptions = records.where((raw) {
+      final row = raw.cast<String, dynamic>();
+      return row['status'] == 'late' || row['status'] == 'absent' ||
+          (row['status'] == 'in' && (row['late_minutes'] as num? ?? 0) > 0) ||
+          (row['early_out_minutes'] as num? ?? 0) > 0;
+    }).take(3).toList();
+    return GlassCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.groups_outlined, size: 18, color: AppColors.primary),
+          const SizedBox(width: 8),
+          const Expanded(child: Text('Team today', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700))),
+          Text('$checkedIn / $headcount checked in', style: const TextStyle(fontSize: 12, color: AppColors.gray300)),
+        ]),
+        if (exceptions.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          ...exceptions.map((raw) {
+            final row = raw.cast<String, dynamic>();
+            final employee = (row['user'] as Map?)?.cast<String, dynamic>();
+            final name = employee?['name']?.toString() ?? 'Team member';
+            final status = row['status']?.toString() ?? 'Needs review';
+            return Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(children: [
+                const Icon(Icons.warning_amber_rounded, size: 15, color: AppColors.warning500),
+                const SizedBox(width: 7),
+                Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13))),
+                Text(status.replaceAll('_', ' '), style: const TextStyle(fontSize: 12, color: AppColors.gray300)),
+              ]),
+            );
+          }),
+        ],
+      ]),
+    );
+  }
 
   void _showFlash(String msg, {required bool isBreak}) {
     _flashTimer?.cancel();
@@ -619,6 +690,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 style: AppTextStyles.display),
                           ]),
                       Row(children: [
+                        IconButton(
+                          tooltip: 'My requests',
+                          onPressed: () => context.push('/requests'),
+                          icon: const Icon(Icons.inbox_outlined),
+                          style: IconButton.styleFrom(
+                            foregroundColor: AppColors.gray600,
+                            backgroundColor: AppColors.surface,
+                            minimumSize: const Size(44, 44),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
                         if (context
                             .read<AuthProvider>()
                             .hasPermission('analytics.ai_chat')) ...[
@@ -692,7 +774,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   duration: AppMotion.duration,
                   curve: AppMotion.curve,
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    if (_offline) const OfflineBanner(),
+                    if (_offline ||
+                        _offlinePendingCount > 0 ||
+                        _offlineReviewCount > 0)
+                      OfflineBanner(
+                          pendingCount: _offlinePendingCount,
+                          reviewCount: _offlineReviewCount),
                     if (_vpnDetected) const VpnBanner(),
                     if (_noNetworksConfig && !_vpnDetected)
                       const NoNetworksBanner(),
@@ -807,6 +894,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   _buildQuickActions(context),
 
                   const SizedBox(height: 20),
+
+                  if (_dashboardSummary?['team'] is Map) ...[
+                    _buildTeamSummaryCard(),
+                    const SizedBox(height: 20),
+                  ],
 
                   // ─── Today's Shift ────────────────────────
                   if (_nextShift != null) ...[
@@ -1737,13 +1829,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     setState(() => _actionLoading = true);
     final idempotencyKey = WifiAttendanceService.newIdempotencyKey();
     final clientEventAt = DateTime.now();
-    final clockProof = _todayStatus == null ? null : AttendanceClock.anchor(_todayStatus!);
+    final clockProof =
+        _todayStatus == null ? null : AttendanceClock.anchor(_todayStatus!);
     AttendanceLocationEvidence? location;
     try {
       final locationEnabled = _todayStatus?['location_capture_enabled'] == true;
       location = await captureAttendanceLocation(enabled: locationEnabled);
       if (_todayStatus?['location_required'] == true && location == null) {
-        _showSnack('Allow precise location and turn on Location Services to check in.', isError: true);
+        _showSnack(
+            'Allow precise location and turn on Location Services to check in.',
+            isError: true);
         return;
       }
       await api.checkIn(
@@ -1764,15 +1859,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final failure = ApiFailure.fromError(e);
       if (failure is NetworkFailure || failure is TimeoutFailure) {
         try {
+          final deviceProof =
+              await api.takePendingAttendanceDeviceProof(idempotencyKey);
           await WifiAttendanceService().queueManualCheckIn(
             idempotencyKey: idempotencyKey,
             timestamp: clientEventAt,
             location: location,
             clockProof: clockProof,
+            deviceProof: deviceProof,
           );
-          _showSnack('Check-in saved on this device. It will sync when you’re online.');
+          _showSnack(
+              'Check-in saved on this device. It will sync when you’re online.');
         } catch (_) {
-          _showSnack('Couldn’t save the offline check-in on this device.', isError: true);
+          _showSnack('Couldn’t save the offline check-in on this device.',
+              isError: true);
         }
       } else {
         _showSnack(failure.userMessage, isError: true);
@@ -1783,6 +1883,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _confirmCheckOut() async {
+    if (_pendingOfflineCheckout) {
+      _showSnack('Your check-out is already saved and waiting to sync.');
+      return;
+    }
     final confirmed = await showConfirmDialog(
       context,
       title: 'Check Out?',
@@ -1792,14 +1896,39 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
     if (confirmed == true) {
       setState(() => _actionLoading = true);
+      final idempotencyKey = WifiAttendanceService.newIdempotencyKey();
+      final eventAt = DateTime.now();
+      final clockProof =
+          _todayStatus == null ? null : AttendanceClock.anchor(_todayStatus!);
       try {
-        await api.checkOut();
+        await api.checkOut(
+            idempotencyKey: idempotencyKey,
+            clientEventAt: eventAt,
+            clockProof: clockProof);
         // Notifies both main isolate and background service
         await WifiAttendanceService().onManualCheckOut();
         await _load();
         _showSnack('Checked out ✅');
       } catch (e) {
-        _showSnack(ApiFailure.fromError(e).userMessage, isError: true);
+        final failure = ApiFailure.fromError(e);
+        if (failure is NetworkFailure || failure is TimeoutFailure) {
+          if (clockProof == null) {
+            _showSnack(
+                'Can’t safely queue check-out yet. Reconnect to sync your attendance clock.',
+                isError: true);
+          } else {
+            await WifiAttendanceService().queueOfflineAction(
+                type: OfflineEventType.checkOut,
+                idempotencyKey: idempotencyKey,
+                timestamp: eventAt,
+                clockProof: clockProof);
+            await WifiAttendanceService().onManualCheckOut();
+            _showSnack(
+                'Check-out saved on this device. It will sync in order when you’re online.');
+          }
+        } else {
+          _showSnack(failure.userMessage, isError: true);
+        }
       } finally {
         if (mounted) setState(() => _actionLoading = false);
       }
@@ -1955,15 +2084,42 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     if (chosen == null || !mounted) return;
     setState(() => _actionLoading = true);
+    final idempotencyKey = WifiAttendanceService.newIdempotencyKey();
+    final eventAt = DateTime.now();
+    final clockProof =
+        _todayStatus == null ? null : AttendanceClock.anchor(_todayStatus!);
     try {
       final result = await api.startBreak(
         breakType: chosen['type'] as String? ?? 'manual',
         shiftBreakId: chosen['id'] as String?,
+        idempotencyKey: idempotencyKey,
+        clientEventAt: eventAt,
+        clockProof: clockProof,
       );
       await _load();
       _showSnack(result['warning'] as String? ?? 'Break started');
     } catch (e) {
-      _showSnack(ApiFailure.fromError(e).userMessage, isError: true);
+      final failure = ApiFailure.fromError(e);
+      if (failure is NetworkFailure || failure is TimeoutFailure) {
+        if (clockProof == null) {
+          _showSnack('Can’t safely queue this break. Reconnect and try again.',
+              isError: true);
+        } else {
+          await WifiAttendanceService().queueOfflineAction(
+              type: OfflineEventType.breakStart,
+              idempotencyKey: idempotencyKey,
+              timestamp: eventAt,
+              clockProof: clockProof,
+              actionData: {
+                'break_type': chosen['type'] as String? ?? 'manual',
+                'shift_break_id': chosen['id'] as String?
+              });
+          _showSnack(
+              'Break start saved on this device. It will sync when you’re online.');
+        }
+      } else {
+        _showSnack(failure.userMessage, isError: true);
+      }
     } finally {
       if (mounted) setState(() => _actionLoading = false);
     }
@@ -1971,13 +2127,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _endBreak() async {
     setState(() => _actionLoading = true);
+    final idempotencyKey = WifiAttendanceService.newIdempotencyKey();
+    final eventAt = DateTime.now();
+    final clockProof =
+        _todayStatus == null ? null : AttendanceClock.anchor(_todayStatus!);
+    final wifiConnected = _officeWifiAtBreakEnd;
     try {
-      final wifiConnected = _officeWifiAtBreakEnd;
-      await api.endBreak(wifiConnected: wifiConnected);
+      await api.endBreak(
+          wifiConnected: wifiConnected,
+          idempotencyKey: idempotencyKey,
+          clientEventAt: eventAt,
+          clockProof: clockProof);
       await _load();
       _showSnack('Break ended — welcome back!');
     } catch (e) {
-      _showSnack(ApiFailure.fromError(e).userMessage, isError: true);
+      final failure = ApiFailure.fromError(e);
+      if ((failure is NetworkFailure || failure is TimeoutFailure) &&
+          clockProof != null) {
+        await WifiAttendanceService().queueOfflineAction(
+            type: OfflineEventType.breakEnd,
+            idempotencyKey: idempotencyKey,
+            timestamp: eventAt,
+            clockProof: clockProof,
+            actionData: {'wifi_connected': wifiConnected});
+        _showSnack(
+            'Break end saved on this device. It will sync when you’re online.');
+      } else {
+        _showSnack(failure.userMessage, isError: true);
+      }
     } finally {
       if (mounted) setState(() => _actionLoading = false);
     }

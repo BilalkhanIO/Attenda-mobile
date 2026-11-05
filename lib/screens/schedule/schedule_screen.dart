@@ -25,6 +25,7 @@ class _ScheduleScreenState extends State<ScheduleScreen>
   String? _error;
   String _shiftSearch = '';
   String _swapSearch = '';
+  String? _ackSubmittingId;
 
   @override
   void initState() {
@@ -101,6 +102,71 @@ class _ScheduleScreenState extends State<ScheduleScreen>
       ),
     );
     if (submitted == true && mounted) _load();
+  }
+
+  Future<void> _acknowledgeShift(
+    Map<String, dynamic> assignment,
+    String status,
+  ) async {
+    final assignmentId = assignment['id'] as String?;
+    if (assignmentId == null || _ackSubmittingId != null) return;
+    String? note;
+    if (status != 'acknowledged') {
+      final controller = TextEditingController();
+      final result = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(status == 'conflict'
+              ? 'Flag a shift conflict'
+              : 'Request shift help'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLength: 1000,
+            minLines: 2,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              labelText: 'Tell your manager what you need',
+              hintText: 'Add at least 5 characters',
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () {
+                  final value = controller.text.trim();
+                  if (value.length < 5) return;
+                  Navigator.pop(dialogContext, value);
+                },
+                child: const Text('Send')),
+          ],
+        ),
+      );
+      controller.dispose();
+      if (result == null) return;
+      note = result;
+    }
+    setState(() => _ackSubmittingId = assignmentId);
+    try {
+      await api.acknowledgeMyShift(assignmentId, status: status, note: note);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(status == 'acknowledged'
+            ? 'Shift confirmed'
+            : status == 'conflict'
+                ? 'Conflict sent to your manager'
+                : 'Help request sent to your manager'),
+      ));
+      await _load();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ApiFailure.fromError(error).userMessage)));
+    } finally {
+      if (mounted) setState(() => _ackSubmittingId = null);
+    }
   }
 
   Map<String, List<Map<String, dynamic>>> _groupShifts(
@@ -272,6 +338,11 @@ class _ScheduleScreenState extends State<ScheduleScreen>
                               final isToday = groupName == 'Today';
                               final c =
                                   parseHexColor(shift['color'] as String?);
+                              final ackStatus =
+                                  a['acknowledgement_status'] as String? ??
+                                      'not_required';
+                              final ackDueAt = DateTime.tryParse(
+                                  a['acknowledgement_due_at'] as String? ?? '');
 
                               items.add(Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
@@ -332,6 +403,71 @@ class _ScheduleScreenState extends State<ScheduleScreen>
                                                     : 'Shift day has passed',
                                                 style: AppTextStyles.caption,
                                               ),
+                                          ],
+                                          if (a['is_published'] == true &&
+                                              ackStatus != 'not_required') ...[
+                                            const SizedBox(height: 8),
+                                            Wrap(
+                                              spacing: 4,
+                                              runSpacing: 2,
+                                              crossAxisAlignment:
+                                                  WrapCrossAlignment.center,
+                                              children: [
+                                                Text(
+                                                  ackStatus == 'pending' &&
+                                                          ackDueAt != null &&
+                                                          DateTime.now()
+                                                              .isAfter(ackDueAt)
+                                                      ? 'Response overdue'
+                                                      : ackStatus == 'pending'
+                                                          ? 'Please respond within 24 hours'
+                                                          : ackStatus ==
+                                                                  'acknowledged'
+                                                              ? 'Shift confirmed'
+                                                              : ackStatus ==
+                                                                      'conflict'
+                                                                  ? 'Conflict reported'
+                                                                  : 'Help requested',
+                                                  style: AppTextStyles.caption
+                                                      .copyWith(
+                                                          color: ackStatus ==
+                                                                      'conflict' ||
+                                                                  ackStatus ==
+                                                                      'help_requested'
+                                                              ? Colors.orange
+                                                                  .shade300
+                                                              : primary),
+                                                ),
+                                                TextButton(
+                                                  onPressed: _ackSubmittingId ==
+                                                          a['id']
+                                                      ? null
+                                                      : () => _acknowledgeShift(
+                                                          a, 'acknowledged'),
+                                                  child: const Text('Confirm'),
+                                                ),
+                                                TextButton(
+                                                  onPressed: _ackSubmittingId ==
+                                                          a['id']
+                                                      ? null
+                                                      : () => _acknowledgeShift(
+                                                          a, 'conflict'),
+                                                  child: const Text('Conflict'),
+                                                ),
+                                                TextButton(
+                                                  onPressed: _ackSubmittingId ==
+                                                          a['id']
+                                                      ? null
+                                                      : () => _acknowledgeShift(
+                                                          a, 'help_requested'),
+                                                  child: Text(
+                                                      _ackSubmittingId ==
+                                                              a['id']
+                                                          ? 'Sending…'
+                                                          : 'Get help'),
+                                                ),
+                                              ],
+                                            ),
                                           ],
                                         ])),
                                     Column(

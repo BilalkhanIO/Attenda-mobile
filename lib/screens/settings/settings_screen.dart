@@ -40,7 +40,11 @@ class SettingsScreen extends StatelessWidget {
                 () => context.push('/profile/edit')),
             _menuRow(context, Icons.shield_outlined, 'Security & 2FA',
                 () => context.push('/profile/settings/security')),
-
+            _menuRow(
+                context,
+                Icons.phonelink_lock_outlined,
+                'Trusted attendance devices',
+                () => context.push('/profile/settings/attendance-devices')),
             if (showApprovals) ...[
               const SizedBox(height: 24),
               const _SectionLabel('MANAGEMENT'),
@@ -48,7 +52,6 @@ class SettingsScreen extends StatelessWidget {
               _menuRow(context, Icons.fact_check_outlined, 'Team Approvals',
                   () => context.push('/profile/approvals')),
             ],
-
             const SizedBox(height: 24),
             const _SectionLabel('PREFERENCES'),
             const SizedBox(height: 12),
@@ -56,9 +59,11 @@ class SettingsScreen extends StatelessWidget {
                 () => context.push('/profile/settings/notifications')),
             _menuRow(context, Icons.palette_outlined, 'Appearance',
                 () => context.push('/profile/settings/appearance')),
-            _menuRow(context, Icons.track_changes_outlined, 'Tracking Reliability',
+            _menuRow(
+                context,
+                Icons.track_changes_outlined,
+                'Tracking Reliability',
                 () => context.push('/profile/settings/reliability')),
-
             const SizedBox(height: 32),
             AppButton(
               label: 'Sign Out',
@@ -84,7 +89,8 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _menuRow(BuildContext context, IconData icon, String label, VoidCallback onTap) {
+  Widget _menuRow(
+      BuildContext context, IconData icon, String label, VoidCallback onTap) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: GlassCard(
