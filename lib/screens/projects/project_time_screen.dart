@@ -22,13 +22,6 @@ class _ProjectTimeScreenState extends State<ProjectTimeScreen> {
   bool _busy = false;
   String? _error;
 
-  String get _weekStart {
-    final now = DateTime.now();
-    final monday = DateTime(now.year, now.month, now.day)
-        .subtract(Duration(days: now.weekday - 1));
-    return '${monday.year.toString().padLeft(4, '0')}-${monday.month.toString().padLeft(2, '0')}-${monday.day.toString().padLeft(2, '0')}T00:00:00.000Z';
-  }
-
   @override
   void initState() {
     super.initState();
@@ -41,7 +34,7 @@ class _ProjectTimeScreenState extends State<ProjectTimeScreen> {
       final canReview = context.read<AuthProvider>().hasPermission('time.approve');
       final values = await Future.wait([
         api.getRunningProjectTimer(),
-        api.getMyTimesheet(_weekStart),
+        api.getMyTimesheet(),
         api.getProjects(),
         if (canReview) api.getTimesheetsToReview(),
       ]);
@@ -80,7 +73,7 @@ class _ProjectTimeScreenState extends State<ProjectTimeScreen> {
   Future<void> _submit() async {
     setState(() => _busy = true);
     try {
-      await api.submitMyTimesheet(_weekStart);
+      await api.submitMyTimesheet();
       await _load();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Timesheet submitted for review')));
     } catch (error) {
@@ -209,8 +202,10 @@ class _ProjectTimeScreenState extends State<ProjectTimeScreen> {
                         else ...entries.map((entry) {
                           final project = (entry['project'] as Map?)?['name']?.toString() ?? 'Unassigned project';
                           final task = (entry['task'] as Map?)?['title']?.toString();
+                          final workDate = entry['work_date']?.toString();
                           final minutes = (entry['minutes'] as num?)?.toInt() ?? 0;
-                          return ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.work_outline_rounded), title: Text(task == null ? project : '$project · $task', maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text(entry['description']?.toString() ?? entry['source']?.toString() ?? 'Work'), trailing: Text('${minutes ~/ 60}h ${minutes % 60}m'));
+                          final detail = entry['description']?.toString() ?? entry['source']?.toString() ?? 'Work';
+                          return ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.work_outline_rounded), title: Text(task == null ? project : '$project · $task', maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text(workDate == null ? detail : '$workDate · $detail'), trailing: Text('${minutes ~/ 60}h ${minutes % 60}m'));
                         }),
                         if (sheetStatus == 'draft' || sheetStatus == 'rejected') ...[
                           const SizedBox(height: 8),

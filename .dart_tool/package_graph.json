@@ -9,14 +9,19 @@
       "dependencies": [
         "cached_network_image",
         "connectivity_plus",
+        "crypto",
         "dio",
         "equatable",
+        "file_picker",
         "firebase_messaging",
         "flutter",
         "flutter_foreground_task",
         "flutter_local_notifications",
+        "flutter_markdown_plus",
         "flutter_secure_storage",
         "flutter_svg",
+        "flutter_tts",
+        "geolocator",
         "go_router",
         "google_fonts",
         "hive_ce",
@@ -33,6 +38,7 @@
         "qr_flutter",
         "shared_preferences",
         "shimmer",
+        "speech_to_text",
         "url_launcher",
         "uuid"
       ],
@@ -118,6 +124,42 @@
       ]
     },
     {
+      "name": "geolocator",
+      "version": "13.0.4",
+      "dependencies": [
+        "flutter",
+        "geolocator_android",
+        "geolocator_apple",
+        "geolocator_platform_interface",
+        "geolocator_web",
+        "geolocator_windows"
+      ]
+    },
+    {
+      "name": "file_picker",
+      "version": "13.3.0",
+      "dependencies": [
+        "android_file_picker",
+        "cross_file",
+        "file_picker_darwin",
+        "file_picker_linux",
+        "file_picker_platform_interface",
+        "file_picker_web",
+        "flutter",
+        "windows_file_picker"
+      ]
+    },
+    {
+      "name": "flutter_markdown_plus",
+      "version": "1.0.12",
+      "dependencies": [
+        "flutter",
+        "markdown",
+        "meta",
+        "path"
+      ]
+    },
+    {
       "name": "hive_ce_flutter",
       "version": "2.3.4",
       "dependencies": [
@@ -154,6 +196,13 @@
       "dependencies": [
         "collection",
         "meta"
+      ]
+    },
+    {
+      "name": "crypto",
+      "version": "3.0.7",
+      "dependencies": [
+        "typed_data"
       ]
     },
     {
@@ -294,6 +343,28 @@
         "flutter_web_plugins",
         "meta",
         "plugin_platform_interface",
+        "web"
+      ]
+    },
+    {
+      "name": "flutter_tts",
+      "version": "4.2.5",
+      "dependencies": [
+        "flutter",
+        "flutter_web_plugins"
+      ]
+    },
+    {
+      "name": "speech_to_text",
+      "version": "7.5.0",
+      "dependencies": [
+        "clock",
+        "flutter",
+        "flutter_web_plugins",
+        "json_annotation",
+        "meta",
+        "speech_to_text_platform_interface",
+        "speech_to_text_windows",
         "web"
       ]
     },
@@ -542,7 +613,7 @@
     },
     {
       "name": "meta",
-      "version": "1.17.0",
+      "version": "1.18.0",
       "dependencies": []
     },
     {
@@ -596,13 +667,6 @@
         "pub_semver",
         "source_span",
         "yaml"
-      ]
-    },
-    {
-      "name": "crypto",
-      "version": "3.0.7",
-      "dependencies": [
-        "typed_data"
       ]
     },
     {
@@ -748,7 +812,7 @@
     },
     {
       "name": "matcher",
-      "version": "0.12.18",
+      "version": "0.12.19",
       "dependencies": [
         "async",
         "meta",
@@ -759,7 +823,7 @@
     },
     {
       "name": "test_api",
-      "version": "0.7.9",
+      "version": "0.7.11",
       "dependencies": [
         "async",
         "boolean_selector",
@@ -770,6 +834,135 @@
         "stream_channel",
         "string_scanner",
         "term_glyph"
+      ]
+    },
+    {
+      "name": "geolocator_windows",
+      "version": "0.2.5",
+      "dependencies": [
+        "flutter",
+        "geolocator_platform_interface"
+      ]
+    },
+    {
+      "name": "geolocator_web",
+      "version": "4.1.4",
+      "dependencies": [
+        "flutter",
+        "flutter_web_plugins",
+        "geolocator_platform_interface",
+        "web"
+      ]
+    },
+    {
+      "name": "geolocator_apple",
+      "version": "2.4.3",
+      "dependencies": [
+        "flutter",
+        "geolocator_platform_interface"
+      ]
+    },
+    {
+      "name": "geolocator_android",
+      "version": "4.6.2",
+      "dependencies": [
+        "flutter",
+        "geolocator_platform_interface",
+        "meta",
+        "uuid"
+      ]
+    },
+    {
+      "name": "geolocator_platform_interface",
+      "version": "4.4.1",
+      "dependencies": [
+        "flutter",
+        "meta",
+        "plugin_platform_interface",
+        "vector_math"
+      ]
+    },
+    {
+      "name": "cross_file",
+      "version": "0.3.5+5",
+      "dependencies": [
+        "meta",
+        "web"
+      ]
+    },
+    {
+      "name": "file_picker_web",
+      "version": "4.2.0",
+      "dependencies": [
+        "cross_file",
+        "file_picker_platform_interface",
+        "flutter",
+        "flutter_web_plugins",
+        "meta",
+        "path",
+        "web"
+      ]
+    },
+    {
+      "name": "windows_file_picker",
+      "version": "2.0.1",
+      "dependencies": [
+        "cross_file",
+        "ffi",
+        "file_picker_platform_interface",
+        "flutter",
+        "meta",
+        "path",
+        "win32"
+      ]
+    },
+    {
+      "name": "file_picker_linux",
+      "version": "2.0.0",
+      "dependencies": [
+        "cross_file",
+        "dbus",
+        "file_picker_platform_interface",
+        "flutter",
+        "path"
+      ]
+    },
+    {
+      "name": "file_picker_darwin",
+      "version": "2.4.0",
+      "dependencies": [
+        "cross_file",
+        "file_picker_platform_interface",
+        "flutter",
+        "path"
+      ]
+    },
+    {
+      "name": "android_file_picker",
+      "version": "2.1.2",
+      "dependencies": [
+        "cross_file",
+        "file_picker_platform_interface",
+        "flutter",
+        "path"
+      ]
+    },
+    {
+      "name": "file_picker_platform_interface",
+      "version": "4.2.0",
+      "dependencies": [
+        "cross_file",
+        "flutter",
+        "path",
+        "plugin_platform_interface"
+      ]
+    },
+    {
+      "name": "markdown",
+      "version": "7.3.1",
+      "dependencies": [
+        "args",
+        "meta"
       ]
     },
     {
@@ -794,6 +987,13 @@
       "version": "2.1.8",
       "dependencies": [
         "meta"
+      ]
+    },
+    {
+      "name": "typed_data",
+      "version": "1.4.0",
+      "dependencies": [
+        "collection"
       ]
     },
     {
@@ -1104,6 +1304,23 @@
       ]
     },
     {
+      "name": "speech_to_text_windows",
+      "version": "1.0.1",
+      "dependencies": [
+        "flutter",
+        "speech_to_text_platform_interface"
+      ]
+    },
+    {
+      "name": "speech_to_text_platform_interface",
+      "version": "2.5.0",
+      "dependencies": [
+        "flutter",
+        "meta",
+        "plugin_platform_interface"
+      ]
+    },
+    {
       "name": "vector_graphics_compiler",
       "version": "1.2.5",
       "dependencies": [
@@ -1368,13 +1585,6 @@
       ]
     },
     {
-      "name": "typed_data",
-      "version": "1.4.0",
-      "dependencies": [
-        "collection"
-      ]
-    },
-    {
       "name": "pubspec_parse",
       "version": "1.5.0",
       "dependencies": [
@@ -1424,6 +1634,16 @@
       "dependencies": [
         "source_span",
         "string_scanner"
+      ]
+    },
+    {
+      "name": "dbus",
+      "version": "0.7.13",
+      "dependencies": [
+        "args",
+        "ffi",
+        "meta",
+        "xml"
       ]
     },
     {
@@ -1488,16 +1708,6 @@
         "firebase_core_platform_interface",
         "flutter",
         "meta"
-      ]
-    },
-    {
-      "name": "dbus",
-      "version": "0.7.13",
-      "dependencies": [
-        "args",
-        "ffi",
-        "meta",
-        "xml"
       ]
     },
     {

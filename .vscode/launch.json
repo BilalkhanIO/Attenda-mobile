@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attenda mobile (local API)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--dart-define=API_URL=http://192.168.18.66:5000/api/v1"
+      ]
+    }
+  ]
+}

@@ -234,15 +234,15 @@ class ApiService {
     return res.data['data'] as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> getMyTimesheet(String weekStart) async {
-    final res = await _dio
-        .get('/time/timesheets/me', queryParameters: {'week_start': weekStart});
+  Future<Map<String, dynamic>> getMyTimesheet([String? weekStart]) async {
+    final res = await _dio.get('/time/timesheets/me', queryParameters:
+        weekStart == null ? null : {'week_start': weekStart});
     return res.data['data'] as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> submitMyTimesheet(String weekStart) async {
+  Future<Map<String, dynamic>> submitMyTimesheet([String? weekStart]) async {
     final res = await _dio.post('/time/timesheets/submit', data: {
-      'week_start': weekStart,
+      if (weekStart != null) 'week_start': weekStart,
       'idempotency_key': _pendingIdempotencyMarker,
     });
     return res.data['data'] as Map<String, dynamic>;
