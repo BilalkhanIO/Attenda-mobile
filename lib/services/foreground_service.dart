@@ -20,12 +20,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'api_service.dart';
+import 'api_base_url.dart';
 
 // ─── Constants shared with wifi_service.dart ─────────────────────────────────
-const kBaseUrl = String.fromEnvironment(
-  'API_URL',
-  defaultValue: 'https://attenda-api-production.up.railway.app/api/v1',
-);
+const kBaseUrl = apiBaseUrl;
 const kCheckedInViaWifi = 'checkedInViaWifi';
 const kLastKnownIp = 'lastKnownIp';
 const kLastKnownSsid = 'lastKnownSsid';
@@ -50,6 +48,7 @@ class AttendaTaskHandler extends TaskHandler {
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
     debugPrint('[FG] Service started — reason: $starter');
+    if (kDebugMode) debugPrint('[FG] API target: $apiBaseUrlTarget');
     await _initHive();
     await _runCycle();
   }
@@ -235,7 +234,9 @@ class AttendaTaskHandler extends TaskHandler {
           // server: no break is logged and the day continues uninterrupted.
           final forgiven = res.data['data']['forgiven'] as bool? ?? false;
           await _updateNotification(
-            title: forgiven ? 'Attenda - Still Checked In' : 'Attenda - Back at Office',
+            title: forgiven
+                ? 'Attenda - Still Checked In'
+                : 'Attenda - Back at Office',
             text: forgiven
                 ? 'Brief signal drop (${gap}m) — no break logged'
                 : 'Re-entered · ${gap}m away logged as break',

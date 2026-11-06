@@ -8,14 +8,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install dependencies
 flutter pub get
 
-# Run on a connected device/emulator
-flutter run
-
-# Run with a specific API backend
-flutter run --dart-define=API_URL=https://your-api.com/api/v1
-
 # Run on Android emulator pointing to local backend
 flutter run --dart-define=API_URL=http://10.0.2.2:5000/api/v1
+
+# Run on iOS simulator pointing to local backend (macOS only)
+flutter run --dart-define=API_URL=http://127.0.0.1:5000/api/v1
+
+# Run on physical phone using the development computer's reachable LAN IP
+# flutter run --dart-define=API_URL=http://192.168.1.20:5000/api/v1
 
 # Analyze / lint
 flutter analyze
@@ -50,7 +50,7 @@ Single `ApiService` singleton exposed as the top-level `api` constant. All HTTP 
 1. **Request**: attaches `Authorization: Bearer <token>` from `flutter_secure_storage`
 2. **Error (401)**: silently refreshes via `/auth/refresh`, retries the original request; on failure clears all stored tokens
 
-The base URL is resolved at compile time via `String.fromEnvironment('API_URL')`, defaulting to `http://localhost:5000/api/v1`.
+The base URL is shared by the normal API client and Android foreground service through `lib/services/api_base_url.dart`. It is resolved at compile time from `API_URL`, defaulting safely to `http://localhost:5000/api/v1`; it never defaults to production. Set the intended API URL explicitly for emulator, device, staging, and release builds. Debug logs print only the scheme and host.
 
 ### Auth (`lib/services/auth_provider.dart`)
 JWT tokens (`access_token`, `refresh_token`) are persisted in `flutter_secure_storage`. On app start, `_init()` reads and decodes the access token; if valid and non-expired, the user is restored without a network call. `AuthUser` exposes role helpers (`isManager`, `isHRAdmin`, `isSuperAdmin`).

@@ -4,15 +4,14 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:crypto/crypto.dart';
-import 'dart:typed_data';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'attendance_clock.dart';
 import 'attendance_device_keys.dart';
 import 'idempotency_key_store.dart';
 import 'idempotency_interceptor.dart';
+import 'api_base_url.dart';
 
-const _baseUrl = String.fromEnvironment('API_URL',
-    defaultValue: 'https://attenda-api-production.up.railway.app/api/v1');
 const _storage = FlutterSecureStorage();
 const _pendingIdempotencyMarker = 'attenda-pending';
 final _idempotencyKeyStore = IdempotencyKeyStore.secure(
@@ -39,8 +38,11 @@ class ApiService {
       );
 
   Dio _buildDio() {
+    if (kDebugMode) {
+      debugPrint('[API] Target: $apiBaseUrlTarget');
+    }
     final dio = Dio(BaseOptions(
-      baseUrl: _baseUrl,
+      baseUrl: apiBaseUrl,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 15),
       headers: {'Content-Type': 'application/json'},

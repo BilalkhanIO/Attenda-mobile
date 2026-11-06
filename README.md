@@ -18,9 +18,14 @@ Attendance combines user-initiated controls with organization policy, network/lo
 # 1. Install dependencies
 flutter pub get
 
-# 2. Set API URL (optional — defaults to localhost:5000)
-# In lib/services/api_service.dart change defaultValue or use:
-flutter run --dart-define=API_URL=https://your-api.com/api/v1
+# 2. Point the app at the API for your target. Never use a production URL for
+#    local development. The safe fallback is http://localhost:5000/api/v1.
+# Android emulator:
+flutter run --dart-define=API_URL=http://10.0.2.2:5000/api/v1
+# iOS simulator:
+flutter run --dart-define=API_URL=http://127.0.0.1:5000/api/v1
+# Physical phone: replace with the development computer's LAN IP address.
+# flutter run --dart-define=API_URL=http://192.168.1.20:5000/api/v1
 
 # 3. Run
 flutter run
@@ -46,38 +51,22 @@ flutter run
 
 ## Architecture
 
-```
-lib/
-├── main.dart                   # App entry, providers
-├── router.dart                 # go_router with auth guard
-├── shell.dart                  # Bottom nav shell (5 tabs)
-├── services/
-│   ├── api_service.dart        # Dio client, all API calls, JWT refresh interceptor
-│   └── auth_provider.dart      # ChangeNotifier, JWT decode, login/logout
-├── utils/
-│   └── theme.dart              # Attenda design tokens, colors, theme
-├── widgets/
-│   └── common.dart             # StatusBadge, UserAvatar, AppCard, AppButton, etc.
-└── screens/
-    ├── auth/login_screen.dart  # Email/password + forgot password bottom sheet
-    ├── home/
-    │   ├── home_screen.dart    # Status card, quick actions, IP detection, timer
-    │   └── remote_work_screen.dart
-    ├── attendance/
-    │   ├── attendance_screen.dart  # History with month picker, summary chips
-    │   └── qr_scanner_screen.dart # Camera + scan overlay + success/error states
-    ├── leave/
-    │   ├── leave_screen.dart       # Requests + balance tabs
-    │   └── request_leave_screen.dart
-    ├── schedule/schedule_screen.dart
-    └── profile/profile_screen.dart
-```
+Keep the route/screen inventory and data-flow details in the canonical
+[mobile feature and architecture guide](docs/FEATURES_AND_ARCHITECTURE.md) so
+this README does not drift into a second, incomplete architecture map.
 
 ## Backend Connection
 
-Set `API_URL` at build time or edit `lib/services/api_service.dart`:
+`API_URL` is resolved at build time and shared by the foreground attendance
+service and the normal API client. A local build without the define uses a safe
+localhost URL; it never defaults to production. The debug log shows the chosen
+scheme and host only, without credentials, paths, or query values.
 ```dart
-const _baseUrl = String.fromEnvironment('API_URL', defaultValue: 'http://localhost:5000/api/v1');
+const apiBaseUrl = String.fromEnvironment('API_URL', defaultValue: 'http://localhost:5000/api/v1');
 ```
 
-For Android emulator connecting to local backend, use `10.0.2.2` instead of `localhost`.
+For Android emulators connecting to a backend on the development computer, use
+`10.0.2.2` instead of `localhost`. iOS simulators can use `127.0.0.1`. A
+physical device must use a reachable LAN address and both devices must be on a
+network that permits the connection. Release builds must set `API_URL` to the
+intended environment explicitly.
